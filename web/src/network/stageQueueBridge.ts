@@ -206,7 +206,8 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
       for (const event of payload.events || []) {
         if (!event.deltas?.length) continue
         const flowId = event.action_id || event.source_event_id || ''
-        const actorId = event.actor_user_id || (flowId ? flows.get(flowId)?.actorId : '') || ''
+        // 状态差值事件本身没有行动者：优先用技能因果的持有者（地下法则 +2 宝石 → 从冒险者飞出）。
+        const actorId = event.actor_user_id || event.cause?.owner_id || (flowId ? flows.get(flowId)?.actorId : '') || ''
         const skillId = event.cause?.skill_id || ''
         batch.push(...deltaSteps(event.deltas, actorId, skillId ? SKILL_ANIMATION_MAP[skillId]?.element : undefined))
       }

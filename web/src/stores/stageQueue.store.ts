@@ -54,6 +54,8 @@ export type AtomicStep = StepTiming &
         targetIds?: string[]
         outcome?: string
         causeId?: string
+        /** 招牌大招（模板 6 全局型）：开场改为横贯中央的全幅横幅。 */
+        signature?: boolean
       }
     | { type: 'value-chip'; playerId: string; text: string; color: ValueChipColor }
     | {
@@ -77,6 +79,11 @@ export type AtomicStep = StepTiming &
     | { type: 'form-change'; playerId: string; form: string; label: string; element?: string }
     /** 资源型（模板 4）：count 张牌背从中央牌堆飞入座位（盖牌放置：茧、充能……）。 */
     | { type: 'deck-to-seat'; playerId: string; count: number; coverKey: string }
+    /**
+     * 资源型（模板 4）：宝石 / 水晶在座位与阵营战绩区之间飞行。
+     * toCamp = 座位 → 阵营栏（阵营获得星石）；否则阵营栏 → 座位（提炼等）。
+     */
+    | { type: 'stone-flight'; playerId: string; camp: string; stone: 'gem' | 'crystal'; count: number; toCamp: boolean }
   )
 
 /** Structured form of a skill row, rendered as a skill node of the combat chain. */
@@ -140,6 +147,7 @@ export interface SkillBubbleState {
   /** 技能因果名下的结算结果（"蛹 +1 · 茧 ×4"）；结果后到时由 skill-result 更新。 */
   outcome: string
   causeId: string
+  signature: boolean
 }
 
 /** Small "技能名 · 触发" capsule beside a seat (passive / response skills). */
@@ -190,6 +198,16 @@ export interface DeckFlightState {
   expiresAt: number
 }
 
+export interface StoneFlightState {
+  id: number
+  playerId: string
+  camp: string
+  stone: 'gem' | 'crystal'
+  count: number
+  toCamp: boolean
+  expiresAt: number
+}
+
 export interface NarrationRow {
   id: number
   /** Pre-escaped HTML. Builders must escape any user-controlled text (see escapeHtml). */
@@ -211,6 +229,8 @@ const AUTO_ACCELERATE_THRESHOLD = 3
 const VALUE_CHIP_LIFETIME_MS = 2000
 const STATUS_CHANGE_LIFETIME_MS = 1600
 const DEFAULT_SKILL_BUBBLE_MS = 1900
+/** 招牌大招的全幅横幅停留更久，留出观看时间。 */
+const SIGNATURE_SKILL_MS = 2600
 const SKILL_CAPSULE_LIFETIME_MS = 1600
 /** Trigger capsules don't hold the queue as long as a full active-skill opening. */
 const TRIGGER_HOLD_MS = 350
@@ -232,6 +252,7 @@ const DEFAULT_HOLD_MS: Record<AtomicStepType, number> = {
   'skill-result': 0,
   'form-change': 650,
   'deck-to-seat': 500,
+  'stone-flight': 400,
   'mark-previous': 200,
   'clear-stage': 0,
   'narration-row': 250,
@@ -268,6 +289,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
   const statusChanges = ref<StatusChangeState[]>([])
   const formChanges = ref<FormChangeState[]>([])
   const deckFlights = ref<DeckFlightState[]>([])
+  const stoneFlights = ref<StoneFlightState[]>([])
   const stageRows = ref<NarrationRow[]>([])
   const previousAction = ref<PreviousActionState | null>(null)
   const historyChips = ref<string[]>([])
@@ -348,6 +370,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     statusChanges.value = []
     formChanges.value = []
     deckFlights.value = []
+    stoneFlights.value = []
   }
 
   function applyStep(step: AtomicStep, at: number, scale: number) {
@@ -402,6 +425,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
           targetIds: step.targetIds || [],
           outcome: step.outcome || '',
           causeId: step.causeId || '',
+          signature: !!step.signature,
         }
         break
       }
@@ -473,6 +497,20 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
           },
         ]
         break
+      case 'stone-flight':
+        stoneFlights.value = [
+          ...stoneFlights.value,
+          {
+            id: ++seq,
+            playerId: step.playerId,
+            camp: step.camp,
+            stone: step.stone,
+            count: Math.max(1, Math.min(step.count, MAX_DECK_FLIGHT_CARDS)),
+            toCamp: step.toCamp,
+            expiresAt: at + DECK_FLIGHT_LIFETIME_MS * scale,
+          },
+        ]
+        break
       case 'narration-row':
         stageRows.value = [
           ...stageRows.value,
@@ -503,6 +541,9 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     }
     if (deckFlights.value.some((flight) => at >= flight.expiresAt)) {
       deckFlights.value = deckFlights.value.filter((flight) => at < flight.expiresAt)
+    }
+    if (stoneFlights.value.some((flight) => at >= flight.expiresAt)) {
+      stoneFlights.value = stoneFlights.value.filter((flight) => at < flight.expiresAt)
     }
   }
 
@@ -542,6 +583,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     statusChanges.value = []
     formChanges.value = []
     deckFlights.value = []
+    stoneFlights.value = []
     stageRows.value = []
     previousAction.value = null
     historyChips.value = []
@@ -561,6 +603,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     statusChanges,
     formChanges,
     deckFlights,
+    stoneFlights,
     stageRows,
     previousAction,
     historyChips,
@@ -688,6 +731,7 @@ export function nodeSteps(
         targetIds,
         outcome: nodeSkillResult(node, playerNameFn, roleNameFn).outcome,
         causeId: node.cause_id || '',
+        ...(spec?.signature ? { signature: true, duration: SIGNATURE_SKILL_MS } : {}),
       })
     }
     const result = skillResult(node, (id) => playerLabel(id, playerNameFn, roleNameFn))
@@ -765,12 +809,40 @@ export function flowLinkId(flowId: string, edgeId: string): string {
  * token change becomes a mark that flies from the acting player into the target's seat
  * (or fades out of it when removed). Gems, hand counts etc. are left to the board itself.
  */
+const TEAM_STONE: Record<string, 'gem' | 'crystal'> = { team_gem: 'gem', team_crystal: 'crystal' }
+const PLAYER_STONE: Record<string, 'gem' | 'crystal'> = { player_gem: 'gem', player_crystal: 'crystal' }
+
+/**
+ * 阵营战绩区的宝石 / 水晶变化 → 飞行动画。
+ *   - 阵营增加：从行动者座位飞向该阵营栏（攻击命中、地下法则……）。
+ *   - 阵营减少且同批有玩家同种星石增加：从阵营栏飞向该玩家（提炼）。
+ * 只是阵营减少（技能消耗阵营星石）不飞，避免和座位上的消耗提示重复。
+ */
+function stoneFlightSteps(deltas: TimelineDelta[], actorId?: string): AtomicStep[] {
+  const steps: AtomicStep[] = []
+  for (const delta of deltas) {
+    const stone = TEAM_STONE[delta.type]
+    const value = delta.value ?? 0
+    if (!stone || !delta.camp || value === 0) continue
+    if (value > 0) {
+      if (actorId) steps.push({ type: 'stone-flight', playerId: actorId, camp: delta.camp, stone, count: value, toCamp: true })
+      continue
+    }
+    const receiver = deltas.find((d) => PLAYER_STONE[d.type] === stone && (d.value ?? 0) > 0 && d.camp === delta.camp && d.target_user_id)
+    if (receiver?.target_user_id) {
+      steps.push({ type: 'stone-flight', playerId: receiver.target_user_id, camp: delta.camp, stone, count: -value, toCamp: false })
+    }
+  }
+  return steps
+}
+
 /** @param element 引起这批变化的技能元素（来自因果技能的动画映射），给形态光焰着色。 */
 export function deltaSteps(deltas: TimelineDelta[], actorId?: string, element?: string): AtomicStep[] {
   const steps: AtomicStep[] = []
   // 模板 4（资源型）：同一批里从牌库放到某座位的盖牌（牌库数量同时减少）合成一次“牌背飞入”。
   const deckDrawn = deltas.some((delta) => delta.type === 'deck_count' && (delta.value ?? 0) < 0)
   const coverPlaced = new Map<string, { count: number; coverKey: string }>()
+  steps.push(...stoneFlightSteps(deltas, actorId))
   for (const delta of deltas) {
     const target = delta.target_user_id || ''
     if (!target) continue
@@ -870,6 +942,10 @@ export function edgeStartSteps(
   const from = playerHtml(edge.from_user_id, playerNameFn, roleNameFn)
   const to = playerHtml(edge.to_user_id, playerNameFn, roleNameFn)
   const cardHtml = cardName ? ` 【${escapeHtml(cardName)}】` : ''
+  // 技能连线只是技能节点的锚点：画线，但不在战斗链里另起一张“技能”牌（技能节点自己会叙述）。
+  if (normalizePhase(edge.phase) === 'skill' && !firstCard) {
+    return [link, { type: 'link-animate', linkId, active: true }]
+  }
   return [
     link,
     { type: 'link-animate', linkId, active: true },

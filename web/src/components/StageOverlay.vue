@@ -109,6 +109,8 @@ const seats = ref<Record<string, SeatBox>>({})
 const markAnchors = ref<Record<string, Point>>({})
 /** 中央公共牌堆计数器的中心：资源型动画（牌背飞入座位）的起点。 */
 const deckAnchor = ref<Point | null>(null)
+/** 阵营栏星石图标中心（"Red:gem" 等）：星石飞行的端点。 */
+const campAnchors = ref<Record<string, Point>>({})
 
 function involvedPlayerIds(): string[] {
   const ids = new Set<string>()
@@ -128,6 +130,7 @@ function involvedPlayerIds(): string[] {
   }
   for (const change of store.formChanges) ids.add(change.playerId)
   for (const flight of store.deckFlights) ids.add(flight.playerId)
+  for (const flight of store.stoneFlights) ids.add(flight.playerId)
   ids.delete('')
   return [...ids]
 }
@@ -164,6 +167,20 @@ function measure() {
     next[id] = box
   }
   if (!sameSeats(seats.value, next)) seats.value = next
+
+  const nextCamp: Record<string, Point> = {}
+  for (const el of root.querySelectorAll<HTMLElement>('[data-camp-anchor]')) {
+    const icon = el.querySelector<SVGElement>('.camp-icon') ?? el
+    const r = icon.getBoundingClientRect()
+    nextCamp[el.dataset.campAnchor || ''] = { x: r.left - originX + r.width / 2, y: r.top - originY + r.height / 2 }
+  }
+  const prevCamp = campAnchors.value
+  if (
+    Object.keys(nextCamp).length !== Object.keys(prevCamp).length ||
+    Object.entries(nextCamp).some(([k, p]) => !prevCamp[k] || Math.abs(prevCamp[k]!.x - p.x) > 0.5 || Math.abs(prevCamp[k]!.y - p.y) > 0.5)
+  ) {
+    campAnchors.value = nextCamp
+  }
 
   const deckEl = root.querySelector<HTMLElement>('[data-deck-anchor]')
   if (deckEl) {
@@ -240,6 +257,10 @@ interface LinkView {
   cardImageUrl: string
   target: SeatBox
   source: SeatBox
+  /** 攻击 / 法术牌的元素（小写，用作 CSS 修饰符）：打击型弧线按元素区分样式。 */
+  element: string
+  /** 雷系：沿弧线偏移的折线（闪电），只给当前链路生成。 */
+  bolt: string
 }
 
 /** Newest link that is not part of the "上一手" layer. */
@@ -359,10 +380,39 @@ const linkViews = computed<LinkView[]>(() => {
       current: link.id === currentLinkId.value,
       target: toBox,
       source: fromBox,
+      element: elementStroke && element ? element.toLowerCase() : '',
+      bolt: elementStroke && element === 'Thunder' && link.id === currentLinkId.value ? boltPath(a, c, b, link.id) : '',
     })
   }
   return views
 })
+
+/**
+ * 雷系闪电：沿二次曲线取点，交替向法线两侧偏移，得到一条锯齿折线。
+ * 偏移量用链路 id 派生的伪随机数，重绘时形状稳定不抖动。
+ */
+function boltPath(a: Point, c: Point, b: Point, seed: string): string {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  const rand = () => {
+    h = (h * 1103515245 + 12345) >>> 0
+    return (h % 1000) / 1000
+  }
+  const steps = 14
+  const points: string[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const p = quadAt(a, c, b, t)
+    // 切线 → 法线
+    const u = 1 - t
+    const dx = 2 * u * (c.x - a.x) + 2 * t * (b.x - c.x)
+    const dy = 2 * u * (c.y - a.y) + 2 * t * (b.y - c.y)
+    const len = Math.hypot(dx, dy) || 1
+    const amp = i === 0 || i === steps ? 0 : (4 + rand() * 9) * (i % 2 === 0 ? 1 : -1)
+    points.push(`${(p.x - (dy / len) * amp).toFixed(1)},${(p.y + (dx / len) * amp).toFixed(1)}`)
+  }
+  return `M${points.join(' L')}`
+}
 
 const SKILL_ACCENT = '#f0d27a'
 const FORM_ACCENT = '#ffb15c'
@@ -499,6 +549,21 @@ const statusViews = computed(() => {
 })
 
 /**
+ * 模板 6 全局型：招牌大招在中央拉开一道横贯全场的光带 + 技能名铭牌（座位侧的法阵与横匾照常显示）。
+ */
+const signatureView = computed(() => {
+  const bubble = store.activeSkillBubble
+  if (!bubble?.signature) return null
+  return {
+    id: bubble.id,
+    name: bubble.skillName,
+    element: bubble.element || '',
+    accent: (bubble.element && ELEMENT_STROKE[bubble.element]) || SKILL_ACCENT,
+    who: props.playerLabel ? props.playerLabel(bubble.playerId) : seatName(bubble.playerId),
+  }
+})
+
+/**
  * 模板 5 自身形态型：座位包裹一圈元素色光焰（入场脉冲后呼吸），旁边弹出形态名横幅。
  * 脱离形态时光焰收缩淡出，横幅写“脱离 X”。
  */
@@ -547,6 +612,31 @@ const deckFlightViews = computed(() => {
         style: {
           offsetPath: `path('M${from.x.toFixed(1)},${from.y.toFixed(1)} Q${c.x.toFixed(1)},${c.y.toFixed(1)} ${to.x.toFixed(1)},${to.y.toFixed(1)}')`,
           animationDelay: `${(i * 0.12).toFixed(2)}s`,
+        },
+      })
+    }
+  }
+  return views
+})
+
+/** 模板 4 资源型：宝石 / 水晶在座位与阵营栏之间沿弧线飞行，多颗依次错开。 */
+const stoneFlightViews = computed(() => {
+  const views: { id: string; stone: 'gem' | 'crystal'; style: Record<string, string> }[] = []
+  for (const flight of store.stoneFlights) {
+    const box = seats.value[flight.playerId]
+    const campPoint = campAnchors.value[`${flight.camp}:${flight.stone}`]
+    if (!box || !campPoint) continue
+    const seat = { x: box.cx, y: box.top + 24 }
+    const [from, to] = flight.toCamp ? [seat, campPoint] : [campPoint, seat]
+    const lift = Math.max(60, Math.abs(to.x - from.x) * 0.2)
+    for (let i = 0; i < flight.count; i++) {
+      const c = { x: (from.x + to.x) / 2, y: Math.max(from.y, to.y) + lift * (flight.toCamp ? 0.6 : 1) }
+      views.push({
+        id: `${flight.id}-${i}`,
+        stone: flight.stone,
+        style: {
+          offsetPath: `path('M${from.x.toFixed(1)},${from.y.toFixed(1)} Q${c.x.toFixed(1)},${c.y.toFixed(1)} ${to.x.toFixed(1)},${to.y.toFixed(1)}')`,
+          animationDelay: `${(i * 0.14).toFixed(2)}s`,
         },
       })
     }
@@ -856,7 +946,10 @@ onBeforeUnmount(() => {
         v-for="view in linkViews"
         :key="view.link.id"
         class="stage-link"
-        :class="{ 'stage-link--previous': view.link.previous, 'stage-link--past': !view.current && !view.link.previous }"
+        :class="[
+          { 'stage-link--previous': view.link.previous, 'stage-link--past': !view.current && !view.link.previous },
+          view.current && view.element ? `stage-link--el-${view.element}` : '',
+        ]"
       >
         <path v-if="view.current" class="stage-link__glow" :d="view.d" :stroke="view.stroke" stroke-width="10" />
         <path
@@ -869,6 +962,9 @@ onBeforeUnmount(() => {
           :marker-end="view.marker || undefined"
         />
         <path v-if="view.link.animating" class="stage-link__flow" :d="view.d" stroke="#fff" :stroke-width="view.current ? 4 : 3" pathLength="1" :style="{ filter: `drop-shadow(0 0 4px ${view.stroke})` }" />
+        <!-- 元素专属层：只画在当前链路上（打击型模板的参数化变体）。 -->
+        <path v-if="view.bolt" class="stage-link__bolt" :d="view.bolt" :stroke="view.stroke" />
+        <path v-if="view.current && view.element" class="stage-link__element" :d="view.d" :stroke="view.stroke" pathLength="1" />
       </g>
     </svg>
 
@@ -914,6 +1010,25 @@ onBeforeUnmount(() => {
         {{ view.endStyle.prefix }}{{ view.link.end.text }}
       </div>
     </template>
+
+    <div
+      v-if="signatureView"
+      :key="`sig-${signatureView.id}`"
+      class="stage-signature"
+      :style="{ '--skill-accent': signatureView.accent }"
+      data-testid="stage-signature"
+    >
+      <span class="stage-signature__streak" />
+      <span class="stage-signature__streak stage-signature__streak--low" />
+      <div class="stage-signature__plate">
+        <span class="stage-signature__emblem">
+          <ElementGlyph v-if="signatureView.element" :element="signatureView.element" />
+          <span v-else>✦</span>
+        </span>
+        <span class="stage-signature__name">{{ signatureView.name }}</span>
+        <span class="stage-signature__who">{{ signatureView.who }}</span>
+      </div>
+    </div>
 
     <template v-if="castView">
       <svg
@@ -993,6 +1108,17 @@ onBeforeUnmount(() => {
       data-testid="stage-deck-card"
     >
       <BattleMarkIcon kind="cover" :mark-key="card.coverKey" />
+    </div>
+
+    <div
+      v-for="stone in stoneFlightViews"
+      :key="`stone-${stone.id}`"
+      class="stage-stone"
+      :class="`stage-stone--${stone.stone}`"
+      :style="stone.style"
+      data-testid="stage-stone-flight"
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true"><use :href="stone.stone === 'gem' ? '#bt-hud-icon-gem' : '#bt-hud-icon-crystal'" /></svg>
     </div>
 
     <div v-for="chip in chipLayers.chips" :key="chip.id" class="stage-chip" :style="chip.style">{{ chip.text }}</div>
@@ -1128,6 +1254,83 @@ onBeforeUnmount(() => {
 .stage-link__base--muted {
   opacity: 0.35;
 }
+/* —— 打击型：按元素区分弧线（模板 1 的参数化示例：雷系 / 火系……） —— */
+.stage-link__element {
+  fill: none;
+  pointer-events: none;
+  stroke-linecap: round;
+  opacity: 0;
+}
+.stage-link__bolt {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: bevel;
+  filter: drop-shadow(0 0 5px currentColor);
+  animation: stage-bolt-flicker 0.32s steps(2, end) infinite;
+}
+@keyframes stage-bolt-flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+/* 火：拖尾的火星（短划线顺流而下） */
+.stage-link--el-fire .stage-link__element {
+  opacity: 0.85;
+  stroke-width: 3;
+  stroke-dasharray: 0.012 0.03;
+  animation: stage-element-flow 0.9s linear infinite;
+  filter: drop-shadow(0 0 6px #ff7a3c);
+}
+/* 水：宽而柔的波纹 */
+.stage-link--el-water .stage-link__element {
+  opacity: 0.45;
+  stroke-width: 9;
+  stroke-dasharray: 0.08 0.06;
+  animation: stage-element-flow 2.2s linear infinite;
+}
+/* 风：两道快速细流 */
+.stage-link--el-wind .stage-link__element {
+  opacity: 0.8;
+  stroke-width: 1.5;
+  stroke-dasharray: 0.04 0.1;
+  animation: stage-element-flow 0.55s linear infinite;
+}
+/* 地：短促沉重的段落 */
+.stage-link--el-earth .stage-link__element {
+  opacity: 0.75;
+  stroke-width: 5;
+  stroke-dasharray: 0.03 0.05;
+  stroke-linecap: square;
+  animation: stage-element-flow 1.6s steps(6) infinite;
+}
+/* 光：外圈柔光加宽 */
+.stage-link--el-light .stage-link__element {
+  opacity: 0.35;
+  stroke-width: 16;
+  filter: blur(3px);
+  animation: stage-element-pulse 1.4s ease-in-out infinite;
+}
+/* 暗：暗色内芯忽明忽暗 */
+.stage-link--el-dark .stage-link__element {
+  opacity: 0.9;
+  stroke: #1a0f2a !important;
+  stroke-width: 2;
+  animation: stage-element-pulse 0.9s ease-in-out infinite;
+}
+@keyframes stage-element-flow {
+  to { stroke-dashoffset: -1; }
+}
+@keyframes stage-element-pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-link__element,
+  .stage-link__bolt {
+    animation: none;
+  }
+}
+
 .stage-link__flow {
   /* One short comet streak travelling source → target along the arc. */
   stroke-dasharray: 0.07 0.93;
@@ -1358,6 +1561,88 @@ onBeforeUnmount(() => {
   animation: stage-status-out 0.9s ease-in both;
 }
 
+/* —— 模板 6：全局型（招牌大招） —— */
+.stage-signature {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* 顶栏与战斗链之间：避开中央战斗链和回合切换横幅。 */
+  top: 22%;
+  height: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.stage-signature__streak {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  height: 6px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--skill-accent) 90%, #fff) 30%, #fff 50%, color-mix(in srgb, var(--skill-accent) 90%, #fff) 70%, transparent);
+  box-shadow: 0 0 24px 6px color-mix(in srgb, var(--skill-accent) 60%, transparent);
+  transform-origin: center;
+  animation: stage-signature-streak 2.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.stage-signature__streak--low {
+  top: 46px;
+  height: 2px;
+  opacity: 0.55;
+  animation-delay: 0.08s;
+}
+.stage-signature__plate {
+  position: absolute;
+  left: 50%;
+  top: -34px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 34px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(8, 12, 24, 0.94) 14%, rgba(8, 12, 24, 0.94) 86%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--skill-accent) 70%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--skill-accent) 70%, transparent);
+  animation: stage-signature-plate 2.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.stage-signature__emblem {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: var(--skill-accent);
+  filter: drop-shadow(0 0 6px var(--skill-accent));
+}
+.stage-signature__name {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #fff;
+  text-shadow: 0 0 14px var(--skill-accent), 0 2px 0 rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+.stage-signature__who {
+  font-size: 13px;
+  color: var(--bt-text-sub, #b9c4d8);
+  white-space: nowrap;
+}
+@keyframes stage-signature-streak {
+  0% { transform: scaleX(0); opacity: 0; }
+  18% { transform: scaleX(1); opacity: 1; }
+  80% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1.04); opacity: 0; }
+}
+@keyframes stage-signature-plate {
+  0% { opacity: 0; transform: translateX(-50%) scale(1.25); filter: blur(4px); }
+  20% { opacity: 1; transform: translateX(-50%) scale(1); filter: none; }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) scale(0.98); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-signature__streak,
+  .stage-signature__plate {
+    animation-duration: 0.01s !important;
+  }
+}
+
 /* —— 模板 5：自身形态型 —— */
 .stage-form-ring {
   position: absolute;
@@ -1442,7 +1727,36 @@ onBeforeUnmount(() => {
   100% { offset-distance: 100%; transform: scale(1) rotate(0); opacity: 0; }
 }
 
+.stage-stone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  offset-rotate: 0deg;
+  pointer-events: none;
+  animation: stage-stone-fly 0.8s cubic-bezier(0.45, 0.05, 0.35, 1) both;
+}
+.stage-stone svg {
+  width: 100%;
+  height: 100%;
+}
+.stage-stone--gem {
+  filter: drop-shadow(0 0 6px rgba(255, 80, 96, 0.9));
+}
+.stage-stone--crystal {
+  filter: drop-shadow(0 0 6px rgba(90, 150, 255, 0.9));
+}
+@keyframes stage-stone-fly {
+  0% { offset-distance: 0%; transform: scale(0.5); opacity: 0; }
+  12% { opacity: 1; }
+  85% { offset-distance: 100%; transform: scale(1.25); opacity: 1; }
+  100% { offset-distance: 100%; transform: scale(0.9); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .stage-stone,
   .stage-form-ring__flame,
   .stage-form-banner,
   .stage-deck-card {

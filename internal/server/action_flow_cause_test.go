@@ -174,3 +174,34 @@ func TestPublicIndicators_WitherIsPublicAndAttributed(t *testing.T) {
 		t.Fatalf("expected an indicator delta for bt_wither_active")
 	}
 }
+
+// 地下法则：冒险者购买改为阵营 +2 宝石；阵营宝石差值应归属地下法则（前端据此从冒险者座位飞出宝石）。
+func TestActionFlowCause_UndergroundLawCampGemsAttributed(t *testing.T) {
+	room := newCauseFlowRoom(t,
+		map[string]string{"p1": "adventurer", "p2": "berserker"},
+		map[string]model.Camp{"p1": model.BlueCamp, "p2": model.RedCamp},
+		[]string{"p1", "p2"})
+	setActivePlayer(room, "p1")
+	st := room.Engine.State
+	st.PendingInterrupt = nil
+	st.InterruptQueue = nil
+	st.TurnStage = model.TurnStageActionExecution
+	// 购买摸 3 张：先清空手牌，避免超过手牌上限被拒绝。
+	st.Players["p1"].Hand = nil
+	room.resetPublicTimelineSnapshot()
+
+	if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdBuy}); err != nil {
+		t.Fatalf("buy: %v", err)
+	}
+	for _, ev := range room.snapshotTimelineHistory() {
+		for _, d := range ev.Deltas {
+			if d.Type == "team_gem" && d.Value == 2 {
+				if ev.Cause == nil || ev.Cause.SkillID != "adventurer_underground_law" || ev.Cause.OwnerID != "p1" {
+					t.Fatalf("expected team gem +2 under 地下法则 owned by p1, got %+v", ev.Cause)
+				}
+				return
+			}
+		}
+	}
+	t.Fatalf("expected a team_gem +2 delta after buy")
+}

@@ -2562,11 +2562,11 @@ const fighterHundredDragonByPlayer = computed(() => {
             <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-cup" /></svg>
             <span :key="'blue-cups-' + blueCups" class="camp-num">{{ blueCups }}</span>
           </span>
-          <span class="camp-gem" title="宝石">
+          <span class="camp-gem" title="宝石" data-camp-anchor="Blue:gem">
             <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-gem" /></svg>
             <span :key="'blue-gems-' + blueGems" class="camp-num">{{ blueGems }}</span>
           </span>
-          <span class="camp-crystal" title="水晶">
+          <span class="camp-crystal" title="水晶" data-camp-anchor="Blue:crystal">
             <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-crystal" /></svg>
             <span :key="'blue-crystals-' + blueCrystals" class="camp-num">{{ blueCrystals }}</span>
           </span>
@@ -2600,11 +2600,11 @@ const fighterHundredDragonByPlayer = computed(() => {
             <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-cup" /></svg>
             <span :key="'red-cups-' + redCups" class="camp-num">{{ redCups }}</span>
           </span>
-          <span class="camp-gem" title="宝石">
+          <span class="camp-gem" title="宝石" data-camp-anchor="Red:gem">
             <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-gem" /></svg>
             <span :key="'red-gems-' + redGems" class="camp-num">{{ redGems }}</span>
           </span>
-          <span class="camp-crystal" title="水晶">
+          <span class="camp-crystal" title="水晶" data-camp-anchor="Red:crystal">
             <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-crystal" /></svg>
             <span :key="'red-crystals-' + redCrystals" class="camp-num">{{ redCrystals }}</span>
           </span>

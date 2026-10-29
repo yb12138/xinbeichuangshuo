@@ -40,3 +40,25 @@ describe('deltaSteps animation templates', () => {
     expect(leave).toEqual([{ type: 'form-change', playerId: 'p1', form: '', label: '烈焰形态' }])
   })
 })
+
+describe('deltaSteps stone flights', () => {
+  it('flies gems from the acting seat to the camp bar when the camp gains them', () => {
+    const steps = deltaSteps([{ type: 'team_gem', camp: 'Red', field: 'gem', value: 2 }], 'p3')
+    expect(steps).toEqual([{ type: 'stone-flight', playerId: 'p3', camp: 'Red', stone: 'gem', count: 2, toCamp: true }])
+  })
+
+  it('flies crystals from the camp bar to the player who extracts them', () => {
+    const steps = deltaSteps(
+      [
+        { type: 'team_crystal', camp: 'Blue', field: 'crystal', value: -1 },
+        { type: 'player_crystal', camp: 'Blue', target_user_id: 'p1', field: 'crystal', value: 1 },
+      ],
+      'p1',
+    )
+    expect(steps).toEqual([{ type: 'stone-flight', playerId: 'p1', camp: 'Blue', stone: 'crystal', count: 1, toCamp: false }])
+  })
+
+  it('does not fly when the camp only spends stones', () => {
+    expect(deltaSteps([{ type: 'team_gem', camp: 'Red', field: 'gem', value: -1 }], 'p3')).toEqual([])
+  })
+})
