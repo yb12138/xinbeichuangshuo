@@ -249,4 +249,16 @@ describe('PlayerArea indicators', () => {
     expect(chip.textContent).toContain('额外回合')
     expect(chip.getAttribute('title')).toContain('苍白之月')
   })
+
+  it('keeps a form aura and badge on the seat for as long as the player stays in the form', async () => {
+    const { rerender, queryByTestId, getByTestId } = render(PlayerArea, {
+      props: { player: buildPlayer({ role: 'holy_bow', form: 'holy_bow_holy_glory_form' }) },
+    })
+    expect(getByTestId('seat-form-badge').textContent).toContain('圣煌形态')
+    expect(getByTestId('seat-form-aura')).toBeTruthy()
+
+    await rerender({ player: buildPlayer({ role: 'holy_bow', form: '' }) })
+    expect(queryByTestId('seat-form-aura')).toBeNull()
+    expect(queryByTestId('seat-form-badge')).toBeNull()
+  })
 })
