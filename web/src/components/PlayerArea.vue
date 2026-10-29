@@ -329,6 +329,9 @@ const allIndicators = computed(() => tokenIndicators.value)
 /** 持续中的公开效果（凋零、额外回合、下击加伤……）：比普通指示物醒目，悬停看规则。 */
 const persistentEffects = computed(() => seatPersistentEffects(props.player))
 
+/** 未登记形态的光环色（与舞台形态动画的默认色一致）。 */
+const FORM_FALLBACK_ACCENT = '#ffb15c'
+
 const formIndicator = computed(() => {
   const form = props.player.form
   if (!form) return null
@@ -338,12 +341,14 @@ const formIndicator = computed(() => {
       key: form,
       label: '形态',
       cls: 'bg-gray-700/70 text-gray-100 border-gray-500/40',
+      accent: FORM_FALLBACK_ACCENT,
     }
   }
   return {
     key: form,
     label: cfg.label,
     cls: cfg.cls,
+    accent: cfg.accent,
   }
 })
 
@@ -412,11 +417,16 @@ function handleClick(e: MouseEvent) {
       showStealthBlockedHint && !isActive ? 'opacity-60 grayscale saturate-75' : '',
       hasStealth ? 'player-area--stealth' : '',
       selectable ? 'player-area--targetable cursor-pointer hover:scale-[1.03]' : '',
-      selected ? 'player-area--selected' : ''
+      selected ? 'player-area--selected' : '',
+      formIndicator ? 'player-area--in-form' : ''
     ]"
+    :style="formIndicator ? { '--form-accent': formIndicator.accent } : undefined"
     :data-testid="`player-area-${player.id}${testIdSuffix ? `-${testIdSuffix}` : ''}`"
     @click="handleClick"
   >
+    <!-- 形态常驻光环：处于形态期间一直包裹座位，脱离形态即消失 -->
+    <div v-if="formIndicator" class="seat-form-aura" data-testid="seat-form-aura" />
+
     <!-- 立绘区：填满名牌条以上的空间 -->
     <div class="seat-portrait">
       <img
@@ -485,7 +495,7 @@ function handleClick(e: MouseEvent) {
         v-if="formIndicator || (player.gem || 0) + (player.crystal || 0) > 0 || allIndicators.length || coverMarks.length || persistentEffects.length"
         class="seat-chip-row"
       >
-        <span v-if="formIndicator" class="seat-chip form-badge" :title="formIndicator.label">
+        <span v-if="formIndicator" class="seat-chip form-badge" :title="formIndicator.label" data-testid="seat-form-badge">
           {{ formIndicator.label }}
         </span>
         <span
@@ -1029,6 +1039,37 @@ function handleClick(e: MouseEvent) {
 .form-badge {
   border-color: var(--bt-violet);
   color: var(--bt-text);
+}
+
+.player-area--in-form .form-badge {
+  border-color: var(--form-accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--form-accent) 45%, #120c06), rgba(16, 10, 6, 0.92));
+  color: #fff;
+  text-shadow: 0 0 4px var(--form-accent);
+}
+
+/* ===== 形态常驻光环：内发光描边，压在立绘与名牌之上，不吃点击 ===== */
+.seat-form-aura {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  border-radius: inherit;
+  border: 1.5px solid color-mix(in srgb, var(--form-accent) 85%, #fff);
+  box-shadow:
+    inset 0 0 12px color-mix(in srgb, var(--form-accent) 55%, transparent),
+    inset 0 0 26px color-mix(in srgb, var(--form-accent) 22%, transparent);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .seat-form-aura {
+    animation: seat-form-breathe 2.6s ease-in-out infinite;
+  }
+}
+
+@keyframes seat-form-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .player-overlay-resource,

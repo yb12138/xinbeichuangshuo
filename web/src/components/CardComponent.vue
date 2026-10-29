@@ -190,8 +190,13 @@ function handleClick() {
       </div>
       <div class="layer card-vignette"></div>
 
-      <div class="layer card-title-banner">
+      <div class="layer card-title-banner" :class="{ 'has-fate': fateText }">
         <span class="card-title-text">{{ card.name }}</span>
+      </div>
+
+      <!-- 命格：右上角印章，与名称条同高，一眼可辨 -->
+      <div v-if="fateText" class="layer card-fate-seal" :title="`${fateText}命格`" :aria-label="`${fateText}命格`" data-testid="card-fate-seal">
+        {{ fateText }}
       </div>
 
       <div
@@ -217,7 +222,7 @@ function handleClick() {
         <div class="card-footer-row">
           <div class="card-info-ribbon" :title="detailRibbonText">
             <span class="card-ribbon-text">
-              {{ cardTypeLabel }}<span class="card-ribbon-sep">·</span>{{ elementLabel }}<template v-if="hasEffectiveElementHint"><span class="card-ribbon-arrow">→</span>{{ effectiveElementLabel }}</template><template v-if="fateText"><span class="card-ribbon-sep">·</span>{{ fateText }}</template>
+              {{ cardTypeLabel }}<span class="card-ribbon-sep">·</span>{{ elementLabel }}<template v-if="hasEffectiveElementHint"><span class="card-ribbon-arrow">→</span>{{ effectiveElementLabel }}</template>
             </span>
           </div>
           <button class="card-desc-btn" type="button" @click.stop="openDescriptionModal">
@@ -420,6 +425,32 @@ function handleClick() {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
+/* 命格印章占住名称条右端 */
+.card-title-banner.has-fate {
+  right: 20%;
+}
+
+.card-fate-seal {
+  right: 5%;
+  top: 5%;
+  width: 14%;
+  aspect-ratio: 1;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #7a1f1f, #4a1010);
+  box-shadow:
+    0 0 0 1px var(--bt-chrome-mid),
+    inset 0 0 0 1px rgba(255, 210, 180, 0.35),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+  color: #ffe9d6;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+}
+
 /* 生效元素与印刷不同：徽章右下角小标记（显示生效元素文字） */
 .card-effective-element-badge {
   left: 18%;
@@ -594,6 +625,10 @@ function handleClick() {
 
 /* 尺寸 */
 .card-size-battle-mini .card-title-text { font-size: 7.5px; }
+.card-size-battle-mini .card-fate-seal { font-size: 7px; }
+.card-size-small .card-fate-seal { font-size: 9px; }
+.card-size-medium .card-fate-seal { font-size: 10px; }
+.card-size-default .card-fate-seal { font-size: 12px; }
 .card-size-small .card-title-text { font-size: 9px; }
 .card-size-medium .card-title-text { font-size: 10px; }
 .card-size-default .card-title-text { font-size: 11px; }
