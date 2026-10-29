@@ -7,10 +7,11 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// hasAvailableSkill 判断技能当前可发动（列表中存在且未置灰）。
 func hasAvailableSkill(skills []AvailableSkill, skillID string) bool {
 	for _, s := range skills {
 		if s.ID == skillID {
-			return true
+			return !s.Disabled
 		}
 	}
 	return false
@@ -80,5 +81,44 @@ func TestBuildAvailableActionSkills_ForcedDoomsdayOnlyShowsDoomsday(t *testing.T
 	}
 	if hasAvailableSkill(skills, "arbiter_balance") {
 		t.Fatalf("expected non-doomsday arbiter action skills hidden while forced")
+	}
+}
+
+// 圣屑飓暴：手牌没有 2 张同系攻击牌时仍下发，但置灰并给出具体原因（前端据此置灰，不再点了才报错）。
+func TestBuildAvailableActionSkills_HolyShardStormDisabledWithReason(t *testing.T) {
+	room := NewRoom("HBSS")
+	room.Engine = engine.NewGameEngine(room)
+	_ = room.Engine.AddPlayer("p1", "Bow", "holy_bow", model.BlueCamp)
+	_ = room.Engine.AddPlayer("p2", "Enemy", "berserker", model.RedCamp)
+	room.Engine.State.CurrentTurn = 0
+	room.Engine.State.TurnStage = model.TurnStageActionExecution
+	p1 := room.Engine.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "a", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater},
+		{ID: "b", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire},
+		{ID: "c", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementWind},
+	}
+
+	var storm *AvailableSkill
+	skills := room.buildAvailableActionSkills("p1")
+	for i := range skills {
+		if skills[i].ID == "hb_holy_shard_storm" {
+			storm = &skills[i]
+		}
+	}
+	if storm == nil || !storm.Disabled || storm.DisabledReason != "手牌中没有2张同系攻击牌。" {
+		t.Fatalf("expected 圣屑飓暴 listed as disabled with reason, got %+v", storm)
+	}
+	for _, s := range room.buildUsableActionSkills("p1") {
+		if s.ID == "hb_holy_shard_storm" {
+			t.Fatalf("bots must not see disabled skills")
+		}
+	}
+
+	p1.Hand = append(p1.Hand, model.Card{ID: "d", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater})
+	if !hasAvailableSkill(room.buildAvailableActionSkills("p1"), "hb_holy_shard_storm") {
+		t.Fatalf("expected 圣屑飓暴 usable with two water attacks")
 	}
 }

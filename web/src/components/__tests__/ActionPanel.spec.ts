@@ -342,6 +342,41 @@ describe('ActionPanel skill availability', () => {
     expect(useInterruptStore().skillMode).not.toBe('choosing_target')
   })
 
+  it('greys out a skill the server marks disabled and shows its reason instead of erroring on click', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const stormSkill: AvailableSkill = {
+      id: 'hb_holy_shard_storm',
+      title: '圣屑飓暴',
+      description: '弃2张同系攻击牌并展示，视为1次圣命格同系主动攻击。',
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+      disabled: true,
+      disabled_reason: '手牌中没有2张同系攻击牌。',
+    }
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Blue', 'holy_bow')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p1: buildPlayer({ id: 'p1', name: '圣弓', camp: 'Blue', role: 'holy_bow' }),
+        p2: buildPlayer({ id: 'p2', name: '目标', camp: 'Red', role: 'enemy', is_active: false }),
+      },
+      available_skills: [stormSkill],
+      characters: [buildCharacter({ id: 'holy_bow', name: '圣弓', skills: [{ ...stormSkill, type: 2 }] })],
+    }))
+    useInterruptStore().setSkillMode('choosing_skill')
+
+    render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+
+    expect(screen.getByText('手牌中没有2张同系攻击牌。')).toBeTruthy()
+    await userEvent.click(screen.getByTestId('skill-hb_holy_shard_storm'))
+    expect(mocks.submitUseSkill).not.toHaveBeenCalled()
+  })
+
   it('requires exclusive-card confirmation before target selection for prayer blessing skills', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

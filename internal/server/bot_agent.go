@@ -154,7 +154,7 @@ func (r *Room) runBotTurn(playerID string, promptSnapshot *model.Prompt, expecte
 	}
 
 	state := r.buildBotStateSnapshot(playerID)
-	availableSkills := buildBotAvailableSkills(r.buildAvailableActionSkills(playerID))
+	availableSkills := buildBotAvailableSkills(r.buildUsableActionSkills(playerID))
 	action, ok := r.decideBotAction(playerID, state, prompt, availableSkills)
 	if !ok {
 		return nil

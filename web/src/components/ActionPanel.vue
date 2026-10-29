@@ -792,13 +792,21 @@ function isServerPublishedAvailableSkill(skill: AvailableSkill): boolean {
     const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase()
     const sid = normalize(skill.id)
     if (!sid) return false
-    return list.some((item) => normalize(item.id) === sid)
+    return list.some((item) => normalize(item.id) === sid && !item.disabled)
+}
+
+/** 服务端下发的同 ID 技能（含置灰状态与原因）。 */
+function serverSkillFor(skill: AvailableSkill): AvailableSkill | undefined {
+    const list = snapshotStore.availableSkills || []
+    const sid = String(skill?.id ?? '').trim().toLowerCase()
+    return sid ? list.find((item) => String(item.id ?? '').trim().toLowerCase() === sid) : undefined
 }
 
 function canSelectSkill(skill: AvailableSkill): boolean {
     if (!skill) return false
-    // 服务端已下发 available_skills 时，以后端可用态为准，避免前端本地预检与后端规则漂移导致误置灰。
-    if (isServerPublishedAvailableSkill(skill)) return true
+    // 服务端下发了该技能：可用性完全以服务端判定为准（含置灰），不再用前端规则复刻。
+    const server = serverSkillFor(skill)
+    if (server) return !server.disabled
     if (!canPaySkillEnergy(skill)) return false
     if (skill.require_exclusive && !hasMatchingExclusiveCard(skill)) return false
     const tokenReason = skillTokenDisabledReason(skill)
@@ -824,6 +832,8 @@ function canSelectSkill(skill: AvailableSkill): boolean {
 
 function skillDisabledReason(skill: AvailableSkill): string {
     if (!skill) return '当前不可发动该技能'
+    const server = serverSkillFor(skill)
+    if (server?.disabled && server.disabled_reason) return server.disabled_reason
     if (!canPaySkillEnergy(skill)) {
         return `能量不足（需要 ${skill.cost_gem || 0} 宝石、${skill.cost_crystal || 0} 水晶）。`
     }

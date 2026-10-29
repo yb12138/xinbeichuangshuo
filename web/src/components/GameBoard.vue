@@ -280,7 +280,7 @@ function collapseExpansion() {
 function isExclusivePlayable(card: { exclusive_skill1?: string; exclusive_skill2?: string }): boolean {
   const titles = [card.exclusive_skill1, card.exclusive_skill2].filter(Boolean)
   if (!titles.length) return false
-  return snapshotStore.availableSkills.some((skill) => skill.require_exclusive && titles.includes(skill.title))
+  return snapshotStore.availableSkills.some((skill) => !skill.disabled && skill.require_exclusive && titles.includes(skill.title))
 }
 
 function coverEffectLabel(effect?: string): string {

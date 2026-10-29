@@ -152,6 +152,8 @@ export interface AvailableSkill {
   require_exclusive?: boolean
   place_card?: boolean
   place_effect?: string
+  disabled?: boolean
+  disabled_reason?: string
 }
 
 export interface CardRevealedPayload {
