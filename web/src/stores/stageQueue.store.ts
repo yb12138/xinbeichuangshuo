@@ -5,6 +5,7 @@ import type { Card } from '../types/game'
 import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO, TimelineDelta } from '../network/protocol'
 import { SKILL_ANIMATION_MAP, type SkillEffectTemplate, type SkillOpening } from '../constants/skillAnimationMap'
 import { COVER_MARKS, STATUS_MARKS, TOKEN_MARKS } from '../constants/battleMarks'
+import { formLabel } from '../constants/forms'
 
 /**
  * Unified battle-stage playback queue.
@@ -72,6 +73,10 @@ export type AtomicStep = StepTiming &
     | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill }
     /** 同一技能因果的结果后到（如茧在结算后才放置）：就地更新已有技能行。 */
     | { type: 'skill-result'; causeId: string; outcome: string; cost: string }
+    /** 自身形态型（模板 5）：座位包裹光焰 + 形态名横幅。form 为空 = 脱离形态。 */
+    | { type: 'form-change'; playerId: string; form: string; label: string; element?: string }
+    /** 资源型（模板 4）：count 张牌背从中央牌堆飞入座位（盖牌放置：茧、充能……）。 */
+    | { type: 'deck-to-seat'; playerId: string; count: number; coverKey: string }
   )
 
 /** Structured form of a skill row, rendered as a skill node of the combat chain. */
@@ -168,6 +173,23 @@ export interface StatusChangeState {
   expiresAt: number
 }
 
+export interface FormChangeState {
+  id: number
+  playerId: string
+  form: string
+  label: string
+  element?: string
+  expiresAt: number
+}
+
+export interface DeckFlightState {
+  id: number
+  playerId: string
+  count: number
+  coverKey: string
+  expiresAt: number
+}
+
 export interface NarrationRow {
   id: number
   /** Pre-escaped HTML. Builders must escape any user-controlled text (see escapeHtml). */
@@ -193,6 +215,10 @@ const SKILL_CAPSULE_LIFETIME_MS = 1600
 /** Trigger capsules don't hold the queue as long as a full active-skill opening. */
 const TRIGGER_HOLD_MS = 350
 const DEFAULT_TURN_BANNER_MS = 1200
+const FORM_CHANGE_LIFETIME_MS = 1800
+const DECK_FLIGHT_LIFETIME_MS = 1300
+/** 一次最多飞几张牌背（茧 ×4 全飞，更多则截断，避免刷屏）。 */
+const MAX_DECK_FLIGHT_CARDS = 5
 
 /** Default time the queue waits after applying a step, at 1x speed. */
 const DEFAULT_HOLD_MS: Record<AtomicStepType, number> = {
@@ -204,6 +230,8 @@ const DEFAULT_HOLD_MS: Record<AtomicStepType, number> = {
   'status-change': 300,
   'turn-banner': DEFAULT_TURN_BANNER_MS,
   'skill-result': 0,
+  'form-change': 650,
+  'deck-to-seat': 500,
   'mark-previous': 200,
   'clear-stage': 0,
   'narration-row': 250,
@@ -238,6 +266,8 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
   const skillCapsules = ref<SkillCapsuleState[]>([])
   const valueChips = ref<ValueChipState[]>([])
   const statusChanges = ref<StatusChangeState[]>([])
+  const formChanges = ref<FormChangeState[]>([])
+  const deckFlights = ref<DeckFlightState[]>([])
   const stageRows = ref<NarrationRow[]>([])
   const previousAction = ref<PreviousActionState | null>(null)
   const historyChips = ref<string[]>([])
@@ -316,6 +346,8 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     skillCapsules.value = []
     valueChips.value = []
     statusChanges.value = []
+    formChanges.value = []
+    deckFlights.value = []
   }
 
   function applyStep(step: AtomicStep, at: number, scale: number) {
@@ -416,6 +448,31 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
         stageRows.value = next
         break
       }
+      case 'form-change':
+        formChanges.value = [
+          ...formChanges.value.filter((change) => change.playerId !== step.playerId),
+          {
+            id: ++seq,
+            playerId: step.playerId,
+            form: step.form,
+            label: step.label,
+            element: step.element,
+            expiresAt: at + FORM_CHANGE_LIFETIME_MS * scale,
+          },
+        ]
+        break
+      case 'deck-to-seat':
+        deckFlights.value = [
+          ...deckFlights.value,
+          {
+            id: ++seq,
+            playerId: step.playerId,
+            count: Math.max(1, Math.min(step.count, MAX_DECK_FLIGHT_CARDS)),
+            coverKey: step.coverKey,
+            expiresAt: at + DECK_FLIGHT_LIFETIME_MS * scale,
+          },
+        ]
+        break
       case 'narration-row':
         stageRows.value = [
           ...stageRows.value,
@@ -440,6 +497,12 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     }
     if (statusChanges.value.some((change) => at >= change.expiresAt)) {
       statusChanges.value = statusChanges.value.filter((change) => at < change.expiresAt)
+    }
+    if (formChanges.value.some((change) => at >= change.expiresAt)) {
+      formChanges.value = formChanges.value.filter((change) => at < change.expiresAt)
+    }
+    if (deckFlights.value.some((flight) => at >= flight.expiresAt)) {
+      deckFlights.value = deckFlights.value.filter((flight) => at < flight.expiresAt)
     }
   }
 
@@ -477,6 +540,8 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     skillCapsules.value = []
     valueChips.value = []
     statusChanges.value = []
+    formChanges.value = []
+    deckFlights.value = []
     stageRows.value = []
     previousAction.value = null
     historyChips.value = []
@@ -494,6 +559,8 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     skillCapsules,
     valueChips,
     statusChanges,
+    formChanges,
+    deckFlights,
     stageRows,
     previousAction,
     historyChips,
@@ -698,8 +765,12 @@ export function flowLinkId(flowId: string, edgeId: string): string {
  * token change becomes a mark that flies from the acting player into the target's seat
  * (or fades out of it when removed). Gems, hand counts etc. are left to the board itself.
  */
-export function deltaSteps(deltas: TimelineDelta[], actorId?: string): AtomicStep[] {
+/** @param element 引起这批变化的技能元素（来自因果技能的动画映射），给形态光焰着色。 */
+export function deltaSteps(deltas: TimelineDelta[], actorId?: string, element?: string): AtomicStep[] {
   const steps: AtomicStep[] = []
+  // 模板 4（资源型）：同一批里从牌库放到某座位的盖牌（牌库数量同时减少）合成一次“牌背飞入”。
+  const deckDrawn = deltas.some((delta) => delta.type === 'deck_count' && (delta.value ?? 0) < 0)
+  const coverPlaced = new Map<string, { count: number; coverKey: string }>()
   for (const delta of deltas) {
     const target = delta.target_user_id || ''
     if (!target) continue
@@ -707,6 +778,17 @@ export function deltaSteps(deltas: TimelineDelta[], actorId?: string): AtomicSte
     if (delta.type === 'heal' && value > 0) {
       steps.push({ type: 'value-chip', playerId: target, text: `+${value}`, color: 'heal' })
       continue
+    }
+    // 模板 5（自身形态型）：进入 / 脱离形态。
+    if (delta.type === 'form') {
+      const form = delta.after_text || ''
+      steps.push({ type: 'form-change', playerId: target, form, label: form ? formLabel(form) || '新形态' : formLabel(delta.before_text) || '形态', ...(element ? { element } : {}) })
+      continue
+    }
+    if (deckDrawn && delta.type === 'field_card_added' && delta.field_card?.mode === 'Cover' && COVER_MARKS[delta.field_card.effect || '']) {
+      const entry = coverPlaced.get(target) ?? { count: 0, coverKey: delta.field_card.effect || '' }
+      entry.count += 1
+      coverPlaced.set(target, entry)
     }
     let statusKey = ''
     let added = false
@@ -741,6 +823,13 @@ export function deltaSteps(deltas: TimelineDelta[], actorId?: string): AtomicSte
       ...(amount !== undefined ? { amount } : {}),
       ...(added && actorId && actorId !== target ? { fromPlayerId: actorId } : {}),
     })
+  }
+  // 牌背先飞入、徽章随后落定：把 deck-to-seat 放在同座位第一个盖牌徽章之前。
+  for (const [playerId, { count, coverKey }] of coverPlaced) {
+    const flight: AtomicStep = { type: 'deck-to-seat', playerId, count, coverKey }
+    const index = steps.findIndex((step) => step.type === 'status-change' && step.playerId === playerId && step.markKind === 'cover')
+    if (index < 0) steps.push(flight)
+    else steps.splice(index, 0, flight)
   }
   return steps
 }

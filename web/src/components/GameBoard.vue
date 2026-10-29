@@ -2576,6 +2576,7 @@ const fighterHundredDragonByPlayer = computed(() => {
       <div
         ref="deckCounterRef"
         class="top-deck-indicator"
+        data-deck-anchor
         :class="{ 'top-deck-indicator--active': drawBursts.length > 0 }"
         title="当前公共牌堆剩余卡牌"
       >

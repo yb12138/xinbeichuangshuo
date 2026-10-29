@@ -107,6 +107,8 @@ const size = ref({ width: 0, height: 0 })
 const seats = ref<Record<string, SeatBox>>({})
 /** Centre of a cover/token mark on a seat ("playerId|markKey"), so flying marks land on it. */
 const markAnchors = ref<Record<string, Point>>({})
+/** 中央公共牌堆计数器的中心：资源型动画（牌背飞入座位）的起点。 */
+const deckAnchor = ref<Point | null>(null)
 
 function involvedPlayerIds(): string[] {
   const ids = new Set<string>()
@@ -124,6 +126,8 @@ function involvedPlayerIds(): string[] {
     ids.add(change.playerId)
     if (change.fromPlayerId) ids.add(change.fromPlayerId)
   }
+  for (const change of store.formChanges) ids.add(change.playerId)
+  for (const flight of store.deckFlights) ids.add(flight.playerId)
   ids.delete('')
   return [...ids]
 }
@@ -160,6 +164,15 @@ function measure() {
     next[id] = box
   }
   if (!sameSeats(seats.value, next)) seats.value = next
+
+  const deckEl = root.querySelector<HTMLElement>('[data-deck-anchor]')
+  if (deckEl) {
+    const r = deckEl.getBoundingClientRect()
+    const point = { x: r.left - originX + r.width / 2, y: r.top - originY + r.height / 2 }
+    if (!deckAnchor.value || Math.abs(deckAnchor.value.x - point.x) > 0.5 || Math.abs(deckAnchor.value.y - point.y) > 0.5) {
+      deckAnchor.value = point
+    }
+  }
 
   const anchors: Record<string, Point> = {}
   for (const change of store.statusChanges) {
@@ -352,6 +365,7 @@ const linkViews = computed<LinkView[]>(() => {
 })
 
 const SKILL_ACCENT = '#f0d27a'
+const FORM_ACCENT = '#ffb15c'
 
 /**
  * Active skill opening: golden sigil ring on the caster seat, a plaque beside it, and
@@ -480,6 +494,62 @@ const statusViews = computed(() => {
         '--status-fly': source ? '0.7s' : '0s',
       },
     })
+  }
+  return views
+})
+
+/**
+ * 模板 5 自身形态型：座位包裹一圈元素色光焰（入场脉冲后呼吸），旁边弹出形态名横幅。
+ * 脱离形态时光焰收缩淡出，横幅写“脱离 X”。
+ */
+const formViews = computed(() => {
+  const views: { id: number; label: string; leaving: boolean; ringStyle: Record<string, string>; bannerStyle: Record<string, string> }[] = []
+  for (const change of store.formChanges) {
+    const box = seats.value[change.playerId]
+    if (!box) continue
+    const accent = (change.element && ELEMENT_STROKE[change.element]) || FORM_ACCENT
+    const pad = 8
+    const ringStyle = {
+      left: `${box.left - pad}px`,
+      top: `${box.top - pad}px`,
+      width: `${box.right - box.left + pad * 2}px`,
+      height: `${box.bottom - box.top + pad * 2}px`,
+      '--form-accent': accent,
+    }
+    const bannerStyle: Record<string, string> = { top: `${box.cy - 16}px`, '--form-accent': accent }
+    if (box.leftSide) bannerStyle.left = `${box.right + 14}px`
+    else bannerStyle.right = `${size.value.width - box.left + 14}px`
+    const leaving = !change.form
+    views.push({ id: change.id, label: leaving ? `脱离${change.label}` : change.label, leaving, ringStyle, bannerStyle })
+  }
+  return views
+})
+
+/**
+ * 模板 4 资源型：牌背从中央牌堆沿弧线依次飞入座位（茧、充能等盖牌放置），落点为该座位的盖牌徽章。
+ */
+const deckFlightViews = computed(() => {
+  const views: { id: string; coverKey: string; style: Record<string, string> }[] = []
+  const from = deckAnchor.value
+  if (!from) return views
+  for (const flight of store.deckFlights) {
+    const box = seats.value[flight.playerId]
+    if (!box) continue
+    const end = markAnchors.value[`${flight.playerId}|${flight.coverKey}`] ?? { x: box.cx, y: box.bottom - 22 }
+    const lift = Math.max(70, Math.abs(end.x - from.x) * 0.18)
+    for (let i = 0; i < flight.count; i++) {
+      // 每张牌落点稍错开，像一叠牌依次落下。
+      const to = { x: end.x + (i - (flight.count - 1) / 2) * 6, y: end.y }
+      const c = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) + lift }
+      views.push({
+        id: `${flight.id}-${i}`,
+        coverKey: flight.coverKey,
+        style: {
+          offsetPath: `path('M${from.x.toFixed(1)},${from.y.toFixed(1)} Q${c.x.toFixed(1)},${c.y.toFixed(1)} ${to.x.toFixed(1)},${to.y.toFixed(1)}')`,
+          animationDelay: `${(i * 0.12).toFixed(2)}s`,
+        },
+      })
+    }
   }
   return views
 })
@@ -905,6 +975,26 @@ onBeforeUnmount(() => {
       <span v-if="status.amount" class="stage-status__amount">{{ status.amount }}</span>
     </div>
 
+    <template v-for="form in formViews" :key="`form-${form.id}`">
+      <div class="stage-form-ring" :class="{ 'stage-form-ring--leaving': form.leaving }" :style="form.ringStyle" data-testid="stage-form-ring">
+        <span class="stage-form-ring__flame" />
+        <span class="stage-form-ring__flame stage-form-ring__flame--inner" />
+      </div>
+      <div class="stage-form-banner" :class="{ 'stage-form-banner--leaving': form.leaving }" :style="form.bannerStyle" data-testid="stage-form-banner">
+        <span class="stage-form-banner__text">{{ form.label }}</span>
+      </div>
+    </template>
+
+    <div
+      v-for="card in deckFlightViews"
+      :key="`deck-${card.id}`"
+      class="stage-deck-card"
+      :style="card.style"
+      data-testid="stage-deck-card"
+    >
+      <BattleMarkIcon kind="cover" :mark-key="card.coverKey" />
+    </div>
+
     <div v-for="chip in chipLayers.chips" :key="chip.id" class="stage-chip" :style="chip.style">{{ chip.text }}</div>
 
     <template v-for="impact in chipLayers.impacts" :key="`impact-${impact.id}`">
@@ -1266,6 +1356,99 @@ onBeforeUnmount(() => {
 .stage-status--removed {
   offset-distance: 100%;
   animation: stage-status-out 0.9s ease-in both;
+}
+
+/* —— 模板 5：自身形态型 —— */
+.stage-form-ring {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 14px;
+}
+.stage-form-ring__flame {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid color-mix(in srgb, var(--form-accent) 85%, #fff);
+  box-shadow:
+    0 0 14px 2px color-mix(in srgb, var(--form-accent) 75%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--form-accent) 45%, transparent);
+  animation: stage-form-ignite 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) both, stage-form-breathe 1.2s 0.55s ease-in-out infinite;
+}
+.stage-form-ring__flame--inner {
+  inset: 6px;
+  border-width: 1px;
+  opacity: 0.6;
+  animation-delay: 0.12s, 0.67s;
+}
+.stage-form-ring--leaving .stage-form-ring__flame {
+  animation: stage-form-extinguish 0.9s ease-in both;
+}
+.stage-form-banner {
+  position: absolute;
+  pointer-events: none;
+  padding: 6px 22px 6px 18px;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--form-accent) 55%, #1a0f05), rgba(20, 12, 6, 0.92));
+  border-left: 3px solid var(--form-accent);
+  animation: stage-form-banner-in 0.4s 0.15s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.stage-form-banner__text {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #fff4e0;
+  text-shadow: 0 0 8px var(--form-accent);
+  white-space: nowrap;
+}
+.stage-form-banner--leaving {
+  filter: saturate(0.4);
+  opacity: 0.85;
+}
+@keyframes stage-form-ignite {
+  0% { transform: scale(0.82); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes stage-form-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@keyframes stage-form-extinguish {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0; }
+}
+@keyframes stage-form-banner-in {
+  0% { transform: translateX(-12px); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+
+/* —— 模板 4：资源型（牌背从牌堆飞入） —— */
+.stage-deck-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 30px;
+  margin: -15px 0 0 -11px;
+  offset-rotate: 0deg;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6));
+  animation: stage-deck-fly 0.75s cubic-bezier(0.45, 0.05, 0.35, 1) both;
+}
+@keyframes stage-deck-fly {
+  0% { offset-distance: 0%; transform: scale(0.6) rotate(-12deg); opacity: 0; }
+  15% { opacity: 1; }
+  85% { offset-distance: 100%; transform: scale(1.1) rotate(4deg); opacity: 1; }
+  100% { offset-distance: 100%; transform: scale(1) rotate(0); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-form-ring__flame,
+  .stage-form-banner,
+  .stage-deck-card {
+    animation-duration: 0.01s !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 .stage-chip {

@@ -1,3 +1,4 @@
+import { SKILL_ANIMATION_MAP } from '../constants/skillAnimationMap'
 import type { Card } from '../types/game'
 import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO, TimelineNotifyPayload } from './protocol'
 import {
@@ -206,7 +207,8 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
         if (!event.deltas?.length) continue
         const flowId = event.action_id || event.source_event_id || ''
         const actorId = event.actor_user_id || (flowId ? flows.get(flowId)?.actorId : '') || ''
-        batch.push(...deltaSteps(event.deltas, actorId))
+        const skillId = event.cause?.skill_id || ''
+        batch.push(...deltaSteps(event.deltas, actorId, skillId ? SKILL_ANIMATION_MAP[skillId]?.element : undefined))
       }
     }
     if (batch.length === 0) return

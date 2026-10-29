@@ -11,6 +11,7 @@
 import type { ActionFlowEffectDTO, ActionFlowNodeDTO, TimelineDelta } from '../types/generated'
 import { COVER_MARKS, STATUS_MARKS, TOKEN_MARKS } from '../constants/battleMarks'
 import { PERSISTENT_EFFECTS } from '../constants/persistentEffects'
+import { formLabel } from '../constants/forms'
 
 export interface SkillResultItem {
   text: string
@@ -123,9 +124,10 @@ function collectBuckets(deltas: TimelineDelta[]): Bucket[] {
         break
       }
       case 'form': {
-        if (delta.after_text) {
+        // 进入（after_text 为新形态）或脱离（after_text 为空）形态；同一因果内多次变化取最终形态。
+        if (delta.after_text || delta.before_text) {
           const key = `p:${target}:form`
-          buckets.set(key, { label: '形态', targetId: target, camp: '', kind: 'form', value: 1, text: delta.after_text })
+          buckets.set(key, { label: '形态', targetId: target, camp: '', kind: 'form', value: 1, text: delta.after_text || '' })
           if (!order.includes(key)) order.push(key)
         }
         break
@@ -144,7 +146,7 @@ function bucketText(bucket: Bucket): string {
     case 'status':
       return bucket.value > 0 ? `${bucket.label}` : `移除${bucket.label}`
     case 'form':
-      return `进入${bucket.text}`
+      return bucket.text ? `进入${formLabel(bucket.text) || '新形态'}` : '脱离形态'
     case 'effect':
       return bucket.value > 0 ? `${bucket.label}生效` : `${bucket.label}结束`
     default:
