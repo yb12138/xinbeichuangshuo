@@ -101,5 +101,31 @@ describe('DecisionDock', () => {
     mount()
     expect(screen.queryByTestId('decision-dock-steps')).toBeNull()
   })
-})
 
+  it('shows the skill description so the player knows what the branches mean', async () => {
+    const snapshot = useSnapshotStore()
+    snapshot.characters = {
+      holy_bow: {
+        id: 'holy_bow',
+        name: '圣弓',
+        skills: [{ id: 'hb_auto_fill', title: '自动填充', description: '回合结束时……①消耗1水晶，+1信仰或+1治疗' }],
+      },
+    } as never
+    useInterruptStore().setPrompt(prompt({ message: '【自动填充】请选择要发动的分支：' }))
+    mount()
+    expect(screen.getByTestId('decision-dock-desc').textContent).toContain('①消耗1水晶')
+    await fireEvent.click(screen.getByTestId('decision-dock-desc-toggle'))
+    expect(screen.queryByTestId('decision-dock-desc')).toBeNull()
+  })
+
+  it('collapses the description by default on board-answered strips', () => {
+    const snapshot = useSnapshotStore()
+    snapshot.characters = {
+      x: { id: 'x', name: 'X', skills: [{ id: 'sk', title: '测试', description: '说明文本' }] },
+    } as never
+    useInterruptStore().setPrompt(prompt({ skill_id: 'sk', presentation: { kind: 'target_picker', numeric_base: 0 } }))
+    mount()
+    expect(screen.getByTestId('decision-dock-desc-toggle')).toBeTruthy()
+    expect(screen.queryByTestId('decision-dock-desc')).toBeNull()
+  })
+})

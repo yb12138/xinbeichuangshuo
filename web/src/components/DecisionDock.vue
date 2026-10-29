@@ -67,6 +67,20 @@ function skillTitle(skillId: string): string {
   return ''
 }
 
+/** 按 skill_id（没有时按标题）找技能描述；同名技能优先取我自己角色的。 */
+function skillDescription(skillId: string, title: string): string {
+  if (!skillId && !title) return ''
+  const myRole = snapshotStore.players[myId.value]?.role || ''
+  const characters = Object.entries(snapshotStore.characters)
+    .sort(([a], [b]) => Number(b === myRole) - Number(a === myRole))
+    .map(([, c]) => c)
+  for (const character of characters) {
+    const skill = character.skills?.find((s) => (skillId ? s.id === skillId : s.title === title))
+    if (skill) return String(skill.description || '').trim()
+  }
+  return ''
+}
+
 /** 提示文案里的【技能名】：没有 skill_id 时从这里取标题。 */
 const bracketTitle = computed(() => {
   const match = (prompt.value?.message || '').match(/【([^】]+)】/)
@@ -89,11 +103,13 @@ const header = computed(() => {
   const fromOther = attackerId && attackerId !== myId.value ? attackerId : ''
   const title = skillTitle(String(p.skill_id || '').trim()) || bracketTitle.value
   const message = String(p.message || '').replace(/^【[^】]+】\s*[:：]?\s*/, '').trim()
+  const skillId = String(p.skill_id || '').trim()
   // 头像：打断时是发起者，否则是我自己（我的技能在要我做选择）
   const avatarOwner = fromOther || myId.value
   return {
     title: title || KIND_TITLE[p.presentation?.kind || ''] || '请选择',
     message,
+    description: skillDescription(skillId, skillId ? '' : bracketTitle.value),
     avatar: characterArtSrc(snapshotStore.players[avatarOwner]?.role),
     who: fromOther ? `${seatName(fromOther)} → 你` : `${seatName(myId.value)}`,
     band: interrupted.value ? (fromOther ? `${seatName(fromOther)}${title ? `的【${title}】` : ''}要求你响应` : '对方回合中需要你做出选择') : '',
@@ -132,6 +148,16 @@ watch(promptKey, () => {
   now.value = Date.now()
 })
 const collapsed = computed(() => uiStore.decisionDockCollapsed && !interrupted.value)
+
+// —— 技能说明：面板内作答时默认展开；窄条默认收起，避免挡住棋盘 ——
+const descOpen = ref(true)
+watch(
+  [promptKey, boardAnswered],
+  () => {
+    descOpen.value = !boardAnswered.value
+  },
+  { immediate: true },
+)
 
 function collapse() {
   uiStore.setDecisionDockCollapsed(true)
@@ -254,6 +280,19 @@ const dockStyle = computed(() => {
             —
           </button>
         </header>
+
+        <div v-if="header?.description" class="decision-dock__desc" :class="{ 'is-open': descOpen }">
+          <button
+            type="button"
+            class="decision-dock__desc-toggle"
+            :aria-expanded="descOpen"
+            data-testid="decision-dock-desc-toggle"
+            @click="descOpen = !descOpen"
+          >
+            技能说明<span aria-hidden="true">{{ descOpen ? '▴' : '▾' }}</span>
+          </button>
+          <p v-if="descOpen" class="decision-dock__desc-text" data-testid="decision-dock-desc">{{ header.description }}</p>
+        </div>
 
         <div class="decision-dock__body">
           <PromptDialog />
@@ -468,6 +507,40 @@ const dockStyle = computed(() => {
 .decision-dock__tool:hover {
   color: var(--bt-chrome-hi);
   box-shadow: 0 0 0 1px var(--bt-chrome);
+}
+
+.decision-dock__desc {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--bt-hairline-soft);
+  background: rgba(0, 0, 0, 0.18);
+}
+.decision-dock__desc-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--bt-chrome);
+  background: var(--bt-bg-0);
+  box-shadow: 0 0 0 1px var(--bt-chrome-mid);
+  cursor: pointer;
+}
+.decision-dock__desc-toggle:hover {
+  color: var(--bt-chrome-hi);
+}
+.decision-dock__desc-text {
+  margin: 0;
+  max-height: 6.2em;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--bt-text-sub);
 }
 
 .decision-dock__body {
