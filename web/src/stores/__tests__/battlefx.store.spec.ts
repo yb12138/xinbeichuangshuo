@@ -1,9 +1,20 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBattleFxStore } from '../battlefx.store'
 import { useSessionStore } from '../session.store'
 import { useSnapshotStore } from '../snapshot.store'
-import type { GameStateUpdate, PlayerInfo, PlayerView } from '../../types/game'
+import type { Card, GameStateUpdate, PlayerInfo, PlayerView } from '../../types/game'
+
+function buildCard(id: string): Card {
+  return {
+    id,
+    name: id,
+    type: 'Attack',
+    element: 'Fire',
+    damage: 2,
+    description: '',
+  }
+}
 
 function buildPlayer(overrides: Partial<PlayerView> = {}): PlayerView {
   return {
@@ -63,6 +74,12 @@ function buildState(players: Record<string, PlayerView>): GameStateUpdate {
 describe('battlefx store focus side', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
   })
 
   it('uses the displayed roster order to resolve focus side', () => {
@@ -89,5 +106,410 @@ describe('battlefx store focus side', () => {
 
     battleFxStore.startSkillInitiatorFocus('p4', 'skill')
     expect(battleFxStore.initiatorFocus?.side).toBe('right')
+  })
+
+  it('shows skill announcements as featured, settles them, then removes them', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.addSkillAnnouncement('p1', 'Alice', '苍炎法典', '对 Bob 造成2点法术伤害')
+
+    expect(battleFxStore.skillAnnouncements).toHaveLength(1)
+    expect(battleFxStore.skillAnnouncements[0]?.phase).toBe('featured')
+    expect(battleFxStore.skillAnnouncements[0]?.skillName).toBe('苍炎法典')
+
+    vi.advanceTimersByTime(1650)
+
+    expect(battleFxStore.skillAnnouncements[0]?.phase).toBe('settled')
+
+    vi.advanceTimersByTime(7000)
+
+    expect(battleFxStore.skillAnnouncements).toHaveLength(0)
+  })
+
+  it('merges repeated skill announcement logs into one richer announcement', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.addSkillAnnouncement('p1', 'Alice', '苍炎法典', '技能发动')
+    battleFxStore.addSkillAnnouncement('p1', 'Alice', '苍炎法典', '先对 Bob 后对自己各造成2点法术伤害')
+
+    expect(battleFxStore.skillAnnouncements).toHaveLength(1)
+    expect(battleFxStore.skillAnnouncements[0]?.effectText).toBe('先对 Bob 后对自己各造成2点法术伤害')
+  })
+
+  it('builds a real-time action narrative from combat cues, cards and damage', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.beginActionNarrative('p1')
+    expect(battleFxStore.actionNarrative?.featuredActorId).toBe('p1')
+
+    battleFxStore.addCombatCue('p1', 'p2', 'attack')
+    battleFxStore.addNarrativeCard('p1', buildCard('火焰斩'), 'attack')
+
+    expect(battleFxStore.actionNarrative?.opposedActorIds).toContain('p2')
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      playerId: 'p1',
+      targetId: 'p2',
+      actionType: 'attack',
+    })
+
+    battleFxStore.addCombatCue('p2', 'p3', 'counter')
+    expect(battleFxStore.actionNarrative?.featuredActorId).toBe('p2')
+    expect(battleFxStore.actionNarrative?.settledActorIds).toContain('p1')
+    expect(battleFxStore.actionNarrative?.opposedActorIds).toContain('p3')
+
+    battleFxStore.addNarrativeDamage('p2', 'p3', 2, 'Attack')
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('造成 2 点伤害')
+
+    battleFxStore.clearActionNarrative()
+    expect(battleFxStore.actionNarrative).toBeNull()
+  })
+
+  it('builds readable playback steps from structured narrative events', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 5,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          action_type: 'attack',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'attack',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          cards: [buildCard('破空箭')],
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-counter',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'counter',
+          actor_user_id: 'p2',
+          target_user_ids: ['p3'],
+          cards: [buildCard('地裂斩')],
+        },
+        {
+          event_id: 4,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a2-skill',
+          narrative_kind: 'skill_triggered',
+          visual_kind: 'skill_token',
+          skill_phase: 'triggered',
+          actor_user_id: 'p3',
+          skill_name: '水影',
+          effect_text: '弃置1张牌后承受伤害',
+        },
+        {
+          event_id: 5,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineCombatResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-counter',
+          narrative_kind: 'damage_dealt',
+          visual_kind: 'damage',
+          actor_user_id: 'p2',
+          target_user_ids: ['p3'],
+          damage: 3,
+          damage_type: 'Attack',
+        },
+        {
+          event_id: 6,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          combat_id: 'nw-t1-p1-c1-counter',
+          narrative_kind: 'field_effect_applied',
+          visual_kind: 'effect_token',
+          effect_type: 'attack_miss',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          summary: '未命中',
+        },
+      ],
+    })
+
+    expect(battleFxStore.narrativePlayback?.steps.map(step => step.kind)).toEqual([
+      'combat',
+      'response',
+      'skill',
+      'damage',
+      'effect',
+    ])
+    expect(battleFxStore.narrativePlayback?.activeStepId).toBe('card-1')
+    expect(battleFxStore.narrativePlayback?.steps[0]).toMatchObject({
+      label: '发起攻击',
+      status: 'active',
+      itemIds: ['card-1'],
+    })
+
+    vi.advanceTimersByTime(950)
+
+    expect(battleFxStore.narrativePlayback?.steps[0]?.status).toBe('completed')
+    expect(battleFxStore.narrativePlayback?.steps[1]).toMatchObject({
+      label: '应战',
+      status: 'active',
+      itemIds: ['card-2'],
+    })
+    expect(battleFxStore.narrativePlayback?.steps[4]).toMatchObject({
+      kind: 'effect',
+      label: '效果：未命中',
+    })
+  })
+
+  it('stores backend action flows and clears them on action close', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 2,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_started',
+          visual_kind: 'action_marker',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          action_type: 'attack',
+        },
+      ],
+      action_flows: [
+        {
+          flow_id: 'nw-t1-p1-a1-attack',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_window_id: 'nw-t1-p1',
+          actor_user_id: 'p1',
+          action_type: 'attack',
+          actors: [
+            { player_id: 'p1', order: 1 },
+            { player_id: 'p2', order: 2 },
+          ],
+          edges: [
+            {
+              id: 'edge-1',
+              order: 1,
+              from_user_id: 'p1',
+              to_user_id: 'p2',
+              phase: 'attack',
+              cards: [buildCard('火焰斩')],
+              outcome: 'pending',
+            },
+          ],
+          logs: [
+            { order: 1, text: '攻击 风之剑圣 -> 狂战士 | 火焰斩' },
+          ],
+        },
+      ],
+    })
+
+    expect(battleFxStore.latestActionFlow?.flow_id).toBe('nw-t1-p1-a1-attack')
+    expect(Object.keys(battleFxStore.actionFlowsById)).toEqual(['nw-t1-p1-a1-attack'])
+    expect(battleFxStore.actionNarrative).toBeNull()
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 3,
+      seq_end: 3,
+      is_replay: false,
+      events: [
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineChainClosed',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-attack',
+          narrative_kind: 'action_closed',
+          visual_kind: 'action_marker',
+        },
+      ],
+    })
+
+    expect(battleFxStore.latestActionFlow).toBeNull()
+    expect(Object.keys(battleFxStore.actionFlowsById)).toHaveLength(0)
+  })
+
+  it('projects placed field effect cards without duplicate effect tokens', () => {
+    const battleFxStore = useBattleFxStore()
+
+    battleFxStore.applyStructuredTimelineNarrative({
+      room_id: 'ROOM1',
+      seq_start: 1,
+      seq_end: 4,
+      is_replay: false,
+      events: [
+        {
+          event_id: 1,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'skill_declared',
+          visual_kind: 'none',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          skill_name: '水之封印',
+        },
+        {
+          event_id: 2,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineActionDeclared',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'card_played',
+          visual_kind: 'card',
+          card_role: 'field_effect',
+          actor_user_id: 'p1',
+          cards: [buildCard('水涟斩')],
+        },
+        {
+          event_id: 3,
+          turn_id: 1,
+          chain_id: 'nw-t1-p1',
+          type: 'TimelineEffectResolved',
+          outcome: 'TimelineOutcomeSuccess',
+          visibility: 'TimelineVisibilityPublic',
+          narrative_window_id: 'nw-t1-p1',
+          action_id: 'nw-t1-p1-a1-skill',
+          narrative_kind: 'field_effect_applied',
+          visual_kind: 'effect_token',
+          effect_type: 'SealWater',
+          actor_user_id: 'p1',
+          target_user_ids: ['p2'],
+          field_card: {
+            card: buildCard('水涟斩'),
+            owner_id: 'p2',
+            source_id: 'p1',
+            mode: 'Effect',
+            effect: 'SealWater',
+            field_hook: '',
+            locked: false,
+            duration: 0,
+          },
+        },
+      ],
+    })
+
+    expect(battleFxStore.actionNarrative?.playedCards).toHaveLength(1)
+    expect(battleFxStore.actionNarrative?.playedCards[0]).toMatchObject({
+      actionType: 'field_effect',
+      targetId: 'p2',
+    })
+    expect(battleFxStore.actionNarrative?.events).toHaveLength(0)
+    expect(battleFxStore.narrativePlayback?.steps).toHaveLength(1)
+    expect(battleFxStore.narrativePlayback?.steps[0]).toMatchObject({
+      kind: 'skill',
+      label: '施加封印',
+      targetIds: ['p2'],
+    })
+  })
+})
+
+describe('battleFx previous action snapshot & turn banner', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('snapshots narrative as 上一手 on clear and dismisses when new content arrives', () => {
+    const battleFxStore = useBattleFxStore()
+    battleFxStore.beginActionNarrative('p1')
+    battleFxStore.addNarrativeCard('p1', buildCard('c1'), 'attack', 'p2')
+
+    battleFxStore.clearActionNarrative()
+    expect(battleFxStore.actionNarrative).toBeNull()
+    expect(battleFxStore.previousActionSnapshot?.narrative?.playedCards).toHaveLength(1)
+    expect(battleFxStore.previousActionSnapshot?.playback?.isReview).toBe(true)
+
+    // 新回合占位事件不撤下上一手
+    battleFxStore.beginActionNarrative('p2')
+    expect(battleFxStore.previousActionSnapshot).not.toBeNull()
+
+    battleFxStore.addNarrativeCard('p2', buildCard('c2'), 'attack', 'p1')
+    expect(battleFxStore.previousActionSnapshot).toBeNull()
+  })
+
+  it('skips snapshot for empty narratives and on reset', () => {
+    const battleFxStore = useBattleFxStore()
+    battleFxStore.beginActionNarrative('p1')
+    battleFxStore.clearActionNarrative()
+    expect(battleFxStore.previousActionSnapshot).toBeNull()
+
+    battleFxStore.beginActionNarrative('p1')
+    battleFxStore.addNarrativeDamage('p1', 'p2', 2)
+    battleFxStore.clearActionNarrative()
+    expect(battleFxStore.previousActionSnapshot).not.toBeNull()
+    battleFxStore.reset()
+    expect(battleFxStore.previousActionSnapshot).toBeNull()
+  })
+
+  it('emits a fresh turn banner request each time', () => {
+    const battleFxStore = useBattleFxStore()
+    battleFxStore.showTurnBanner('红方 · 封印师 的回合', 'Red')
+    const first = battleFxStore.turnBannerRequest
+    expect(first).toMatchObject({ text: '红方 · 封印师 的回合', camp: 'Red' })
+    battleFxStore.showTurnBanner('红方 · 封印师 的回合', 'Red')
+    expect(battleFxStore.turnBannerRequest?.id).not.toBe(first?.id)
   })
 })

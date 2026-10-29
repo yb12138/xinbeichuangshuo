@@ -69,6 +69,7 @@ func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) play
 	after := AddBeastSoul(p, 1, false)
 	if after > before {
 		rt.Log(fmt.Sprintf("%s 的 [兽魂意念] 生效：普通形态主动攻击命中，兽魂+1（当前%d）", p.Name, after))
+		player.NotifySkillActivated(rt, p, p.ID, "bs_beast_soul_will", p.ID)
 	}
 	return player.TimingHookResult{}
 }

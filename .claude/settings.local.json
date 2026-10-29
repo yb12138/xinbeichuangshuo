@@ -118,7 +118,13 @@
       "Bash(cat /Users/yb/xinbeichuangshuo/docs/character_skill_ui_config_new.md /Users/yb/xinbeichuangshuo/docs/character_skill_ui_config.md)",
       "Bash(mv /tmp/merged_skill_config.md /Users/yb/xinbeichuangshuo/docs/character_skill_ui_config.md)",
       "Bash(pnpm run:*)",
-      "Bash(xargs -I{} basename {})"
+      "Bash(xargs -I{} basename {})",
+      "Bash(xxd /Users/yb/xinbeichuangshuo/internal/engine/player/spirit_caster/choices.go)",
+      "Bash(gofmt:*)",
+      "Bash(kill 4118)",
+      "Bash(kill 35051)",
+      "Bash(node -e \"try { require\\('./e2e/scenarios/valkyrie.ts'\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\(e.message\\); }\")",
+      "Bash(node:*)"
     ]
   }
 }

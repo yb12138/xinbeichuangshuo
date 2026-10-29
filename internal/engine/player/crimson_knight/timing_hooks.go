@@ -39,6 +39,7 @@ func turnEndHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext
 	}
 	defer rt.PoseChangeGuard()
 	engineplayer.ClearForm(p, model.FormCrimsonKnightHotBlooded)
+	engineplayer.NotifySkillActivated(rt, p, p.ID, "crk_hot_blood", p.ID)
 	rt.Heal(p.ID, 2)
 	rt.Log(fmt.Sprintf("%s 回合结束脱离 [热血沸腾形态]，获得2点治疗", p.Name))
 	return engineplayer.TimingHookResult{}
@@ -58,6 +59,7 @@ func moraleLossHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookCont
 	}
 	defer rt.PoseChangeGuard()
 	engineplayer.SetForm(victim, model.FormCrimsonKnightHotBlooded)
+	engineplayer.NotifySkillActivated(rt, victim, victim.ID, "crk_hot_blood", victim.ID)
 	rt.Log(fmt.Sprintf("%s 的 [热血沸腾] 触发，进入热血沸腾形态", victim.Name))
 	return engineplayer.TimingHookResult{}
 }

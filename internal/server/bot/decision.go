@@ -12,6 +12,66 @@ import (
 )
 
 func DecideAction(input DecisionInput) (model.PlayerAction, bool) {
+	if input.Prompt == nil {
+		return model.PlayerAction{}, false
+	}
+	// 禁用选项（展示给玩家但本次不可选）对机器人不可见；选完后把序号映射回原始选项。
+	visible, indexMap := withoutDisabledOptions(input.Prompt)
+	if visible != input.Prompt {
+		input.Prompt = visible
+		action, ok := decideAction(input)
+		if ok && action.Type == model.CmdSelect {
+			action.Selections = remapSelections(action.Selections, indexMap)
+		}
+		return action, ok
+	}
+	return decideAction(input)
+}
+
+// withoutDisabledOptions 返回去掉禁用选项的提示副本，以及"副本序号 → 原始序号"映射。
+// 没有禁用选项时原样返回同一个提示，映射为 nil。
+func withoutDisabledOptions(prompt *model.Prompt) (*model.Prompt, []int) {
+	hasDisabled := false
+	for _, o := range prompt.Options {
+		if o.Disabled {
+			hasDisabled = true
+			break
+		}
+	}
+	if !hasDisabled {
+		return prompt, nil
+	}
+	cp := *prompt
+	cp.Options = make([]model.PromptOption, 0, len(prompt.Options))
+	indexMap := make([]int, 0, len(prompt.Options))
+	for i, o := range prompt.Options {
+		if o.Disabled {
+			continue
+		}
+		cp.Options = append(cp.Options, o)
+		indexMap = append(indexMap, i)
+	}
+	return &cp, indexMap
+}
+
+// remapSelections 把基于过滤后选项的序号换回原始序号；
+// 以选项 ID（手牌索引等）表达的选择不在映射范围内时原样保留。
+func remapSelections(selections []int, indexMap []int) []int {
+	if indexMap == nil {
+		return selections
+	}
+	out := make([]int, len(selections))
+	for i, sel := range selections {
+		if sel >= 0 && sel < len(indexMap) {
+			out[i] = indexMap[sel]
+		} else {
+			out[i] = sel
+		}
+	}
+	return out
+}
+
+func decideAction(input DecisionInput) (model.PlayerAction, bool) {
 	me, ok := input.State.Players[input.PlayerID]
 	if !ok {
 		return model.PlayerAction{}, false
@@ -113,7 +173,9 @@ func decideActionSelection(playerID string, state StateSnapshot, prompt *model.P
 		}
 	}
 
-	return model.PlayerAction{PlayerID: playerID, Type: model.CmdPass}, true
+	// 规则上每个行动阶段必须执行一个行动，引擎不接受 Pass；
+	// 实在无事可做时宣告【无法行动】（额外行动阶段则等价于放弃本次额外行动）。
+	return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 }
 
 func pickBestAttack(playerID string, state StateSnapshot, me PlayerSnapshot, attackCards []int, hand []model.Card, campNeed, handPressure, enemyThreat float64, memory *Memory) (model.PlayerAction, float64) {
@@ -849,7 +911,8 @@ func BuildFallbackAction(playerID string, prompt *model.Prompt, state StateSnaps
 			}
 		}
 	}
-	return model.PlayerAction{PlayerID: playerID, Type: model.CmdPass}, true
+	// 引擎不接受 Pass（无效的行动类型），兜底改为宣告无法行动
+	return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 }
 
 func collectCardIndices(hand []model.Card, t model.CardType) []int {

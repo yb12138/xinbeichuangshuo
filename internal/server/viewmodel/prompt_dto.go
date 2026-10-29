@@ -26,6 +26,8 @@ type PromptDTO struct {
 	AttackerID       string                    `json:"attacker_id,omitempty"`
 	CounterTargetIDs []string                  `json:"counter_target_ids,omitempty"`
 	AttackElement    string                    `json:"attack_element,omitempty"`
+	DefendCardIDs    []string                  `json:"defend_card_ids,omitempty"`
+	CounterCardIDs   []string                  `json:"counter_card_ids,omitempty"`
 }
 
 // PromptInteractionDTO 明确声明 Prompt 的前端交互与提交契约。
@@ -39,14 +41,16 @@ type PromptInteractionDTO struct {
 
 // PromptOptionDTO 选项 DTO
 type PromptOptionDTO struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	ButtonLabel string `json:"button_label"`
-	Hint        string `json:"hint,omitempty"`
-	CardID      string `json:"card_id,omitempty"`
-	TargetID    string `json:"target_id,omitempty"`
-	FieldIndex  *int   `json:"field_index,omitempty"`
-	Element     string `json:"element,omitempty"`
+	ID             string `json:"id"`
+	Label          string `json:"label"`
+	ButtonLabel    string `json:"button_label"`
+	Hint           string `json:"hint,omitempty"`
+	CardID         string `json:"card_id,omitempty"`
+	TargetID       string `json:"target_id,omitempty"`
+	FieldIndex     *int   `json:"field_index,omitempty"`
+	Element        string `json:"element,omitempty"`
+	Disabled       bool   `json:"disabled,omitempty"`
+	DisabledReason string `json:"disabled_reason,omitempty"`
 }
 
 // ToPromptDTO 将 model.Prompt 转换为 PromptDTO
@@ -71,34 +75,40 @@ func ToPromptDTO(p *model.Prompt) *PromptDTO {
 		Max:              p.Max,
 		AttackerID:       p.AttackerID,
 		CounterTargetIDs: p.CounterTargetIDs,
+		DefendCardIDs:    append([]string(nil), p.DefendCardIDs...),
+		CounterCardIDs:   append([]string(nil), p.CounterCardIDs...),
 		AttackElement:    p.AttackElement,
 	}
 	// 转换 Options
 	for _, o := range p.Options {
 		optionIndex := len(dto.Options)
 		dto.Options = append(dto.Options, PromptOptionDTO{
-			ID:          o.ID,
-			Label:       o.Label,
-			ButtonLabel: promptOptionButtonLabel(p, presentation, o, optionIndex),
-			Hint:        o.Hint,
-			CardID:      o.CardID,
-			TargetID:    o.TargetID,
-			FieldIndex:  o.FieldIndex,
-			Element:     o.Element,
+			ID:             o.ID,
+			Label:          o.Label,
+			ButtonLabel:    promptOptionButtonLabel(p, presentation, o, optionIndex),
+			Hint:           o.Hint,
+			CardID:         o.CardID,
+			TargetID:       o.TargetID,
+			FieldIndex:     o.FieldIndex,
+			Element:        o.Element,
+			Disabled:       o.Disabled,
+			DisabledReason: o.DisabledReason,
 		})
 	}
 	// 转换 SpecialOptions
 	for _, o := range p.SpecialOptions {
 		optionIndex := len(dto.SpecialOptions)
 		dto.SpecialOptions = append(dto.SpecialOptions, PromptOptionDTO{
-			ID:          o.ID,
-			Label:       o.Label,
-			ButtonLabel: promptOptionButtonLabel(p, presentation, o, optionIndex),
-			Hint:        o.Hint,
-			CardID:      o.CardID,
-			TargetID:    o.TargetID,
-			FieldIndex:  o.FieldIndex,
-			Element:     o.Element,
+			ID:             o.ID,
+			Label:          o.Label,
+			ButtonLabel:    promptOptionButtonLabel(p, presentation, o, optionIndex),
+			Hint:           o.Hint,
+			CardID:         o.CardID,
+			TargetID:       o.TargetID,
+			FieldIndex:     o.FieldIndex,
+			Element:        o.Element,
+			Disabled:       o.Disabled,
+			DisabledReason: o.DisabledReason,
 		})
 	}
 	return dto

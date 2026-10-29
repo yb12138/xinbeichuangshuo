@@ -265,6 +265,59 @@ describe('GameBoard target picker', () => {
     expect(submitSelectMock).toHaveBeenCalledWith([1])
   })
 
+  it('shows seal prompt and icon on the target player anchor', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({ id: 'p1', name: '封印师玩家', camp: 'Red', role: 'sealer' })
+    const target = buildPlayer({
+      id: 'p2',
+      name: '狂战士玩家',
+      camp: 'Blue',
+      role: 'fighter',
+      field: [{
+        card: buildCard({ id: 'water-seal-card', name: '水涟斩', element: 'Water' }),
+        owner_id: 'p2',
+        source_id: 'p1',
+        mode: 'Effect',
+        effect: 'SealWater',
+        field_hook: '',
+        locked: false,
+        duration: 0,
+      }],
+    })
+    const players = { p1: me, p2: target }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'sealer')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().setCharacters([
+      buildCharacter({ id: 'sealer', name: '封印师' }),
+      buildCharacter({ id: 'fighter', name: '战士' }),
+    ])
+    useSnapshotStore().updateGameState(buildState(players))
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const targetAnchor = container.querySelector('[data-player-anchor="p2"]')
+    const sealIcon = targetAnchor?.querySelector('.player-anchor-status-icon--seal')
+    expect(sealIcon).not.toBeNull()
+    expect(sealIcon?.getAttribute('aria-label')).toContain('水之封印')
+  })
+
   it('keeps rose courtyard ambient vfx while the field effect is active', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -384,6 +437,60 @@ describe('GameBoard target picker', () => {
 
     expect(screen.getByTestId('player-area-p2')).not.toBeDisabled()
     expect(screen.getByTestId('player-area-p3')).toBeDisabled()
+  })
+
+  it('pulses selectable enemies while choosing destruction storm targets', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({ id: 'p1', name: '魔法少女', camp: 'Red', role: 'magical_girl' })
+    const enemyA = buildPlayer({ id: 'p2', name: '目标A', camp: 'Blue', role: 'fighter' })
+    const enemyB = buildPlayer({ id: 'p3', name: '目标B', camp: 'Blue', role: 'fighter' })
+    const ally = buildPlayer({ id: 'p4', name: '队友', camp: 'Red', role: 'fighter' })
+    const players = { p1: me, p2: enemyA, p3: enemyB, p4: ally }
+
+    const destructionStorm: AvailableSkill = {
+      id: 'destruction_storm',
+      title: '毁灭风暴',
+      description: '［宝石］对任2名目标对手各造成2点法术伤害③。',
+      min_targets: 2,
+      max_targets: 2,
+      target_type: 2,
+      cost_gem: 1,
+      cost_crystal: 0,
+      cost_discards: 0,
+    }
+
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'magical_girl')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const interruptStore = useInterruptStore()
+    interruptStore.setSelectedSkill(destructionStorm)
+    interruptStore.setSkillMode('choosing_target')
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          CardComponent: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    expect(screen.getByTestId('player-area-p2')).not.toBeDisabled()
+    expect(screen.getByTestId('player-area-p3')).not.toBeDisabled()
+    expect(screen.getByTestId('player-area-p4')).toBeDisabled()
+    expect(screen.getByTestId('player-area-p2').closest('.target-guide-pulse')).not.toBeNull()
+    expect(screen.getByTestId('player-area-p3').closest('.target-guide-pulse')).not.toBeNull()
+    expect(screen.getByTestId('player-area-p4').closest('.target-guide-pulse')).toBeNull()
+    expect(document.querySelector('.table-target-guide-hint')).toBeNull()
   })
 
   it('only allows matching hand cards for exclusive skill selection', async () => {
@@ -526,6 +633,112 @@ describe('GameBoard target picker', () => {
     expect(interruptStore.selectedHandIndexes).toEqual([0])
     expect(submitSelectCardIDsMock).not.toHaveBeenCalled()
     expect(submitSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('only lights up hand cards the engine listed for counter/defend', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '元素师',
+      camp: 'Red',
+      role: 'elementalist',
+      hand: [
+        buildCard({ id: 'thunder', name: '雷光斩', element: 'Thunder' }),
+        buildCard({ id: 'fire', name: '火焰斩', element: 'Fire' }),
+        // 前端按元素猜会认为暗灭/同系雷光斩都能应战；但引擎只列了 thunder（例如另一张被角色规则排除），以引擎为准
+        buildCard({ id: 'dark', name: '暗灭', element: 'Dark' }),
+        buildCard({ id: 'thunder-2', name: '雷光斩', element: 'Thunder' }),
+      ],
+      hand_count: 4,
+    })
+    const players = { p1: me }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'elementalist')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt({
+      type: 'confirm',
+      player_id: 'p1',
+      message: '需要响应攻击',
+      attack_element: 'Thunder',
+      counter_target_ids: ['p9'],
+      counter_card_ids: ['thunder'],
+      defend_card_ids: [],
+      options: [
+        { id: 'take', label: '承受伤害', button_label: '命中' },
+        { id: 'counter', label: '应战', button_label: '应战' },
+      ],
+      min: 1,
+      max: 1,
+      presentation: { kind: 'response', layout: 'inline', numeric_base: 0 },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const cards = container.querySelectorAll('.hand-card-row .card-shell')
+    expect(cards).toHaveLength(4)
+    expect(Array.from(cards).map((c) => c.classList.contains('selectable'))).toEqual([true, false, false, false])
+  })
+
+  it('lights up no hand card when only take is offered', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '元素师',
+      camp: 'Red',
+      role: 'elementalist',
+      hand: [buildCard({ id: 'fire', name: '火焰斩', element: 'Fire' })],
+      hand_count: 1,
+    })
+    const players = { p1: me }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'elementalist')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt({
+      type: 'confirm',
+      player_id: 'p1',
+      message: '需要响应攻击',
+      attack_element: 'Thunder',
+      options: [{ id: 'take', label: '承受伤害', button_label: '命中' }],
+      min: 1,
+      max: 1,
+      presentation: { kind: 'response', layout: 'inline', numeric_base: 0 },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const cards = container.querySelectorAll('.hand-card-row .card-shell')
+    expect(cards).toHaveLength(1)
+    expect(cards[0]?.classList.contains('selectable')).toBe(false)
   })
 
   it('allows proxy card picker cards that map to my hand', async () => {
@@ -675,7 +888,7 @@ describe('GameBoard target picker', () => {
     expect(screen.getByText('爆牌弃牌阶段')).toBeInTheDocument()
   })
 
-  it('renders the current player in the same 3+3 side layout as other players', () => {
+  it('renders all players around the battle table while keeping my HUD separate from the hand rail', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -714,10 +927,34 @@ describe('GameBoard target picker', () => {
       },
     })
 
+    expect(screen.getByTestId('battle-table-scene')).toBeInTheDocument()
+    expect(document.querySelector('.team-track')).toBeNull()
+    expect(screen.getAllByTestId(/^battle-table-seat-/)).toHaveLength(6)
     expect(screen.getAllByTestId(/^player-area-p/)).toHaveLength(6)
     expect(screen.getByTestId('player-area-p1')).toBeInTheDocument()
-    expect(screen.getByText('治疗 1/5')).toBeInTheDocument()
-    expect(document.querySelector('.my-status-name')).toHaveTextContent('剑斗士')
+    expect(screen.getByTestId('battle-table-seat-0')).toContainElement(screen.getByTestId('player-area-p1'))
+    const statusPortrait = document.querySelector('.my-status-portrait') as HTMLImageElement | null
+    const statusStrip = document.querySelector('.my-status-strip') as HTMLElement | null
+    const statusOverlay = statusStrip?.querySelector('.my-status-overlay.player-overlay') as HTMLElement | null
+    const handRail = document.querySelector('.hand-rail') as HTMLElement | null
+    const actionDock = document.querySelector('.right-action-dock') as HTMLElement | null
+    expect(statusStrip).not.toBeNull()
+    expect(statusOverlay).not.toBeNull()
+    expect(statusStrip?.querySelector('.my-status-content')).toBeNull()
+    expect(statusOverlay?.textContent).toContain('剑斗士')
+    expect(statusOverlay?.textContent).toContain('玩家：玩家1')
+    expect(statusOverlay?.textContent).toContain('1/5')
+    expect(statusOverlay?.textContent).toContain('0/6')
+    expect(handRail).not.toBeNull()
+    expect(actionDock).not.toBeNull()
+    expect(statusStrip?.compareDocumentPosition(handRail as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(handRail?.compareDocumentPosition(actionDock as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(statusPortrait).not.toBeNull()
+    expect(statusPortrait?.alt).toBe('剑斗士')
+    expect(statusPortrait?.getAttribute('src')).toBe('/characters/art/fighter.webp')
+    expect(handRail?.querySelector('.my-status-portrait')).toBeNull()
+    expect(statusStrip?.classList.contains('my-status-strip--active')).toBe(true)
+    expect(actionDock?.classList.contains('right-action-dock--active')).toBe(true)
   })
 
   it('passes hundred dragon lock badges to source and target players without rendering a link line', () => {

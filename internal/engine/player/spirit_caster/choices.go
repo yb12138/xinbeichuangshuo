@@ -321,6 +321,7 @@ func handleIncantCard(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 	user.Hand = append(user.Hand[:selectionIndex], user.Hand[selectionIndex+1:]...)
 	AddPowerCard(user, card)
 	rt.Log(fmt.Sprintf("%s 发动 [念咒]：将1张手牌盖放为妖力（当前妖力%d）", user.Name, PowerCount(user, "")))
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "sc_incantation", user.ID)
 	rt.PopInterrupt()
 	return continueSpiritCasterResolution(rt, user, skillID, targetIDs)
 }
@@ -609,14 +610,17 @@ func handleTalismanPick(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	}
 	targetIDs := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"]))
 	switch selectionIndex {
-	case 0:
-		// Thunder talisman
+	case 0, 1:
+		skillID := "sc_talisman_thunder"
+		if selectionIndex == 1 {
+			skillID = "sc_talisman_wind"
+		}
 		rt.PopInterrupt()
-		return continueSpiritCasterResolution(rt, user, "sc_talisman_thunder", targetIDs)
-	case 1:
-		// Wind talisman
-		rt.PopInterrupt()
-		return continueSpiritCasterResolution(rt, user, "sc_talisman_wind", targetIDs)
+		var err error
+		rt.WithSkillCause(skillID, user.ID, func() {
+			err = continueSpiritCasterResolution(rt, user, skillID, targetIDs)
+		})
+		return err
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -717,6 +721,13 @@ func resolveThunderDamage(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 	if user == nil {
 		return
 	}
+	// 雷鸣伤害可能在念咒 / 灵力崩解等共用子步骤的因果内结算：显式归属灵符-雷鸣。
+	rt.WithSkillCause("sc_talisman_thunder", user.ID, func() {
+		resolveThunderDamageInCause(rt, user, targetIDs, bonus)
+	})
+}
+
+func resolveThunderDamageInCause(rt engineplayer.ChoiceRuntime, user *model.Player, targetIDs []string, bonus int) {
 	damage := 1 + bonus
 	if damage < 0 {
 		damage = 0

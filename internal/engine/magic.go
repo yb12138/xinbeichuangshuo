@@ -90,6 +90,23 @@ func (e *GameEngine) PerformMagicByID(sourceID, targetID, cardID string) error {
 	} else {
 		e.Log(fmt.Sprintf("[Magic] %s 使用了 %s，按传递顺序自动结算", player.Name, card.Name))
 	}
+	if e.narrativeTrace == nil || e.narrativeTrace.actionID == "" || e.narrativeTrace.actionActor != sourceID {
+		targets := []string{}
+		if targetID != "" {
+			targets = append(targets, targetID)
+		}
+		e.beginNarrativeAction("magic", sourceID)
+		e.publishTimelineMarker(model.TimelineMarkerPayload{
+			PlayerID:      player.ID,
+			PlayerName:    player.Name,
+			ActionType:    "magic",
+			Summary:       card.Name,
+			TargetIDs:     targets,
+			NarrativeKind: "action_started",
+			VisualKind:    "action_marker",
+			Timing:        "magic.started",
+		})
+	}
 
 	e.NotifyCardRevealed(sourceID, []model.Card{card}, "magic")
 

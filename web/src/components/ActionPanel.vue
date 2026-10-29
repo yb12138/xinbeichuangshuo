@@ -14,11 +14,16 @@ import {
     skillSpecificDisabledReason,
 } from '../constants/skillDisplayRules'
 import type { AvailableSkill, PromptOption, PlayerView } from '../types/game'
+import { parseActionHubNotice } from '../constants/actionHubNotice'
+import { cardArtSrc } from '../constants/cardArt'
+import { characterArtSrc } from '../constants/characterArt'
 import PromptDialog from './PromptDialog.vue'
+import { useUiStore } from '../stores/ui.store'
 
 const interruptStore = useInterruptStore()
 const sessionStore = useSessionStore()
 const snapshotStore = useSnapshotStore()
+const uiStore = useUiStore()
 const actions = useSubmitAction()
 const interaction = useInteractionController()
 const {
@@ -28,6 +33,7 @@ const {
     effectiveAvailableSkills,
     canConfirmSkill,
     cardMatchesExclusive,
+    selectedActionCard,
 } = useBattleInteractionState()
 
 const prompt = computed(() => interruptStore.currentPrompt)
@@ -59,8 +65,6 @@ const debugAvailable = computed(() => {
     return import.meta.env.DEV || query.has('debug') || query.has('debug_target')
 })
 
-type MainActionIconId = 'attack' | 'magic' | 'special' | 'cannot_act' | 'skill' | 'pass' | 'cancel' | 'confirm' | 'card'
-
 type SpecialActionId = 'buy' | 'synthesize' | 'extract'
 
 interface SpecialActionMeta {
@@ -75,18 +79,6 @@ interface SpecialActionDisplayItem extends SpecialActionMeta {
     available: boolean
     disabledReason: string
     promptLabel: string
-}
-
-const MAIN_ACTION_IMAGE_CANDIDATES: Record<MainActionIconId, string[]> = {
-    attack: ['/assets/ui/action_attack.png'],
-    magic: ['/assets/ui/action_magic_btn.png'],
-    special: ['/assets/ui/action_special_btn.png'],
-    cannot_act: ['/assets/ui/action_cannot_act.png'],
-    skill: ['/assets/ui/action_skill.png'],
-    pass: ['/assets/ui/action_pass_btn.png'],
-    cancel: ['/assets/ui/action_cancel_btn.png'],
-    confirm: ['/assets/ui/action_confirm.png'],
-    card: ['/assets/ui/action_card.png'],
 }
 
 const SPECIAL_ACTION_CATALOG: SpecialActionMeta[] = [
@@ -113,13 +105,23 @@ const SPECIAL_ACTION_CATALOG: SpecialActionMeta[] = [
     },
 ]
 const isMyTurn = computed(() => snapshotStore.currentPlayer === sessionStore.myPlayerId)
-const waitingName = computed(() => {
-    if (!interruptStore.waitingFor) return ''
-    return snapshotStore.players[interruptStore.waitingFor]?.name || interruptStore.waitingFor
-})
+/** 等待面板文案："封印师（测试玩家4）"；拿不到角色名时只显示玩家名 */
+function seatLabel(playerId?: string): string {
+    if (!playerId) return ''
+    const player = snapshotStore.players[playerId]
+    const name = player?.name || playerId
+    const role = snapshotStore.characters[player?.role || '']?.name
+    return role ? `${role}（${name}）` : name
+}
 const specialActionModalVisible = ref(false)
+const isActionSelectionSnapshot = computed(() =>
+    snapshotStore.turnStage === 'ActionExecution' &&
+    !snapshotStore.combatStage &&
+    !snapshotStore.subflow
+)
 const isIdleMainTurnPanel = computed(() =>
     isMyTurn.value &&
+    isActionSelectionSnapshot.value &&
     !prompt.value &&
     interruptStore.actionMode === 'none' &&
     interruptStore.skillMode === 'none'
@@ -140,6 +142,20 @@ const isActionSelectionPrompt = computed(() => {
     if (!p || !isPromptForMe.value) return false
     if (p.presentation?.kind !== 'action_hub') return false
     return (p.options || []).some((opt) => normalizeActionHubOptionId(opt) !== null)
+})
+
+/** 技能发动流程中需要在手牌 / 座位上作答的步骤。 */
+const isSkillStepMode = computed(() =>
+    !!interruptStore.selectedSkill &&
+    (interruptStore.skillMode === 'choosing_exclusive' ||
+        interruptStore.skillMode === 'choosing_discard' ||
+        interruptStore.skillMode === 'choosing_target')
+)
+
+/** 棋盘上有决策槽时才搬过去（单独渲染 ActionPanel 的测试里没有这个槽，原地显示）。 */
+const hasSkillSlot = computed(() => {
+    void interruptStore.skillMode
+    return typeof document !== 'undefined' && !!document.getElementById('decision-skill-slot')
 })
 
 const isActionHubContext = computed(() =>
@@ -214,13 +230,13 @@ const actionHubPromptNotice = computed(() => {
     if (!message) return ''
     return message
 })
-function extractFullnessAttackHint(message: string): string {
-    return message.match(/【充盈】[^）)]+/)?.[0] || ''
-}
+/** 拆解后的行动提示：默认句不显示、额外行动进顶栏、规则约束做警示条、充盈做底栏标签 */
+const actionHubNotice = computed(() => parseActionHubNotice(actionHubPromptNotice.value))
 
 const attackActionPromptNotice = computed(() => {
     if (interruptStore.actionMode !== 'attack') return ''
-    return extractFullnessAttackHint(actionHubPromptNotice.value)
+    const bonus = actionHubNotice.value.fullnessBonus
+    return bonus > 0 ? `【充盈】下一次主动攻击伤害额外+${bonus}` : ''
 })
 
 const specialActionOptions = computed<PromptOption[]>(() => {
@@ -301,29 +317,6 @@ const debugExclusiveSkillOptions = computed(() => {
     return role.skills
 })
 
-const mainActionImageIndex = ref<Record<MainActionIconId, number>>({
-    attack: 0,
-    magic: 0,
-    special: 0,
-    cannot_act: 0,
-    skill: 0,
-    pass: 0,
-    cancel: 0,
-    confirm: 0,
-    card: 0,
-})
-const mainActionImageFailed = ref<Record<MainActionIconId, boolean>>({
-    attack: false,
-    magic: false,
-    special: false,
-    cannot_act: false,
-    skill: false,
-    pass: false,
-    cancel: false,
-    confirm: false,
-    card: false,
-})
-
 function hasActionPromptOption(optionId: string): boolean {
     if (!isActionSelectionPrompt.value) return true
     return actionPromptOptionIdSet.value.has(optionId as ActionHubOptionId)
@@ -338,27 +331,6 @@ function actionPromptRawOptionId(optionId: string): string {
     if (!isActionSelectionPrompt.value) return optionId
     const option = normalizedActionPromptOptionMap.value.get(optionId as ActionHubOptionId)
     return option?.id || optionId
-}
-
-function mainActionButtonImage(optionId: MainActionIconId): string {
-    const candidates = MAIN_ACTION_IMAGE_CANDIDATES[optionId]
-    const idx = mainActionImageIndex.value[optionId]
-    const image = candidates[Math.min(idx, candidates.length - 1)]
-    return image || ''
-}
-
-function isMainActionImageReady(optionId: MainActionIconId): boolean {
-    return !mainActionImageFailed.value[optionId]
-}
-
-function onMainActionImageError(optionId: MainActionIconId) {
-    const candidates = MAIN_ACTION_IMAGE_CANDIDATES[optionId]
-    const nextIndex = mainActionImageIndex.value[optionId] + 1
-    if (nextIndex < candidates.length) {
-        mainActionImageIndex.value[optionId] = nextIndex
-        return
-    }
-    mainActionImageFailed.value[optionId] = true
 }
 
 function resolveSpecialActionDisabledReason(optionId: SpecialActionId): string {
@@ -412,9 +384,6 @@ function invokeActionHubOption(optionId: string) {
             return
         case 'cannot_act':
             actions.submitCannotAct()
-            return
-        case 'pass':
-            openPassAction()
             return
         case 'skill':
             openSkillAction()
@@ -472,10 +441,6 @@ function openSynthesizeAction() {
 
 function openExtractAction() {
     actions.submitExtract()
-}
-
-function openPassAction() {
-    actions.submitPass()
 }
 
 watch(isActionHubContext, (isOpen) => {
@@ -827,13 +792,21 @@ function isServerPublishedAvailableSkill(skill: AvailableSkill): boolean {
     const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase()
     const sid = normalize(skill.id)
     if (!sid) return false
-    return list.some((item) => normalize(item.id) === sid)
+    return list.some((item) => normalize(item.id) === sid && !item.disabled)
+}
+
+/** 服务端下发的同 ID 技能（含置灰状态与原因）。 */
+function serverSkillFor(skill: AvailableSkill): AvailableSkill | undefined {
+    const list = snapshotStore.availableSkills || []
+    const sid = String(skill?.id ?? '').trim().toLowerCase()
+    return sid ? list.find((item) => String(item.id ?? '').trim().toLowerCase() === sid) : undefined
 }
 
 function canSelectSkill(skill: AvailableSkill): boolean {
     if (!skill) return false
-    // 服务端已下发 available_skills 时，以后端可用态为准，避免前端本地预检与后端规则漂移导致误置灰。
-    if (isServerPublishedAvailableSkill(skill)) return true
+    // 服务端下发了该技能：可用性完全以服务端判定为准（含置灰），不再用前端规则复刻。
+    const server = serverSkillFor(skill)
+    if (server) return !server.disabled
     if (!canPaySkillEnergy(skill)) return false
     if (skill.require_exclusive && !hasMatchingExclusiveCard(skill)) return false
     const tokenReason = skillTokenDisabledReason(skill)
@@ -859,6 +832,8 @@ function canSelectSkill(skill: AvailableSkill): boolean {
 
 function skillDisabledReason(skill: AvailableSkill): string {
     if (!skill) return '当前不可发动该技能'
+    const server = serverSkillFor(skill)
+    if (server?.disabled && server.disabled_reason) return server.disabled_reason
     if (!canPaySkillEnergy(skill)) {
         return `能量不足（需要 ${skill.cost_gem || 0} 宝石、${skill.cost_crystal || 0} 水晶）。`
     }
@@ -1185,366 +1160,515 @@ function elementName(el: string): string {
         :class="actionPanelRootClass"
     >
         <!-- 攻击/法术模式 -->
-        <div v-if="interruptStore.actionMode !== 'none'" class="space-y-3 action-mode-panel">
+        <div v-if="interruptStore.actionMode !== 'none'" class="dock-panel action-mode-panel">
+            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--br" aria-hidden="true" />
+            <header class="dock-hd">
+                <span class="dock-hd-left">
+                    <img class="dock-ico dock-ico--img" :src="`/assets/icons/${interruptStore.actionMode === 'attack' ? 'attack' : 'magic'}.webp`" alt="" aria-hidden="true" draggable="false" />
+                    <span class="dock-title">
+                        {{ interruptStore.actionMode === 'attack' ? '攻击' : (interruptStore.magicSubChoice === 'none' ? '法术' : '法术 · 出牌') }}
+                    </span>
+                </span>
+                <nav v-if="interruptStore.actionMode === 'attack' || interruptStore.magicSubChoice !== 'none'" class="dock-steps" aria-hidden="true">
+                    <span :class="interruptStore.selectedHandIndexForAction === null ? 'on' : 'done'">① 选牌{{ interruptStore.selectedHandIndexForAction === null ? '' : ' ✓' }}</span>
+                    <i class="dock-steps-sep">›</i>
+                    <span :class="interruptStore.selectedHandIndexForAction !== null ? 'on' : ''">② 选目标</span>
+                </nav>
+            </header>
+
             <!-- 法术行动：先选择 出牌 或 发动技能 -->
             <template v-if="interruptStore.actionMode === 'magic' && interruptStore.magicSubChoice === 'none'">
-                <div class="text-amber-400 text-sm font-bold">✨ 法术行动</div>
-                <div class="text-xs text-gray-400">发动法术有两种方式：打出法术牌或发动角色技能</div>
-                <div class="flex gap-3 justify-center mt-2">
-                    <button class="action-image-btn w-[72px] sm:w-[88px]" title="打出法术牌" @click="interruptStore.setMagicSubChoice('card')">
-                        <img v-if="isMainActionImageReady('card')" class="action-image-btn-fill" :src="mainActionButtonImage('card')" alt="" @error="onMainActionImageError('card')" />
-                        <span v-else class="action-image-fallback-text">牌</span>
-                        <span class="action-image-btn-label">打出法术牌</span>
-                    </button>
-                    <button
-                        v-if="effectiveAvailableSkills.length > 0"
-                        class="action-image-btn w-[72px] sm:w-[88px]"
-                        data-testid="action-skill"
-                        title="发动技能"
-                        @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
-                    >
-                        <img v-if="isMainActionImageReady('skill')" class="action-image-btn-fill" :src="mainActionButtonImage('skill')" alt="" @error="onMainActionImageError('skill')" />
-                        <span v-else class="action-image-fallback-text">技</span>
-                        <span class="action-image-btn-label">发动技能</span>
-                    </button>
-                    <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearActionMode()">
-                        <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
-                        <span v-else class="action-image-fallback-text">消</span>
-                        <span class="action-image-btn-label">取消</span>
-                    </button>
+                <div class="dock-bd">
+                    
+                    <div class="dock-medal-row">
+                        <button type="button" class="dock-medal" title="打出法术牌" @click="interruptStore.setMagicSubChoice('card')">
+                            <span class="dock-medal-ring">
+                                <img class="dock-medal-ico dock-medal-ico--img" src="/assets/icons/card.webp" alt="" aria-hidden="true" draggable="false" />
+                            </span>
+                            <span class="dock-medal-label">打出法术牌</span>
+                        </button>
+                        <button
+                            v-if="effectiveAvailableSkills.length > 0"
+                            type="button"
+                            class="dock-medal"
+                            data-testid="action-skill"
+                            title="发动技能"
+                            @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
+                        >
+                            <span class="dock-medal-ring">
+                                <img class="dock-medal-ico dock-medal-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                            </span>
+                            <span class="dock-medal-label">发动技能</span>
+                        </button>
+                    </div>
                 </div>
+                <footer class="dock-ft">
+                    <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearActionMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
+                </footer>
             </template>
             <!-- 攻击模式 或 法术已选「出牌」：选牌 + 选目标 -->
             <template v-else>
-                <div class="flex items-center justify-between">
-          <span class="text-amber-400 text-sm font-bold">
-            {{ interruptStore.actionMode === 'attack' ? '⚔️ 攻击模式' : '✨ 法术模式' }}
-          </span>
-                    <span class="step-indicator">
-            {{ interruptStore.selectedHandIndexForAction === null ? '步骤 1/2' : '步骤 2/2' }} · {{ interruptStore.selectedHandIndexForAction === null ? '选牌' : '选目标' }}
-          </span>
-                </div>
-                <div v-if="attackActionPromptNotice" class="action-panel-notice">
-                    {{ attackActionPromptNotice }}
-                </div>
-                <div v-if="interruptStore.selectedHandIndexForAction !== null" class="space-y-2">
-                    <div
-                        v-if="hasActionTargets"
-                        class="text-xs text-gray-400"
-                    >
-                        请直接点击战场角色立绘完成{{ interruptStore.actionMode === 'attack' ? '攻击' : '施法' }}。
+                <div class="dock-bd">
+                    <div v-if="attackActionPromptNotice" class="dock-notice">
+                        {{ attackActionPromptNotice }}
                     </div>
-                    <div v-else class="text-xs text-gray-400">当前法术无需手动选目标，将按规则自动结算。</div>
-                    <div v-if="hasStealthBlockedAttackTarget" class="text-[11px] text-gray-400">
-                        潜行状态无法选中
+                    <div class="dock-flow" aria-hidden="true">
+                        <span class="dock-slot dock-slot--card" :class="interruptStore.selectedHandIndexForAction === null ? 'dock-slot--pulse' : 'dock-slot--filled'">
+                            <svg v-if="interruptStore.selectedHandIndexForAction === null" class="dock-slot-ico" viewBox="0 0 24 24">
+                                <rect x="6.5" y="4" width="11" height="16" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3" />
+                                <path d="M9.5 9h5M9.5 12h5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none" />
+                            </svg>
+                            <img v-else-if="selectedActionCard" class="dock-slot-art" :src="cardArtSrc(selectedActionCard)" :alt="selectedActionCard.name" />
+                            <svg v-else class="dock-slot-ico" viewBox="0 0 24 24">
+                                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </span>
+                        <span class="dock-flow-arrow">➤</span>
+                        <span class="dock-slot dock-slot--target" :class="interruptStore.selectedHandIndexForAction !== null ? 'dock-slot--pulse' : ''">
+                            <svg class="dock-slot-ico" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="6.4" fill="none" stroke="currentColor" stroke-width="1.3" />
+                                <circle cx="12" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3" />
+                                <path d="M12 2.6v3.2M12 18.2v3.2M2.6 12h3.2M18.2 12h3.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none" />
+                            </svg>
+                        </span>
+                    </div>
+                    <div v-if="interruptStore.selectedHandIndexForAction !== null" class="dock-texts">
+                        <div v-if="hasActionTargets" class="dock-hint">
+                            已选牌，请直接点击战场角色立绘完成{{ interruptStore.actionMode === 'attack' ? '攻击' : '施法' }}。
+                        </div>
+                        <div v-else class="dock-hint">当前法术无需手动选目标，将按规则自动结算。</div>
+                        <div v-if="hasStealthBlockedAttackTarget" class="dock-hint dock-hint--warn">
+                            潜行状态无法选中
+                        </div>
+                    </div>
+                    <div v-else class="dock-hint">
+                        先在下方手牌选一张{{ interruptStore.actionMode === 'attack' ? '攻击' : '法术' }}牌
                     </div>
                 </div>
-                <div v-else class="text-xs text-gray-400 py-1">
-                    先在下方手牌选一张{{ interruptStore.actionMode === 'attack' ? '攻击' : '法术' }}牌
-                </div>
-                <div class="flex gap-3 justify-center mt-2">
-                    <button class="action-image-btn w-[72px] sm:w-[88px]" :title="interruptStore.actionMode === 'magic' ? '返回' : '取消'" @click="interruptStore.actionMode === 'magic' ? backFromMagicCard() : interruptStore.clearActionMode()">
-                        <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
-                        <span v-else class="action-image-fallback-text">{{ interruptStore.actionMode === 'magic' ? '返' : '消' }}</span>
-                        <span class="action-image-btn-label">{{ interruptStore.actionMode === 'magic' ? '返回' : '取消' }}</span>
+                <footer class="dock-ft">
+                    <button type="button" class="dock-btn dock-btn--ghost" :title="interruptStore.actionMode === 'magic' ? '返回' : '取消'" @click="interruptStore.actionMode === 'magic' ? backFromMagicCard() : interruptStore.clearActionMode()">
+                        <img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />{{ interruptStore.actionMode === 'magic' ? '返回' : '取消' }}
                     </button>
                     <button
                         v-if="interruptStore.actionMode === 'magic' && effectiveAvailableSkills.length > 0"
-                        class="action-image-btn w-[72px] sm:w-[88px]"
+                        type="button"
+                        class="dock-btn dock-btn--ghost dock-btn--right"
                         title="改用技能"
                         @click="interruptStore.setSkillMode('choosing_skill'); interruptStore.clearActionMode()"
                     >
-                        <img v-if="isMainActionImageReady('skill')" class="action-image-btn-fill" :src="mainActionButtonImage('skill')" alt="" @error="onMainActionImageError('skill')" />
-                        <span v-else class="action-image-fallback-text">技</span>
-                        <span class="action-image-btn-label">改用技能</span>
+                        改用技能 ›
                     </button>
-                </div>
+                </footer>
             </template>
         </div>
 
         <!-- 技能发动流程：选择技能 -->
-        <div v-else-if="interruptStore.skillMode === 'choosing_skill'" class="space-y-3 skill-select-panel" data-testid="skill-select-panel">
-            <div class="text-amber-400 text-sm font-bold">选择要发动的技能</div>
-            <div class="flex flex-col gap-2">
+        <div v-else-if="interruptStore.skillMode === 'choosing_skill'" class="dock-panel skill-select-panel" data-testid="skill-select-panel">
+            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--br" aria-hidden="true" />
+            <header class="dock-hd">
+                <span class="dock-hd-left">
+                    <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                    <span class="dock-title">发动技能</span>
+                </span>
+                <span class="dock-hd-meta">共 {{ effectiveAvailableSkills.length }} 个</span>
+            </header>
+            <div class="dock-bd dock-bd--list">
                 <button
                     v-for="skill in effectiveAvailableSkills"
                     :key="skill.id"
-                    class="btn-skill px-4 py-2.5 rounded-lg text-sm text-left w-full"
-                    :class="{ 'skill-btn-disabled': !canSelectSkill(skill) }"
+                    type="button"
+                    class="sk"
+                    :class="{ 'sk--disabled': !canSelectSkill(skill) }"
                     :data-testid="`skill-${skill.id}`"
                     :title="canSelectSkill(skill) ? skill.description : skillDisabledReason(skill)"
                     :disabled="!canSelectSkill(skill)"
                     @click="selectSkill(skill)"
                 >
-                    <div class="flex items-center justify-between">
-                        <span class="font-semibold">{{ skill.title }}</span>
-                        <span class="text-[10px] opacity-70 ml-2 whitespace-nowrap">{{ skillCostText(skill) }}</span>
-                    </div>
-                    <span v-if="skill.description" class="block text-xs opacity-80 mt-0.5" :title="skill.description">{{ skill.description }}</span>
-                    <span v-if="!canSelectSkill(skill)" class="block text-[11px] text-gray-400 mt-1">{{ skillDisabledReason(skill) }}</span>
+                    <span class="sk-ico" aria-hidden="true"><img src="/assets/icons/skill.webp" alt="" draggable="false" /></span>
+                    <span class="sk-main">
+                        <span class="sk-name">{{ skill.title }}</span>
+                        <span v-if="skill.description" class="sk-desc" :title="skill.description">{{ skill.description }}</span>
+                        <span v-if="!canSelectSkill(skill)" class="sk-reason">{{ skillDisabledReason(skill) }}</span>
+                    </span>
+                    <span class="sk-cost">{{ skillCostText(skill) }}</span>
                 </button>
             </div>
-            <div class="flex gap-3 justify-center mt-2">
-                <button class="action-image-btn w-[72px] sm:w-[88px]" data-testid="skill-cancel-btn" title="取消" @click="interruptStore.clearSkillMode()">
-                    <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
-                    <span v-else class="action-image-fallback-text">消</span>
-                    <span class="action-image-btn-label">取消</span>
-                </button>
-            </div>
+            <footer class="dock-ft">
+                <button type="button" class="dock-btn dock-btn--ghost" data-testid="skill-cancel-btn" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
+            </footer>
         </div>
 
         <!-- 技能发动流程：选择独有技手牌 -->
-        <div v-else-if="interruptStore.skillMode === 'choosing_exclusive' && interruptStore.selectedSkill" class="space-y-3 skill-discard-panel" data-testid="skill-exclusive-select-panel">
-            <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
-                <span class="step-indicator">
-          {{ interruptStore.skillDiscardHandIndexes.length }}/1
-        </span>
-            </div>
-            <p v-if="interruptStore.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
-            <div class="text-xs text-gray-400">
-                请在手牌区选择对应的独有技手牌，然后点击确认。
-            </div>
-            <div v-if="selectedExclusiveSkillCard" class="text-[11px] text-amber-300">
-                已选独有技手牌：{{ selectedExclusiveSkillCard.name }}
-            </div>
-            <div class="flex gap-3 justify-center">
-                <button
-                    class="action-image-btn w-[72px] sm:w-[88px]"
-                    :class="{ 'opacity-50 cursor-not-allowed': !canConfirmExclusiveSkillSelection }"
-                    title="确认"
-                    :disabled="!canConfirmExclusiveSkillSelection"
-                    data-testid="skill-exclusive-confirm-btn"
-                    @click="confirmExclusiveSkillSelection"
-                >
-                    <img v-if="isMainActionImageReady('confirm')" class="action-image-btn-fill" :src="mainActionButtonImage('confirm')" alt="" @error="onMainActionImageError('confirm')" />
-                    <span v-else class="action-image-fallback-text">确</span>
-                    <span class="action-image-btn-label">确认</span>
-                </button>
-                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
-                    <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
-                    <span v-else class="action-image-fallback-text">消</span>
-                    <span class="action-image-btn-label">取消</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- 技能发动流程：选择弃牌 -->
-        <div v-else-if="interruptStore.skillMode === 'choosing_discard' && interruptStore.selectedSkill" class="space-y-3 skill-discard-panel">
-            <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
-                <span class="step-indicator">
-          {{ interruptStore.skillDiscardHandIndexes.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}
-        </span>
-            </div>
-            <div class="text-xs text-gray-400">
-                {{ skillDiscardGuideText(interruptStore.selectedSkill) }}
-                <span class="text-amber-300">（已选 {{ interruptStore.skillDiscardHandIndexes.length }}/{{ requiredDiscardCount(interruptStore.selectedSkill) }}）</span>
-            </div>
-            <div class="text-[11px] text-gray-500">请在下方手牌区点击选择，选满后自动进入下一步</div>
-            <div class="flex gap-3 justify-center">
-                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
-                    <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
-                    <span v-else class="action-image-fallback-text">消</span>
-                    <span class="action-image-btn-label">取消</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- 技能发动流程：选择目标 -->
-        <div v-else-if="interruptStore.skillMode === 'choosing_target' && interruptStore.selectedSkill" class="space-y-3 skill-target-panel">
-            <div class="flex items-center justify-between">
-                <span class="text-amber-400 text-sm font-bold">{{ interruptStore.selectedSkill.title }}</span>
-                <span class="step-indicator">
-          {{ interruptStore.skillTargetIds.length }}/{{ (interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1) }}
-        </span>
-            </div>
-            <p v-if="interruptStore.selectedSkill.description" class="text-xs text-gray-400 whitespace-pre-wrap break-words">{{ interruptStore.selectedSkill.description }}</p>
-            <div class="text-xs text-gray-400">
-                <template v-if="isManualTargetConfirmSkillFlow">
-                    点击角色头像选择目标，然后点击“确认发动”
-                </template>
-                <template v-else>
-                    请直接点击角色头像选择目标并自动发动
-                    <span v-if="(interruptStore.selectedSkill.max_targets || 1) === 1">（单目标：点击即发动）</span>
-                    <span v-else-if="(interruptStore.selectedSkill.min_targets || 0) >= (interruptStore.selectedSkill.max_targets || 1)">
-                        （选满 {{ interruptStore.selectedSkill.max_targets || 1 }} 个目标后自动发动）
+        <!-- 技能发动的选牌 / 弃牌 / 选目标：搬到棋盘上方的决策槽（手牌上方），右下角只留指引 -->
+        <template v-else-if="isSkillStepMode">
+            <Teleport to="#decision-skill-slot" :disabled="!hasSkillSlot" defer>
+            <div v-if="interruptStore.skillMode === 'choosing_exclusive' && interruptStore.selectedSkill" class="dock-panel skill-discard-panel" data-testid="skill-exclusive-select-panel">
+                <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+                <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--br" aria-hidden="true" />
+                <header class="dock-hd">
+                    <span class="dock-hd-left">
+                        <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                        <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
                     </span>
-                    <span v-else>
-                        （多目标：先点头像选择，再点击任一已选头像确认发动）
-                    </span>
-                </template>
+                    <nav class="dock-steps" aria-hidden="true">
+                        <span class="on">① 选牌</span>
+                        <i class="dock-steps-sep">›</i>
+                        <span>② 选目标</span>
+                    </nav>
+                </header>
+                <div class="dock-bd">
+                    <p v-if="interruptStore.selectedSkill.description" class="dock-hint dock-hint--desc">{{ interruptStore.selectedSkill.description }}</p>
+                    <div class="dock-hint">
+                        请在手牌区选择对应的独有技手牌，然后点击确认。
+                    </div>
+                    <div class="dock-progress" aria-hidden="true">
+                        <i class="dock-dot" :class="{ 'dock-dot--on': interruptStore.skillDiscardHandIndexes.length > 0 }" />
+                    </div>
+                    <div v-if="selectedExclusiveSkillCard" class="dock-accent">
+                        已选独有技手牌：{{ selectedExclusiveSkillCard.name }}
+                    </div>
+                </div>
+                <footer class="dock-ft">
+                    <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
+                    <button
+                        type="button"
+                        class="dock-btn dock-btn--primary"
+                        :disabled="!canConfirmExclusiveSkillSelection"
+                        data-testid="skill-exclusive-confirm-btn"
+                        title="确认"
+                        @click="confirmExclusiveSkillSelection"
+                    ><img class="dock-btn-ico" src="/assets/icons/confirm.webp" alt="" aria-hidden="true" />确认</button>
+                </footer>
             </div>
-            <div v-if="interruptStore.skillTargetIds.length > 0" class="text-[11px] text-amber-300">
-                已选目标：
-                {{ interruptStore.skillTargetIds.map((id) => snapshotStore.players[id]?.name || id).join('、') }}
-            </div>
-            <div class="flex gap-3 justify-center mt-2">
-                <button
-                    v-if="isManualTargetConfirmSkillFlow"
-                    class="action-image-btn w-[72px] sm:w-[88px]"
-                    :class="{ 'opacity-50 cursor-not-allowed': !canConfirmSkill }"
-                    title="确认发动"
-                    :disabled="!canConfirmSkill"
-                    @click="confirmSkill()"
-                >
-                    <img v-if="isMainActionImageReady('confirm')" class="action-image-btn-fill" :src="mainActionButtonImage('confirm')" alt="" @error="onMainActionImageError('confirm')" />
-                    <span v-else class="action-image-fallback-text">确</span>
-                    <span class="action-image-btn-label">确认发动</span>
-                </button>
-                <button class="action-image-btn w-[72px] sm:w-[88px]" title="取消" @click="interruptStore.clearSkillMode()">
-                    <img v-if="isMainActionImageReady('cancel')" class="action-image-btn-fill" :src="mainActionButtonImage('cancel')" alt="" @error="onMainActionImageError('cancel')" />
-                    <span v-else class="action-image-fallback-text">消</span>
-                    <span class="action-image-btn-label">取消</span>
-                </button>
-            </div>
-        </div>
 
-        <!-- 等待提示 -->
-        <div v-else-if="interruptStore.waitingFor && !prompt" class="text-center py-2 sm:py-3 text-gray-400 text-sm">
-            <div class="animate-pulse">等待 {{ waitingName || interruptStore.waitingFor }} 操作...</div>
+            <!-- 技能发动流程：选择弃牌 -->
+            <div v-else-if="interruptStore.skillMode === 'choosing_discard' && interruptStore.selectedSkill" class="dock-panel skill-discard-panel">
+                <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+                <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--br" aria-hidden="true" />
+                <header class="dock-hd">
+                    <span class="dock-hd-left">
+                        <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                        <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
+                    </span>
+                    <nav class="dock-steps" aria-hidden="true">
+                        <span class="on">① 弃牌</span>
+                        <i class="dock-steps-sep">›</i>
+                        <span>② 选目标</span>
+                    </nav>
+                </header>
+                <div class="dock-bd">
+                    <div class="dock-hint">
+                        {{ skillDiscardGuideText(interruptStore.selectedSkill) }}
+                    </div>
+                    <div class="dock-progress" aria-hidden="true">
+                        <i
+                            v-for="n in requiredDiscardCount(interruptStore.selectedSkill)"
+                            :key="n"
+                            class="dock-dot"
+                            :class="{ 'dock-dot--on': n <= interruptStore.skillDiscardHandIndexes.length }"
+                        />
+                    </div>
+                    <div class="dock-hint dock-hint--sm">请在下方手牌区点击选择，选满后自动进入下一步</div>
+                </div>
+                <footer class="dock-ft">
+                    <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
+                    <span class="dock-ft-center">已选 {{ interruptStore.skillDiscardHandIndexes.length }} / {{ requiredDiscardCount(interruptStore.selectedSkill) }}</span>
+                </footer>
+            </div>
+
+            <!-- 技能发动流程：选择目标 -->
+            <div v-else-if="interruptStore.skillMode === 'choosing_target' && interruptStore.selectedSkill" class="dock-panel skill-target-panel">
+                <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+                <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+                <i class="dock-corner dock-corner--br" aria-hidden="true" />
+                <header class="dock-hd">
+                    <span class="dock-hd-left">
+                        <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                        <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
+                    </span>
+                    <nav v-if="interruptStore.selectedSkill.cost_discards > 0 || interruptStore.selectedSkill.require_exclusive" class="dock-steps" aria-hidden="true">
+                        <span class="done">① {{ interruptStore.selectedSkill.cost_discards > 0 ? '弃牌' : '选牌' }}</span>
+                        <i class="dock-steps-sep">›</i>
+                        <span class="on">② 选目标</span>
+                    </nav>
+                    <span v-else class="dock-hd-meta">选目标 {{ interruptStore.skillTargetIds.length }}/{{ interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1 }}</span>
+                </header>
+                <div class="dock-bd">
+                    <p v-if="interruptStore.selectedSkill.description" class="dock-hint dock-hint--desc">{{ interruptStore.selectedSkill.description }}</p>
+                    <div class="dock-hint">
+                        <template v-if="isManualTargetConfirmSkillFlow">
+                            点击角色头像选择目标，然后点击“确认发动”
+                        </template>
+                        <template v-else>
+                            请直接点击角色头像选择目标并自动发动
+                            <span v-if="(interruptStore.selectedSkill.max_targets || 1) === 1">（单目标：点击即发动）</span>
+                            <span v-else-if="(interruptStore.selectedSkill.min_targets || 0) >= (interruptStore.selectedSkill.max_targets || 1)">
+                                （选满 {{ interruptStore.selectedSkill.max_targets || 1 }} 个目标后自动发动）
+                            </span>
+                            <span v-else>
+                                （多目标：先点头像选择，再点击任一已选头像确认发动）
+                            </span>
+                        </template>
+                    </div>
+                    <div class="dock-progress" aria-hidden="true">
+                        <i
+                            v-for="n in (interruptStore.selectedSkill.max_targets > 0 ? interruptStore.selectedSkill.max_targets : 1)"
+                            :key="n"
+                            class="dock-dot"
+                            :class="{ 'dock-dot--on': n <= interruptStore.skillTargetIds.length }"
+                        />
+                    </div>
+                    <div v-if="interruptStore.skillTargetIds.length > 0" class="dock-accent">
+                        已选目标：
+                        {{ interruptStore.skillTargetIds.map((id) => snapshotStore.players[id]?.name || id).join('、') }}
+                    </div>
+                </div>
+                <footer class="dock-ft">
+                    <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
+                    <button
+                        v-if="isManualTargetConfirmSkillFlow"
+                        type="button"
+                        class="dock-btn dock-btn--primary"
+                        :disabled="!canConfirmSkill"
+                        title="确认发动"
+                        @click="confirmSkill()"
+                    >
+                        确认发动 ✓
+                    </button>
+                </footer>
+            </div>
+
+            <!-- 等待提示 -->
+            </Teleport>
+            <div v-if="hasSkillSlot" class="dock-panel dock-panel--waiting" data-testid="dock-skill-pointer">
+                <div class="dock-bd dock-bd--deferred">
+                    <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
+                    <div class="dock-hint">正在发动【{{ interruptStore.selectedSkill?.title }}】，请在上方作答</div>
+                </div>
+            </div>
+        </template>
+
+        <div v-else-if="interruptStore.waitingFor && !prompt" class="dock-panel dock-panel--waiting">
+            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--br" aria-hidden="true" />
+            <header class="dock-hd">
+                <span class="dock-hd-left">
+                    <img class="dock-ico dock-ico--img" src="/assets/icons/waiting.webp" alt="" aria-hidden="true" draggable="false" />
+                    <span class="dock-title">对方回合</span>
+                </span>
+            </header>
+            <div class="dock-bd dock-bd--waiting">
+                <img
+                    v-if="interruptStore.waitingFor && characterArtSrc(snapshotStore.players[interruptStore.waitingFor]?.role)"
+                    class="dock-wait-portrait"
+                    :src="characterArtSrc(snapshotStore.players[interruptStore.waitingFor]?.role)"
+                    alt=""
+                />
+                <span v-else class="dock-wait-portrait dock-wait-portrait--empty" aria-hidden="true">◷</span>
+                <div class="dock-wait-name">{{ seatLabel(interruptStore.waitingFor) }} 正在操作</div>
+                <div class="dock-wait-bar" aria-hidden="true"><i /></div>
+            </div>
         </div>
 
         <!-- 非行动类 Prompt：在行动区内直接显示按钮操作 -->
-        <div v-else-if="prompt && isPromptForMe && !isActionHubContext" class="prompt-inline-host">
-            <PromptDialog />
+        <div
+            v-else-if="prompt && isPromptForMe && !isActionHubContext"
+            class="dock-panel dock-panel--prompt"
+            :class="{ 'dock-panel--danger': (prompt.presentation?.discard_reason === 'hand_overflow' || (!prompt.presentation?.discard_reason && prompt.presentation?.card_filter === 'overflow_discard')) }"
+        >
+            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--br" aria-hidden="true" />
+            <template v-if="(prompt.presentation?.discard_reason === 'hand_overflow' || (!prompt.presentation?.discard_reason && prompt.presentation?.card_filter === 'overflow_discard'))">
+                <header class="dock-hd">
+                    <span class="dock-hd-left">
+                        <img class="dock-ico dock-ico--img" src="/assets/icons/overflow.webp" alt="" aria-hidden="true" draggable="false" />
+                        <span class="dock-title">手牌超出上限</span>
+                    </span>
+                    <span v-if="myPlayer" class="dock-hd-meta dock-hd-meta--danger">{{ myHand.length || myPlayer.hand_count }}/{{ myPlayer.max_hand }}</span>
+                </header>
+                <div class="dock-bd dock-bd--overflow">
+                    <div class="dock-hint dock-hint--big">从手牌中选择{{ prompt.min > 0 && prompt.min === prompt.max ? ` ${prompt.min} 张` : '' }}弃置</div>
+                    <div v-if="prompt.min > 0 && prompt.min === prompt.max" class="dock-progress" aria-hidden="true">
+                        <i
+                            v-for="n in prompt.min"
+                            :key="n"
+                            class="dock-dot dock-dot--danger"
+                            :class="{ 'dock-dot--on': n <= interruptStore.selectedHandIndexes.length }"
+                        />
+                    </div>
+                    <div class="dock-counter">已选 {{ interruptStore.selectedHandIndexes.length }}{{ prompt.min > 0 && prompt.min === prompt.max ? ` / ${prompt.min}` : '' }}</div>
+                    <div class="prompt-inline-host">
+                        <PromptDialog />
+                    </div>
+                </div>
+            </template>
+            <!-- 其余决策在棋盘上方的浮动决策面板（DecisionDock）作答，这里只留指引 -->
+            <div v-else class="dock-bd dock-bd--deferred" data-testid="dock-decision-pointer">
+                <img class="dock-ico dock-ico--img" src="/assets/icons/waiting.webp" alt="" aria-hidden="true" draggable="false" />
+                <div class="dock-hint">请在上方决策面板中作答</div>
+                <button
+                    v-if="uiStore.decisionDockCollapsed"
+                    type="button"
+                    class="dock-btn dock-btn--ghost"
+                    @click="uiStore.setDecisionDockCollapsed(false)"
+                >展开决策面板</button>
+            </div>
         </div>
 
         <!-- 行动区域 -->
-        <div v-else-if="isActionHubContext" class="action-hub-desktop">
-            <!-- 回合内状态提示（在行动按钮上方展示） -->
-            <div v-if="turnStateIndicators.length > 0" class="turn-state-indicators">
-                <span
-                    v-for="indicator in turnStateIndicators"
-                    :key="indicator.key"
-                    class="inline-flex items-center gap-1 px-2 py-1 rounded border text-xs leading-none"
-                    :class="indicator.cls"
-                    :title="indicator.label"
-                >
-                    {{ indicator.label }}
+        <div v-else-if="isActionHubContext" class="dock-panel dock-panel--hub action-hub-desktop">
+            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--br" aria-hidden="true" />
+            <header class="dock-hd">
+                <span class="dock-hd-left">
+                    <i class="dock-dot-gold" aria-hidden="true" />
+                    <span v-if="isExtraActionPrompt" class="dock-title">额外{{ hasActionPromptOption('magic') && !hasActionPromptOption('attack') ? '法术' : (hasActionPromptOption('attack') && hasActionPromptOption('magic') ? '行动' : '攻击') }}</span>
+                    <span v-else class="dock-title">你的回合 · 行动阶段</span>
+                    <span v-if="isExtraActionPrompt && actionHubNotice.extraLimit" class="dock-hd-meta">{{ actionHubNotice.extraLimit }}</span>
                 </span>
-            </div>
-            <div v-if="actionHubPromptNotice" class="action-hub-desktop-notice">
-                {{ actionHubPromptNotice }}
-            </div>
-            <div class="action-hub-desktop-main">
-                <button
-                    v-if="hasActionPromptOption('attack')"
-                    class="action-hub-desktop-btn action-image-btn action-image-btn--attack"
-                    data-testid="action-attack"
-                    :title="actionPromptLabel('attack', '攻击')"
-                    :aria-label="actionPromptLabel('attack', '攻击')"
-                    @click="invokeActionHubOption('attack')"
+            </header>
+            <div class="dock-bd">
+                <div
+                    v-if="actionHubNotice.kind === 'rule' || actionHubNotice.kind === 'extra-none' || actionHubNotice.kind === 'other'"
+                    class="dock-notice"
+                    :class="actionHubNotice.kind === 'rule' ? 'dock-notice--rule' : 'dock-notice--gold'"
+                    data-testid="action-hub-notice"
                 >
-                    <img
-                        v-if="isMainActionImageReady('attack')"
-                        class="action-image-btn-fill"
-                        :src="mainActionButtonImage('attack')"
-                        alt=""
-                        @error="onMainActionImageError('attack')"
-                    />
-                    <span v-else class="action-image-fallback-text">攻</span>
-                    <span class="action-image-btn-label">{{ actionPromptLabel('attack', '攻击') }}</span>
-                </button>
-                <button
-                    v-if="hasActionPromptOption('magic')"
-                    class="action-hub-desktop-btn action-image-btn action-image-btn--magic"
-                    data-testid="action-magic"
-                    :title="actionPromptLabel('magic', '法术')"
-                    :aria-label="actionPromptLabel('magic', '法术')"
-                    @click="invokeActionHubOption('magic')"
-                >
-                    <img
-                        v-if="isMainActionImageReady('magic')"
-                        class="action-image-btn-fill"
-                        :src="mainActionButtonImage('magic')"
-                        alt=""
-                        @error="onMainActionImageError('magic')"
-                    />
-                    <span v-else class="action-image-fallback-text">术</span>
-                    <span class="action-image-btn-label">{{ actionPromptLabel('magic', '法术') }}</span>
-                </button>
-                <button
-                    v-if="showSpecialHubEntry"
-                    class="action-hub-desktop-btn action-image-btn action-image-btn--special"
-                    data-testid="action-special"
-                    :class="{ 'action-image-btn--muted': !hasHubSpecialActions || isStartupSpecialLocked }"
-                    :title="isStartupSpecialLocked ? '本回合已执行启动技能，特殊行动已禁用' : actionPromptLabel('special', '特殊')"
-                    :aria-label="actionPromptLabel('special', '特殊')"
-                    :disabled="!hasHubSpecialActions || isStartupSpecialLocked"
-                    @click="openSpecialActionModal"
-                >
-                    <img
-                        v-if="isMainActionImageReady('special')"
-                        class="action-image-btn-fill"
-                        :src="mainActionButtonImage('special')"
-                        alt=""
-                        @error="onMainActionImageError('special')"
-                    />
-                    <span v-else class="action-image-fallback-text">特</span>
-                    <span class="action-image-btn-label">{{ actionPromptLabel('special', '特殊') }}</span>
-                </button>
-                <template v-if="isActionSelectionPrompt">
+                    <img v-if="actionHubNotice.kind === 'rule'" class="dock-notice-ico" src="/assets/icons/overflow.webp" alt="" aria-hidden="true" />
+                    {{ actionHubNotice.text }}
+                </div>
+                <div class="dock-medal-row action-hub-desktop-main">
                     <button
-                        v-if="hasActionPromptOption('cannot_act')"
-                        class="action-hub-desktop-btn action-image-btn action-image-btn--cannot-act"
-                        data-testid="action-cannot-act"
-                        :title="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
-                        :aria-label="isExtraActionPrompt ? '跳过' : cannotActButtonLabel"
-                        @click="invokeActionHubOption('cannot_act')"
+                        v-if="hasActionPromptOption('attack')"
+                        type="button"
+                        class="dock-medal"
+                        data-testid="action-attack"
+                        :title="actionPromptLabel('attack', '攻击')"
+                        :aria-label="actionPromptLabel('attack', '攻击')"
+                        @click="invokeActionHubOption('attack')"
                     >
-                        <img
-                            v-if="isMainActionImageReady('cannot_act')"
-                            class="action-image-btn-fill"
-                            :src="mainActionButtonImage('cannot_act')"
-                            alt=""
-                            @error="onMainActionImageError('cannot_act')"
-                        />
-                        <span v-else class="action-image-fallback-text">{{ isExtraActionPrompt ? '跳过' : '无法' }}</span>
-                        <span class="action-image-btn-label">{{ isExtraActionPrompt ? '跳过' : cannotActButtonLabel }}</span>
+                        <span class="dock-medal-ring">
+                            <img class="dock-medal-ico dock-medal-ico--img" src="/assets/icons/attack.webp" alt="" aria-hidden="true" draggable="false" />
+                        </span>
+                        <span class="dock-medal-label">{{ actionPromptLabel('attack', '攻击') }}</span>
                     </button>
-                </template>
-                <template v-else>
                     <button
-                        class="action-hub-desktop-btn action-image-btn action-image-btn--pass"
-                        data-testid="action-pass"
-                        title="结束回合"
-                        aria-label="结束回合"
-                        @click="invokeActionHubOption('pass')"
+                        v-if="hasActionPromptOption('magic')"
+                        type="button"
+                        class="dock-medal"
+                        data-testid="action-magic"
+                        :title="actionPromptLabel('magic', '法术')"
+                        :aria-label="actionPromptLabel('magic', '法术')"
+                        @click="invokeActionHubOption('magic')"
                     >
-                        <img
-                            v-if="isMainActionImageReady('pass')"
-                            class="action-image-btn-fill"
-                            :src="mainActionButtonImage('pass')"
-                            alt=""
-                            @error="onMainActionImageError('pass')"
-                        />
-                        <span v-else class="action-image-fallback-text">过</span>
-                        <span class="action-image-btn-label">结束回合</span>
+                        <span class="dock-medal-ring">
+                            <img class="dock-medal-ico dock-medal-ico--img" src="/assets/icons/magic.webp" alt="" aria-hidden="true" draggable="false" />
+                        </span>
+                        <span class="dock-medal-label">{{ actionPromptLabel('magic', '法术') }}</span>
                     </button>
-                </template>
+                    <button
+                        v-if="showSpecialHubEntry"
+                        type="button"
+                        class="dock-medal"
+                        data-testid="action-special"
+                        :class="{ 'dock-medal--muted': !hasHubSpecialActions || isStartupSpecialLocked }"
+                        :title="isStartupSpecialLocked ? '本回合已执行启动技能，特殊行动已禁用' : actionPromptLabel('special', '特殊')"
+                        :aria-label="actionPromptLabel('special', '特殊')"
+                        :disabled="!hasHubSpecialActions || isStartupSpecialLocked"
+                        @click="openSpecialActionModal"
+                    >
+                        <span class="dock-medal-ring">
+                            <img class="dock-medal-ico dock-medal-ico--img" src="/assets/icons/special.webp" alt="" aria-hidden="true" draggable="false" />
+                        </span>
+                        <span class="dock-medal-label">{{ actionPromptLabel('special', '特殊') }}</span>
+                    </button>
+                </div>
+                <div
+                    v-if="isActionSelectionPrompt && !hasActionPromptOption('attack') && !hasActionPromptOption('magic') && !hasHubSpecialActions && !hasActionPromptOption('cannot_act')"
+                    class="dock-hint dock-hint--center"
+                >
+                    当前无可执行行动，请等待下一步结算
+                </div>
             </div>
-
-            <div
-                v-if="isActionSelectionPrompt && !hasActionPromptOption('attack') && !hasActionPromptOption('magic') && !hasHubSpecialActions && !hasActionPromptOption('cannot_act')"
-                class="action-hub-desktop-empty"
-            >
-                当前无可执行行动，请等待下一步结算
-            </div>
+            <footer class="dock-ft">
+                <span v-if="turnStateIndicators.length > 0 || actionHubNotice.fullnessBonus > 0" class="turn-state-indicators dock-ft-left">
+                    <span
+                        v-for="indicator in turnStateIndicators"
+                        :key="indicator.key"
+                        class="turn-chip"
+                        :class="`turn-chip--${indicator.key}`"
+                        :title="indicator.label"
+                    >
+                        {{ indicator.label }}
+                    </span>
+                    <span v-if="actionHubNotice.fullnessBonus > 0" class="turn-chip turn-chip--fullness" data-testid="action-hub-fullness">
+                        充盈：下次攻击 +{{ actionHubNotice.fullnessBonus }}
+                    </span>
+                </span>
+                <!-- 规则上每个行动阶段必须执行一个行动，没有"结束回合"；只在引擎给出 cannot_act 时提供兜底 -->
+                <button
+                    v-if="isActionSelectionPrompt && hasActionPromptOption('cannot_act')"
+                    type="button"
+                    class="dock-btn dock-btn--dark dock-btn--right"
+                    data-testid="action-cannot-act"
+                    :title="isExtraActionPrompt ? '放弃额外行动' : cannotActButtonLabel"
+                    :aria-label="isExtraActionPrompt ? '放弃额外行动' : cannotActButtonLabel"
+                    @click="invokeActionHubOption('cannot_act')"
+                ><img class="dock-btn-ico" :src="isExtraActionPrompt ? '/assets/icons/skip-extra.webp' : '/assets/icons/overflow.webp'" alt="" aria-hidden="true" />{{ isExtraActionPrompt ? '放弃额外行动' : cannotActButtonLabel }}</button>
+            </footer>
         </div>
 
         <!-- 非我的回合 -->
-        <div v-else class="text-center py-4 text-gray-400">
-            等待其他玩家回合...
+        <div v-else class="dock-panel dock-panel--waiting">
+            <i class="dock-corner dock-corner--tl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--tr" aria-hidden="true" />
+            <i class="dock-corner dock-corner--bl" aria-hidden="true" />
+            <i class="dock-corner dock-corner--br" aria-hidden="true" />
+            <header class="dock-hd">
+                <span class="dock-hd-left">
+                    <img class="dock-ico dock-ico--img" src="/assets/icons/waiting.webp" alt="" aria-hidden="true" draggable="false" />
+                    <span class="dock-title">对方回合</span>
+                </span>
+            </header>
+            <div class="dock-bd dock-bd--waiting">
+                <img
+                    v-if="characterArtSrc(snapshotStore.players[snapshotStore.currentPlayer]?.role)"
+                    class="dock-wait-portrait"
+                    :src="characterArtSrc(snapshotStore.players[snapshotStore.currentPlayer]?.role)"
+                    alt=""
+                />
+                <span v-else class="dock-wait-portrait dock-wait-portrait--empty" aria-hidden="true">◷</span>
+                <div class="dock-wait-name">{{ snapshotStore.currentPlayer ? `${seatLabel(snapshotStore.currentPlayer)} 的回合` : '等待其他玩家回合' }}</div>
+                <div class="dock-wait-bar" aria-hidden="true"><i /></div>
+            </div>
         </div>
 
         <button
             v-if="debugAvailable"
-            class="debug-toggle-btn"
+            class="dock-gear debug-toggle-btn"
             type="button"
+            title="调试"
+            aria-label="打开调试控制台"
             @click="openDebugPanel"
         >
-            调试
+            <img class="dock-ico dock-ico--img" src="/assets/icons/settings.webp" alt="" aria-hidden="true" draggable="false" />
         </button>
     </div>
 
@@ -1718,472 +1842,897 @@ function elementName(el: string): string {
 </template>
 
 <style scoped>
+/* ================= 根容器 ================= */
 .action-panel-root {
     position: relative;
     width: 100%;
+    height: 100%;
     min-height: 0;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-.action-panel-root--panel {
-    padding: 10px;
-    border-radius: 12px;
-    background:
-        linear-gradient(180deg, rgba(10, 24, 39, 0.9), rgba(6, 17, 28, 0.94)),
-        url('/assets/ui/panel-ornament.svg') center/cover no-repeat;
-    border: none !important;
-    box-shadow:
-        inset 0 1px 0 rgba(244, 250, 255, 0.08),
-        0 12px 26px rgba(2, 8, 23, 0.42);
-    min-height: 176px;
-    max-height: min(52vh, 460px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: thin;
-}
-
-.action-panel-root--panel::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 0.75rem;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 46%);
+    display: flex;
+    flex-direction: column;
 }
 
 .action-panel-root--hub {
-    min-height: 0;
-    overflow: visible;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
     z-index: 1202;
 }
 
-.action-panel-root--prompt-inline {
-    padding: 6px;
+/* ================= 外壳：黑漆底板 + 镀铬细边 + 四角饰件 ================= */
+.dock-panel {
+    --dock-frame: var(--bt-hairline);
+    --dock-frame-glow: transparent;
+    position: relative;
+    flex: 1 1 auto;
     min-height: 0;
-    max-height: none;
-    overflow-y: visible;
-}
-
-.action-hub-desktop .btn-danger {
-    background: linear-gradient(180deg, #cb5f5f, #ad3d3d) !important;
-    border: 1px solid #f1a1a1 !important;
-    color: #fff !important;
-}
-
-.action-hub-desktop .btn-primary {
-    background: linear-gradient(180deg, #5ba4de, #356da5) !important;
-    border: 1px solid #9dd3ff !important;
-    color: #fff !important;
-}
-
-.action-hub-desktop .btn-skill,
-.action-hub-desktop .btn-economy {
-    background: linear-gradient(180deg, #c8a86d, #91713f) !important;
-    border: 1px solid #efd7a3 !important;
-    color: #fff !important;
-}
-
-.action-hub-desktop .btn-secondary {
-    background: linear-gradient(180deg, #5a6577, #3b4554) !important;
-    border: 1px solid #b8c3d8 !important;
-    color: #eef4ff !important;
-}
-
-.skill-btn-disabled {
-    opacity: 0.45;
-    filter: grayscale(0.25);
-    cursor: not-allowed;
-}
-
-.action-hub-desktop {
-    width: 100%;
-    max-width: 100%;
-    border-radius: 14px;
-    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--bt-radius);
     background:
-        linear-gradient(180deg, rgba(12, 28, 43, 0.96), rgba(7, 19, 31, 0.98)),
-        url('/assets/ui/panel-ornament.svg') center/cover no-repeat;
-    border: none !important;
+        radial-gradient(120% 80% at 50% 0%, var(--bt-panel-raised), transparent 70%),
+        linear-gradient(180deg, var(--bt-bg-1), var(--bt-bg-0));
     box-shadow:
-        inset 0 1px 0 rgba(242, 250, 255, 0.08),
-        0 10px 24px rgba(3, 12, 22, 0.42);
-}
-
-.turn-state-indicators {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    margin-bottom: 6px;
-    padding: 4px;
-}
-
-.action-hub-desktop-notice,
-.action-panel-notice {
-    margin-bottom: 7px;
-    border-radius: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.28);
-    background: rgba(120, 53, 15, 0.28);
-    color: #fde68a;
-    font-size: 11px;
-    line-height: 1.35;
-    padding: 5px 8px;
-    text-align: center;
-}
-
-.action-panel-notice {
-    margin-bottom: 0;
-}
-
-.action-hub-desktop-main {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-}
-
-.action-hub-desktop-btn {
-    min-height: 33px;
-    font-size: 12px;
-    line-height: 1.1;
-}
-
-.action-hub-desktop-btn--cannot-act {
-    min-height: 33px;
-    padding: 0.52rem 0.65rem !important;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: 10px;
-    border: 1px solid #b8c3d8 !important;
-    background: linear-gradient(180deg, #5a6577, #3b4554) !important;
-    box-shadow: 0 3px 8px rgba(7, 15, 25, 0.28) !important;
-    color: #eef4ff !important;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
-    transition:
-        transform 0.16s ease,
-        filter 0.16s ease,
-        box-shadow 0.18s ease,
-        border-color 0.18s ease;
-}
-
-.action-hub-desktop-btn--cannot-act:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.03);
-    border-color: #c6d2e7 !important;
-    box-shadow: 0 5px 10px rgba(7, 15, 25, 0.34) !important;
-}
-
-.action-hub-desktop-btn--cannot-act:active {
-    transform: translateY(1px);
-    filter: brightness(0.96);
-    box-shadow: 0 2px 6px rgba(7, 15, 25, 0.24) !important;
-}
-
-.action-hub-desktop-btn--cannot-act:focus-visible {
-    outline: none;
-    border-color: #cde4ff !important;
-    box-shadow:
-        0 0 0 2px rgba(85, 170, 255, 0.38),
-        0 5px 10px rgba(7, 15, 25, 0.32) !important;
-}
-
-.action-hub-desktop-btn--cannot-act-extra {
-    border-color: #c6dfff !important;
-    background: linear-gradient(180deg, #60799a, #3f5c7d) !important;
-    color: #f2f8ff !important;
-}
-
-.debug-toggle-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 5;
-    padding: 4px 10px;
-    font-size: 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    background: rgba(15, 23, 42, 0.8);
-    color: #e2e8f0;
-}
-
-.debug-toggle-btn:hover {
-    background: rgba(30, 41, 59, 0.9);
-}
-
-.debug-modal-mask {
-    position: fixed;
-    inset: 0;
-    background: rgba(4, 10, 20, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2400;
-}
-
-.debug-modal-card {
-    width: min(980px, 94vw);
-    max-height: 88vh;
-    background: linear-gradient(180deg, rgba(14, 24, 39, 0.97), rgba(8, 16, 28, 0.96));
-    border-radius: 16px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    box-shadow: 0 20px 40px rgba(2, 6, 23, 0.45);
-    display: flex;
-    flex-direction: column;
+        inset 0 0 0 1px var(--dock-frame),
+        inset 0 0 0 2px var(--bt-bg-0),
+        inset 0 1px 0 2px var(--bt-hairline-soft),
+        0 0 12px var(--dock-frame-glow);
+    color: var(--bt-text);
     overflow: hidden;
+    transition: box-shadow 0.2s ease;
 }
 
-.debug-modal-header {
+/* 轮到我且需要操作：金框 */
+.dock-panel--hub,
+.action-mode-panel,
+.skill-select-panel,
+.skill-discard-panel,
+.skill-target-panel,
+.dock-panel--prompt {
+    --dock-frame: var(--bt-active);
+    --dock-frame-glow: var(--bt-active-glow);
+}
+
+/* 爆牌弃牌：红框 */
+.dock-panel--prompt.dock-panel--danger {
+    --dock-frame: var(--bt-danger);
+    --dock-frame-glow: var(--bt-red-soft);
+}
+
+.dock-corner {
+    position: absolute;
+    z-index: 2;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    border-color: var(--bt-chrome);
+    border-style: solid;
+    border-width: 0;
+}
+
+.dock-corner::after {
+    /* 角上的镀铬小菱形 */
+    content: '';
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--bt-chrome-hi);
+    transform: rotate(45deg);
+    box-shadow: 0 0 0 1px var(--bt-bg-0);
+}
+
+.dock-corner--tl { top: 3px; left: 3px; border-top-width: 1px; border-left-width: 1px; border-top-left-radius: 3px; }
+.dock-corner--tr { top: 3px; right: 3px; border-top-width: 1px; border-right-width: 1px; border-top-right-radius: 3px; }
+.dock-corner--bl { bottom: 3px; left: 3px; border-bottom-width: 1px; border-left-width: 1px; border-bottom-left-radius: 3px; }
+.dock-corner--br { bottom: 3px; right: 3px; border-bottom-width: 1px; border-right-width: 1px; border-bottom-right-radius: 3px; }
+.dock-corner--tl::after { top: -3px; left: -3px; }
+.dock-corner--tr::after { top: -3px; right: -3px; }
+.dock-corner--bl::after { bottom: -3px; left: -3px; }
+.dock-corner--br::after { bottom: -3px; right: -3px; }
+
+/* ================= 头部 ================= */
+.dock-hd {
+    flex: 0 0 36px;
+    height: 36px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 16px 18px 10px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.debug-modal-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #f8fafc;
-}
-
-.debug-modal-subtitle {
-    font-size: 12px;
-    color: rgba(226, 232, 240, 0.7);
-}
-
-.debug-modal-close {
-    padding: 6px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.4);
-    background: rgba(30, 41, 59, 0.8);
-    color: #e2e8f0;
-    font-size: 12px;
-}
-
-.debug-modal-controls {
-    display: flex;
-    flex-wrap: wrap;
     gap: 8px;
-    padding: 12px 18px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    padding: 0 34px 0 12px;
+    border-bottom: 1px solid var(--bt-hairline-soft);
+    background: linear-gradient(180deg, var(--bt-panel-raised), transparent);
+    min-width: 0;
 }
 
-.debug-input,
-.debug-select {
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    color: #e2e8f0;
-    padding: 6px 10px;
-    border-radius: 10px;
-    font-size: 12px;
-    min-width: 140px;
-}
-
-.debug-status {
-    margin-left: auto;
-    font-size: 12px;
-    color: rgba(148, 163, 184, 0.85);
-}
-
-.debug-modal-body {
-    padding: 12px 18px 18px;
-    overflow: auto;
-}
-
-.debug-skill-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 12px;
-}
-
-.debug-skill-item {
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 12px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.debug-skill-head {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.debug-skill-title {
-    display: flex;
+.dock-hd-left {
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    flex-wrap: wrap;
+    min-width: 0;
+    flex: 0 1 auto;
 }
 
-.debug-skill-role {
-    font-size: 11px;
-    color: rgba(148, 163, 184, 0.85);
+.dock-ico {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--bt-chrome);
 }
 
-.debug-skill-name {
+.dock-panel--hub .dock-hd .dock-ico,
+.action-mode-panel .dock-hd .dock-ico,
+.skill-select-panel .dock-hd .dock-ico,
+.skill-discard-panel .dock-hd .dock-ico,
+.skill-target-panel .dock-hd .dock-ico {
+    color: var(--bt-active);
+}
+
+.dock-panel--danger .dock-hd .dock-ico,
+.dock-panel--danger .dock-title {
+    color: var(--bt-danger);
+}
+
+.dock-dot-gold {
+    width: 9px;
+    height: 9px;
+    flex: none;
+    border-radius: 999px;
+    background: var(--bt-active);
+    box-shadow: 0 0 0 2px var(--bt-bg-0), 0 0 0 3px var(--bt-chrome-lo), 0 0 8px var(--bt-active-glow);
+}
+
+.dock-title {
     font-size: 13px;
-    font-weight: 600;
-    color: #f8fafc;
+    font-weight: 700;
+    color: var(--bt-chrome-hi);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.debug-skill-type {
+.dock-hd-meta {
+    margin-left: auto;
     font-size: 11px;
-    color: rgba(251, 191, 36, 0.9);
-}
-
-.debug-skill-cost {
-    font-size: 11px;
-    color: rgba(226, 232, 240, 0.8);
+    color: var(--bt-text-sub);
     white-space: nowrap;
 }
 
-.debug-skill-desc {
-    font-size: 11px;
-    color: rgba(226, 232, 240, 0.65);
-    line-height: 1.4;
+.dock-hd-meta--danger {
+    font-family: var(--bt-font-num);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bt-danger);
 }
 
-.debug-skill-btn {
-    align-self: flex-start;
-    padding: 6px 10px;
-    border-radius: 10px;
-    background: linear-gradient(180deg, #d0b36f, #8d6a2e);
-    color: #fff;
-    font-size: 12px;
-    border: 1px solid rgba(251, 191, 36, 0.6);
-}
-
-.debug-manual {
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(148, 163, 184, 0.2);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.debug-manual-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(226, 232, 240, 0.9);
-}
-
-.debug-manual-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+.dock-steps {
+    margin-left: auto;
+    display: inline-flex;
     align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--bt-text-dim);
+    white-space: nowrap;
 }
 
-.debug-mini-btn {
-    padding: 6px 10px;
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    background: rgba(30, 41, 59, 0.85);
-    color: #e2e8f0;
-    font-size: 12px;
+.dock-steps .on {
+    color: var(--bt-active);
+    font-weight: 700;
 }
 
-.action-image-btn {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    border: none !important;
-    background: transparent !important;
-    border-radius: 12px !important;
-    aspect-ratio: 1 / 1;
-    padding: 0 !important;
-    box-shadow: none !important;
+.dock-steps .done {
+    color: var(--bt-select);
+}
+
+.dock-steps-sep {
+    font-style: normal;
+    color: var(--bt-chrome-lo);
+}
+
+/* 调试齿轮：固定在头部右侧 */
+.dock-gear {
+    position: absolute;
+    z-index: 3;
+    top: 8px;
+    right: 9px;
+    width: 20px;
+    height: 20px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.14s ease, filter 0.14s ease;
-    flex-shrink: 0 !important;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--bt-chrome-mid);
+    cursor: pointer;
 }
 
-.action-hub-desktop-btn.action-image-btn {
-    width: 100%;
-    max-width: 100%;
+.dock-gear .dock-ico {
+    color: inherit;
+}
+
+.dock-gear:hover,
+.dock-gear:focus-visible {
+    color: var(--bt-chrome-hi);
+    outline: none;
+    box-shadow: 0 0 0 1px var(--bt-hairline);
+}
+
+/* ================= 主体 ================= */
+.dock-bd {
+    flex: 1 1 auto;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    text-align: center;
 }
 
-.action-image-btn:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.06);
+.dock-bd--list {
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 5px;
+    text-align: left;
 }
 
-.action-image-btn:active {
-    transform: translateY(0);
-    filter: brightness(0.98);
+.dock-hint {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--bt-text-sub);
 }
 
-.action-image-btn:disabled {
-    cursor: not-allowed;
-    transform: none !important;
-    filter: grayscale(0.62) saturate(0.66) brightness(0.76);
+.dock-hint--sm {
+    font-size: 11px;
+    color: var(--bt-text-dim);
 }
 
-.action-image-btn:focus,
-.action-image-btn:focus-visible {
-    outline: none !important;
-    box-shadow: none !important;
+.dock-hint--big {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bt-text);
 }
 
-.action-image-btn--muted {
-    filter: grayscale(0.55) saturate(0.7) brightness(0.82);
+.dock-hint--warn {
+    color: var(--bt-danger);
 }
 
-.action-image-btn-fill {
-    position: absolute;
-    inset: 0;
+.dock-hint--desc {
+    max-height: 4.2em;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11px;
+    color: var(--bt-text-dim);
+}
+
+.dock-texts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dock-accent {
+    font-size: 12px;
+    color: var(--bt-active);
+}
+
+.dock-notice {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
-    pointer-events: none;
+    font-size: 11px;
+    line-height: 1.35;
+    padding: 4px 8px;
+    border-radius: var(--bt-radius-sm);
+    color: var(--bt-danger);
+    background: var(--bt-bg-0);
+    box-shadow: inset 0 0 0 1px var(--bt-red-soft);
+}
+
+.dock-notice--gold {
+    color: var(--bt-active);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
+}
+
+/* ---------- 镀铬圆章 ---------- */
+.dock-medal-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 6px clamp(8px, 1vw, 16px);
+}
+
+.dock-medal {
+    --medal-size: clamp(52px, 4.6vw, 72px);
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--bt-chrome-hi);
+    cursor: pointer;
+}
+
+.dock-medal-row:has(> :nth-child(4)) .dock-medal {
+    --medal-size: clamp(44px, 3.6vw, 58px);
+}
+
+.dock-medal-ring {
+    position: relative;
+    width: var(--medal-size);
+    height: var(--medal-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 3px;
+    background: var(--bt-chrome-gradient);
+    box-shadow:
+        0 0 0 1px var(--bt-bg-0),
+        0 0 0 2px var(--bt-chrome-lo),
+        0 4px 10px var(--bt-bg-0);
+    transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.dock-medal-ring::before {
+    /* 内圈黑漆盘面 */
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 999px;
+    background: radial-gradient(circle at 50% 32%, var(--bt-blue-soft), var(--bt-bg-0) 72%);
+    box-shadow:
+        inset 0 0 0 1px var(--bt-bg-0),
+        inset 0 0 0 2px var(--bt-hairline-soft),
+        inset 0 -6px 12px var(--bt-bg-0);
+}
+
+.dock-ico--img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex: none;
+    filter: drop-shadow(0 0 3px rgba(80, 140, 255, 0.35));
     user-select: none;
 }
 
-.action-image-fallback-text {
+.dock-btn-ico {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    flex: none;
+    margin-right: 4px;
+    user-select: none;
+    pointer-events: none;
+}
+
+.dock-btn--primary .dock-btn-ico {
+    /* 金色主按钮上用深色图标更清楚 */
+    filter: brightness(0.25) contrast(1.4);
+}
+
+.dock-notice.dock-notice--rule {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    text-align: left;
+    color: #ffd7d9;
+    background: rgba(192, 48, 60, 0.16);
+    border: 1px solid rgba(226, 82, 94, 0.55);
+    box-shadow: 0 0 12px rgba(226, 82, 94, 0.18);
+}
+
+.dock-notice-ico {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    margin-top: 1px;
+    object-fit: contain;
+}
+
+.turn-chip--fullness {
+    color: var(--bt-active);
+    background: rgba(240, 195, 90, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(240, 195, 90, 0.4);
+}
+
+.dock-medal-ico--img {
+    width: 78%;
+    height: 78%;
+    object-fit: contain;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+    user-select: none;
+    pointer-events: none;
+}
+
+.dock-medal-ico {
     position: relative;
-    z-index: 1;
-    font-size: 14px;
-    font-weight: 700;
-    color: #f2f8ff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    width: 62%;
+    height: 62%;
+    color: var(--bt-chrome-hi);
+    filter: drop-shadow(0 0 3px var(--bt-blue-soft));
 }
 
-.action-image-btn-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-}
-
-.action-hub-desktop-empty {
-    margin-top: 6px;
-    text-align: center;
+.dock-medal-label {
     font-size: 12px;
-    color: rgba(223, 236, 248, 0.88);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--bt-chrome-hi);
+    text-shadow: 0 1px 2px var(--bt-bg-0);
+    white-space: nowrap;
 }
 
+.dock-medal:not(:disabled):hover .dock-medal-ring,
+.dock-medal:focus-visible .dock-medal-ring {
+    transform: translateY(-2px);
+    box-shadow:
+        0 0 0 1px var(--bt-bg-0),
+        0 0 0 2px var(--bt-select),
+        0 0 14px var(--bt-select-glow),
+        0 6px 12px var(--bt-bg-0);
+}
+
+.dock-medal:focus-visible {
+    outline: none;
+}
+
+.dock-medal:focus-visible .dock-medal-label {
+    color: var(--bt-select);
+}
+
+.dock-medal--dim .dock-medal-ico {
+    color: var(--bt-chrome-mid);
+}
+
+/* 禁用：压暗圆环 + 锁 */
+.dock-medal:disabled,
+.dock-medal--muted {
+    cursor: not-allowed;
+}
+
+.dock-medal:disabled .dock-medal-ring,
+.dock-medal--muted .dock-medal-ring {
+    background: linear-gradient(180deg, var(--bt-chrome-mid), var(--bt-chrome-lo));
+}
+
+.dock-medal:disabled .dock-medal-ico,
+.dock-medal--muted .dock-medal-ico {
+    color: var(--bt-text-dim);
+    filter: none;
+}
+
+.dock-medal:disabled .dock-medal-ring::after,
+.dock-medal--muted .dock-medal-ring::after {
+    /* 锁图标：右下角小圆 + 锁形 */
+    content: '🔒';
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    border-radius: 999px;
+    background: var(--bt-bg-0);
+    box-shadow: 0 0 0 1px var(--bt-chrome-lo);
+}
+
+.dock-medal:disabled .dock-medal-label,
+.dock-medal--muted .dock-medal-label {
+    color: var(--bt-text-dim);
+}
+
+/* ---------- 流程图：牌槽 → 目标槽 ---------- */
+.dock-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.dock-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bt-bg-0);
+    color: var(--bt-text-dim);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
+}
+
+.dock-slot--card {
+    width: 38px;
+    height: 52px;
+    border-radius: var(--bt-radius-sm);
+}
+
+.dock-slot--target {
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+}
+
+.dock-slot-ico {
+    width: 24px;
+    height: 24px;
+}
+
+.dock-slot-art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+}
+
+.dock-slot--filled {
+    color: var(--bt-select);
+    background: linear-gradient(180deg, var(--bt-blue-soft), var(--bt-bg-0));
+    box-shadow: inset 0 0 0 1px var(--bt-select), 0 0 8px var(--bt-select-glow);
+}
+
+.dock-slot--pulse {
+    color: var(--bt-active);
+    box-shadow: inset 0 0 0 1px var(--bt-active), 0 0 0 0 var(--bt-active-glow);
+    animation: dockSlotPulse 1.4s ease-in-out infinite;
+}
+
+.dock-flow-arrow {
+    font-size: 12px;
+    color: var(--bt-chrome-mid);
+}
+
+@keyframes dockSlotPulse {
+    0%, 100% { box-shadow: inset 0 0 0 1px var(--bt-active), 0 0 0 0 var(--bt-active-glow); }
+    50% { box-shadow: inset 0 0 0 1px var(--bt-active), 0 0 12px 2px var(--bt-active-glow); }
+}
+
+/* ---------- 进度点 ---------- */
+.dock-progress {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+}
+
+.dock-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--bt-bg-0);
+    box-shadow: inset 0 0 0 1px var(--bt-chrome-mid);
+    transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.dock-dot--on {
+    background: var(--bt-active);
+    box-shadow: 0 0 6px var(--bt-active-glow);
+}
+
+.dock-dot--danger.dock-dot--on {
+    background: var(--bt-danger);
+    box-shadow: 0 0 6px var(--bt-red-soft);
+}
+
+.dock-counter {
+    font-family: var(--bt-font-num);
+    font-size: 13px;
+    color: var(--bt-text-sub);
+}
+
+/* ---------- 技能列表行 ---------- */
+.sk {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: none;
+    border-radius: var(--bt-radius-sm);
+    background: var(--bt-panel-raised);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
+    color: var(--bt-text);
+    text-align: left;
+    cursor: pointer;
+    transition: box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.sk:not(:disabled):hover,
+.sk:focus-visible {
+    outline: none;
+    background: linear-gradient(90deg, var(--bt-blue-soft), var(--bt-panel-raised));
+    box-shadow: inset 0 0 0 1px var(--bt-select), 0 0 8px var(--bt-select-glow);
+}
+
+.sk-ico {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: radial-gradient(circle at 50% 35%, var(--bt-bg-1), var(--bt-bg-0) 75%);
+    box-shadow: 0 0 0 1px var(--bt-chrome-lo), inset 0 0 0 1px var(--bt-hairline-soft);
+}
+
+.sk-ico img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+
+.sk--disabled .sk-ico img {
+    filter: grayscale(1) brightness(0.6);
+}
+
+.sk-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.sk-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--bt-chrome-hi);
+}
+
+.sk-desc {
+    font-size: 10px;
+    line-height: 1.3;
+    color: var(--bt-text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sk-reason {
+    font-size: 10px;
+    line-height: 1.3;
+    color: var(--bt-danger);
+}
+
+.sk-cost {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+    color: var(--bt-active);
+    background: var(--bt-bg-0);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
+}
+
+.sk--disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.sk--disabled .sk-ico {
+    background: var(--bt-chrome-lo);
+    color: var(--bt-text-dim);
+}
+
+/* ---------- 等待 ---------- */
+.dock-bd--waiting {
+    gap: 6px;
+}
+
+.dock-wait-portrait {
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    object-fit: cover;
+    object-position: 50% 20%;
+    background: var(--bt-bg-0);
+    box-shadow: 0 0 0 2px var(--bt-bg-0), 0 0 0 3px var(--bt-chrome-mid);
+}
+
+.dock-wait-portrait--empty {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: var(--bt-chrome-mid);
+}
+
+.dock-wait-name {
+    font-size: 12px;
+    color: var(--bt-text-sub);
+}
+
+.dock-wait-bar {
+    position: relative;
+    width: 70%;
+    height: 3px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--bt-bg-0);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
+}
+
+.dock-wait-bar > i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 35%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, var(--bt-select), transparent);
+    animation: dockWaitSweep 1.8s ease-in-out infinite;
+}
+
+@keyframes dockWaitSweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+}
+
+/* ---------- 爆牌 ---------- */
+.dock-bd--overflow {
+    justify-content: flex-start;
+}
+
+/* ================= 底栏 ================= */
+.dock-ft {
+    flex: 0 0 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border-top: 1px solid var(--bt-hairline-soft);
+    background: linear-gradient(0deg, var(--bt-panel-raised), transparent);
+    min-width: 0;
+}
+
+.dock-ft:empty {
+    display: none;
+}
+
+.dock-ft-left {
+    min-width: 0;
+}
+
+.dock-ft-center {
+    flex: 1 1 auto;
+    text-align: center;
+    font-family: var(--bt-font-num);
+    font-size: 12px;
+    color: var(--bt-text-sub);
+}
+
+.dock-btn {
+    height: 28px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: none;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: box-shadow 0.16s ease, filter 0.16s ease;
+}
+
+.dock-btn--right,
+.dock-btn--primary {
+    margin-left: auto;
+}
+
+.dock-btn--ghost {
+    background: transparent;
+    color: var(--bt-text-sub);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
+}
+
+.dock-btn--ghost:hover,
+.dock-btn--ghost:focus-visible {
+    outline: none;
+    color: var(--bt-chrome-hi);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline);
+}
+
+.dock-btn--ghost + .dock-btn--ghost.dock-btn--right {
+    margin-left: auto;
+}
+
+.dock-btn--primary {
+    color: var(--bt-bg-0);
+    background: linear-gradient(180deg, var(--bt-chrome-hi), var(--bt-active) 45%, var(--bt-active));
+    box-shadow: 0 0 0 1px var(--bt-bg-0), 0 0 10px var(--bt-active-glow);
+}
+
+.dock-btn--primary:not(:disabled):hover,
+.dock-btn--primary:focus-visible {
+    outline: none;
+    filter: brightness(1.08);
+    box-shadow: 0 0 0 1px var(--bt-bg-0), 0 0 0 2px var(--bt-active), 0 0 14px var(--bt-active-glow);
+}
+
+.dock-btn--primary:disabled {
+    cursor: not-allowed;
+    color: var(--bt-text-dim);
+    background: var(--bt-chrome-lo);
+    box-shadow: none;
+}
+
+.dock-btn--dark {
+    color: var(--bt-chrome-hi);
+    background: linear-gradient(180deg, var(--bt-panel-raised), var(--bt-bg-0));
+    box-shadow: inset 0 0 0 1px var(--bt-hairline);
+}
+
+.dock-btn--dark:hover,
+.dock-btn--dark:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--bt-select), 0 0 10px var(--bt-select-glow);
+}
+
+/* 回合状态小标签 */
+.turn-state-indicators {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    overflow: hidden;
+    max-height: 40px;
+}
+
+.turn-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    line-height: 1.3;
+    white-space: nowrap;
+    color: var(--bt-text);
+    background: var(--bt-bg-0);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
+}
+
+.turn-chip--ml_dark_release_next_attack_bonus {
+    color: var(--bt-danger);
+    box-shadow: inset 0 0 0 1px var(--bt-red-soft);
+}
+
+.turn-chip--ml_dark_release_lock_turn {
+    color: var(--bt-text-sub);
+}
+
+/* ================= 非行动类 Prompt ================= */
 .prompt-inline-host {
     width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 6px;
+}
+
+.dock-bd--deferred {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.dock-bd--deferred .dock-ico {
+    width: 34px;
+    height: 34px;
+    opacity: 0.75;
+}
+
+.dock-bd--overflow .prompt-inline-host {
+    padding: 0;
 }
 
 .prompt-inline-host :deep(.prompt-inline-root) {
@@ -2199,84 +2748,7 @@ function elementName(el: string): string {
     padding: 0;
 }
 
-.action-mode-panel,
-.skill-select-panel,
-.skill-discard-panel,
-.skill-target-panel {
-    background: rgba(7, 20, 33, 0.58);
-    border: 1px solid rgba(121, 156, 177, 0.24);
-    border-radius: 12px;
-    padding: 10px;
-    box-shadow: inset 0 1px 0 rgba(236, 247, 254, 0.06);
-}
-
-.skill-discard-card-row {
-    /* 与手牌区一致，给上移选中态留缓冲，避免顶部裁切。 */
-    padding-top: 12px;
-    margin-top: -6px;
-}
-
-.action-mode-panel {
-    min-height: clamp(176px, 24vh, 248px);
-}
-
-.target-group-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.target-group-card {
-    border: 1px solid rgba(117, 154, 176, 0.3);
-    border-radius: 10px;
-    background: rgba(9, 22, 37, 0.66);
-    box-shadow: inset 0 1px 0 rgba(230, 244, 255, 0.05);
-    padding: 8px;
-}
-
-.target-group-title {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    margin-bottom: 6px;
-}
-
-.target-group-title--enemy {
-    color: rgba(251, 113, 133, 0.92);
-}
-
-.target-group-title--ally {
-    color: rgba(125, 211, 252, 0.92);
-}
-
-.target-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.target-grid-btn {
-    min-width: min(160px, 100%);
-    flex: 1 1 168px;
-}
-
-.target-grid-name {
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.target-grid-meta {
-    margin-top: 2px;
-    font-size: 11px;
-    opacity: 0.82;
-    line-height: 1.25;
-}
-
-.prompt-option-btn {
-    min-height: 34px;
-    line-height: 1.15;
-}
-
+/* ================= 特殊行动弹窗 ================= */
 .special-modal-mask {
     position: fixed;
     inset: 0;
@@ -2285,27 +2757,22 @@ function elementName(el: string): string {
     align-items: center;
     justify-content: center;
     padding: 16px;
-    background: rgba(5, 10, 18, 0.64);
+    background: var(--bt-panel);
     backdrop-filter: blur(4px);
 }
 
 .special-modal-card {
     width: min(430px, calc(100vw - 28px));
-    border-radius: 14px;
-    border: 1px solid rgba(164, 196, 216, 0.5);
-    background:
-        linear-gradient(180deg, rgba(16, 33, 52, 0.96), rgba(8, 18, 31, 0.98)),
-        url('/assets/ui/panel-ornament.svg') center/cover no-repeat;
-    box-shadow:
-        inset 0 1px 0 rgba(239, 248, 255, 0.12),
-        0 18px 34px rgba(2, 10, 20, 0.52);
+    border-radius: var(--bt-radius);
+    background: linear-gradient(180deg, var(--bt-bg-1), var(--bt-bg-0));
+    box-shadow: var(--bt-frame-shadow), inset 0 1px 0 var(--bt-hairline-soft);
     padding: 14px 12px 12px;
 }
 
 .special-modal-title {
     font-size: 15px;
     font-weight: 700;
-    color: rgba(237, 246, 253, 0.95);
+    color: var(--bt-chrome-hi);
     text-align: center;
 }
 
@@ -2314,14 +2781,14 @@ function elementName(el: string): string {
     margin-bottom: 8px;
     text-align: center;
     font-size: 12px;
-    color: rgba(188, 213, 230, 0.88);
+    color: var(--bt-text-sub);
     line-height: 1.4;
 }
 
 .special-modal-group-title {
     font-size: 11px;
     letter-spacing: 0.08em;
-    color: #f6d9a1;
+    color: var(--bt-active);
     font-weight: 700;
     margin-bottom: 8px;
 }
@@ -2333,16 +2800,14 @@ function elementName(el: string): string {
 }
 
 .special-action-card {
-    border-radius: 10px;
-    border: 1px solid rgba(117, 156, 182, 0.34);
-    background: rgba(9, 22, 37, 0.72);
+    border-radius: var(--bt-radius-sm);
+    background: var(--bt-panel-raised);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft);
     padding: 8px;
-    box-shadow: inset 0 1px 0 rgba(233, 245, 255, 0.06);
 }
 
 .special-action-card--disabled {
-    border-color: rgba(104, 124, 140, 0.3);
-    background: rgba(8, 16, 26, 0.6);
+    background: var(--bt-bg-0);
 }
 
 .special-action-head {
@@ -2358,10 +2823,10 @@ function elementName(el: string): string {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(180deg, rgba(219, 186, 125, 0.28), rgba(150, 106, 49, 0.34));
-    color: #ffe3b5;
+    background: var(--bt-bg-0);
+    color: var(--bt-active);
     font-size: 14px;
-    box-shadow: inset 0 1px 0 rgba(255, 246, 223, 0.22);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline);
 }
 
 .special-action-meta {
@@ -2371,34 +2836,34 @@ function elementName(el: string): string {
 .special-action-label {
     font-size: 13px;
     font-weight: 700;
-    color: #ecf5fc;
+    color: var(--bt-chrome-hi);
     line-height: 1.1;
 }
 
-.special-action-summary {
+.special-action-summary,
+.special-action-detail {
     margin-top: 2px;
     font-size: 11px;
-    color: rgba(183, 210, 229, 0.86);
+    color: var(--bt-text-sub);
     line-height: 1.35;
 }
 
 .special-action-detail {
     margin-top: 6px;
-    font-size: 11px;
-    color: rgba(161, 192, 213, 0.84);
-    line-height: 1.35;
+    color: var(--bt-text-dim);
 }
 
 .special-action-reason {
     margin-top: 5px;
     font-size: 11px;
-    color: #f2bc9e;
+    color: var(--bt-danger);
     line-height: 1.35;
 }
 
-.special-modal-btn {
-    min-height: 34px;
+.special-modal-btn,
+.special-modal-cancel {
     width: 100%;
+    min-height: 32px;
     font-size: 12px;
     margin-top: 6px;
 }
@@ -2410,9 +2875,6 @@ function elementName(el: string): string {
 
 .special-modal-cancel {
     margin-top: 10px;
-    width: 100%;
-    min-height: 34px;
-    font-size: 12px;
 }
 
 .special-modal-fade-enter-active,
@@ -2425,90 +2887,135 @@ function elementName(el: string): string {
     opacity: 0;
 }
 
-@media (max-width: 900px) {
-    .action-panel-root--panel {
-        padding: 8px;
-        min-height: 160px;
-        max-height: min(44vh, 360px);
-    }
-
-    .action-panel-root--prompt-inline {
-        padding: 6px;
-        min-height: 0;
-        max-height: none;
-    }
-
-    .action-mode-panel,
-    .skill-select-panel,
-    .skill-discard-panel,
-    .skill-target-panel {
-        border-radius: 10px;
-    }
-
-    .prompt-option-btn {
-        min-height: 32px;
-        font-size: 12px !important;
-        padding: 0.35rem 0.62rem !important;
-    }
+/* ================= 调试弹窗 ================= */
+.debug-modal-mask {
+    position: fixed;
+    inset: 0;
+    background: var(--bt-panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2400;
 }
 
+.debug-modal-card {
+    width: min(980px, 94vw);
+    max-height: 88vh;
+    background: linear-gradient(180deg, var(--bt-bg-1), var(--bt-bg-0));
+    border-radius: var(--bt-radius);
+    box-shadow: var(--bt-frame-shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.debug-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px 10px;
+    border-bottom: 1px solid var(--bt-hairline-soft);
+}
+
+.debug-modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--bt-chrome-hi);
+}
+
+.debug-modal-subtitle {
+    font-size: 12px;
+    color: var(--bt-text-sub);
+}
+
+.debug-modal-close,
+.debug-mini-btn {
+    padding: 6px 12px;
+    border-radius: var(--bt-radius-sm);
+    border: 1px solid var(--bt-hairline-soft);
+    background: var(--bt-panel-raised);
+    color: var(--bt-text);
+    font-size: 12px;
+}
+
+.debug-mini-btn {
+    padding: 6px 10px;
+}
+
+.debug-modal-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--bt-hairline-soft);
+}
+
+.debug-input,
+.debug-select {
+    background: var(--bt-bg-0);
+    border: 1px solid var(--bt-hairline-soft);
+    color: var(--bt-text);
+    padding: 6px 10px;
+    border-radius: var(--bt-radius-sm);
+    font-size: 12px;
+    min-width: 140px;
+}
+
+.debug-status {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--bt-text-sub);
+}
+
+.debug-modal-body {
+    padding: 12px 18px 18px;
+    overflow: auto;
+}
+
+.debug-manual {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--bt-hairline-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.debug-manual-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--bt-text);
+}
+
+.debug-manual-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+/* ================= 响应式 ================= */
 @media (max-width: 640px) {
-    .action-panel-root--panel {
-        padding: 6px;
-        min-height: 0;
-        max-height: min(36vh, 300px);
+    .dock-hd {
+        padding-left: 8px;
     }
 
-    .action-panel-root--prompt-inline {
-        padding: 4px;
-        min-height: 0;
-        max-height: none;
+    .dock-steps {
+        display: none;
     }
 
-    .action-mode-panel .btn-primary,
-    .action-mode-panel .btn-secondary,
-    .action-mode-panel .btn-skill {
-        flex: 1 1 calc(50% - 6px);
-        min-width: 0;
+    .dock-bd {
+        padding: 6px 8px;
     }
 
-    .skill-select-panel button:not(.action-image-btn),
-    .skill-target-panel button:not(.action-image-btn),
-    .skill-discard-panel button:not(.action-image-btn) {
-        min-height: 34px;
+    .dock-ft {
+        padding: 0 8px;
     }
 
-    .action-panel-root--panel button:not(.action-image-btn) {
-        padding-top: 0.4rem;
-        padding-bottom: 0.4rem;
-    }
-
-    .skill-select-panel .action-image-btn,
-    .skill-target-panel .action-image-btn,
-    .skill-discard-panel .action-image-btn,
-    .action-mode-panel .action-image-btn {
-        flex: 0 0 auto !important;
-    }
-
-    .action-panel-root--panel .text-lg {
-        font-size: 1rem;
-    }
-
-    .action-hub-desktop-btn {
+    .dock-btn {
+        padding: 0 10px;
         font-size: 11px;
-        min-height: 29px;
-        padding: 0.32rem 0.45rem !important;
-    }
-
-    .action-hub-desktop-btn--cannot-act {
-        min-height: 29px;
-        padding: 0.32rem 0.45rem !important;
-    }
-
-    .prompt-option-btn {
-        min-height: 30px;
-        font-size: 11px !important;
-        padding: 0.28rem 0.52rem !important;
     }
 
     .prompt-inline-host :deep(.prompt-inline-grid--2),
@@ -2521,11 +3028,31 @@ function elementName(el: string): string {
         width: min(360px, calc(100vw - 20px));
         padding: 12px 10px 10px;
     }
+}
 
-    .special-modal-btn,
-    .special-modal-cancel {
-        min-height: 31px;
-        font-size: 11px;
+@media (prefers-reduced-motion: reduce) {
+    .dock-panel,
+    .dock-medal-ring,
+    .dock-dot,
+    .sk,
+    .dock-btn {
+        transition: none;
+    }
+
+    .dock-medal:not(:disabled):hover .dock-medal-ring,
+    .dock-medal:focus-visible .dock-medal-ring {
+        transform: none;
+    }
+
+    .dock-slot--pulse {
+        animation: none;
+        box-shadow: inset 0 0 0 1px var(--bt-active), 0 0 8px var(--bt-active-glow);
+    }
+
+    .dock-wait-bar > i {
+        animation: none;
+        width: 100%;
+        opacity: 0.5;
     }
 }
 </style>

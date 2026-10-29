@@ -363,6 +363,11 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 				})
 			}
 			prependPendingDamages(rt, pending)
+			reboundTargets := []string{targetID}
+			if targetID != user.ID {
+				reboundTargets = append(reboundTargets, user.ID)
+			}
+			engineplayer.NotifySkillActivated(rt, user, user.ID, "sage_magic_rebound", reboundTargets...)
 			rt.Log(fmt.Sprintf("%s 发动 [法术反弹]：弃%d张同系牌，对 %s 造成%d点法术伤害，并对自己造成%d点法术伤害", user.Name, xValue, target.Name, damageToTarget, damageToSelf))
 		case "sage_arcane_target":
 			damage := xValue - 1

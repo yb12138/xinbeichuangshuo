@@ -17,13 +17,13 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		CannotActChecker: CannotActCheckerFn,
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingDamageSourceDeal, Priority: 200, Hook: damageCalculateHook},
+			{Timing: player.TimingDamageSourceDeal, Priority: 200, Hook: damageCalculateHook, SkillID: "ms_shadow_power"},
 			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
 			{Timing: player.TimingPostAttackHit, Priority: 500, Hook: postAttackHitHook},
 			{Timing: player.TimingActionStart, Priority: 100, Hook: beforeActionShadowReleaseHook},
 			{Timing: player.TimingCombatInteraction, Priority: 400, Hook: darkElementResponseHook},
-			{Timing: player.TimingCombatCounterCard, Priority: 100, Hook: shadowRejectMagicBulletHook},
+			{Timing: player.TimingCombatCounterCard, Priority: 100, Hook: shadowRejectMagicBulletHook, SkillID: "ms_shadow_reject"},
 			{Timing: player.TimingAfterCannotAct, Priority: 100, Hook: cannotActRedrawHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
@@ -50,8 +50,8 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"ms_asura_combo_pick":              types.ChoiceRouteRole("magic_swordsman"),
-		"ms_shadow_gather_pick":            types.ChoiceRouteRole("magic_swordsman"),
-		"ms_shadow_meteor_release_confirm": types.ChoiceRouteRole("magic_swordsman"),
+		"ms_asura_combo_pick":              types.ChoiceRouteRole("magic_swordsman").WithSkill("ms_asura_combo"),
+		"ms_shadow_gather_pick":            types.ChoiceRouteRole("magic_swordsman").WithSkill("ms_shadow_gather"),
+		"ms_shadow_meteor_release_confirm": types.ChoiceRouteRole("magic_swordsman").WithSkill("ms_shadow_meteor"),
 	}
 }

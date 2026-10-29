@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useInteractionController } from '../composables/useInteractionController'
 import { useSnapshotStore } from '../stores/snapshot.store'
@@ -16,6 +16,8 @@ import FraudElementRenderer from './prompt/renderers/FraudElementRenderer.vue'
 import ResponsePromptRenderer from './prompt/renderers/ResponsePromptRenderer.vue'
 import SkillChoicePromptRenderer from './prompt/renderers/SkillChoicePromptRenderer.vue'
 import TargetPickerPromptRenderer from './prompt/renderers/TargetPickerPromptRenderer.vue'
+import DockStripActions from './prompt/renderers/DockStripActions.vue'
+import { DECISION_DOCKED } from './prompt/dockContext'
 import { promptRendererUsesInlineSurface, selectPromptRenderer } from './prompt/rendererRegistry'
 import type { PromptOption } from '../types/game'
 
@@ -85,15 +87,20 @@ const hasDefendOption = computed(() => {
   return prompt.value.options.some((option) => promptOptionResponseKind(option) === 'defend')
 })
 
-const hasCounterOrDefend = computed(() => {
+/**
+ * 战斗响应弹框（被攻击 / 魔弹传递）：以引擎声明的 presentation 为准，而不是"有没有应战/防御按钮"。
+ * 引擎只在有可用牌时才给出应战/防御，"只能承受"的提示也必须仍按响应弹框渲染（停靠在行动区内），
+ * 否则会掉进通用决策浮层，和行动区叠成两层。
+ */
+const isCombatResponsePrompt = computed(() => {
   if (!prompt.value?.options?.length) return false
-  return hasCounterOption.value || hasDefendOption.value
+  if (prompt.value.presentation?.kind !== 'response') return false
+  return prompt.value.options.some((option) => promptOptionResponseKind(option) !== null)
 })
 
-const responsePromptUnrespondable = computed(() => {
-  if (!prompt.value || !hasCounterOrDefend.value) return false
-  const effectHints = Array.isArray(prompt.value.effect_hints) ? prompt.value.effect_hints : []
-  return effectHints.some((hint) => String(hint || '').includes('无法应战'))
+const hasCounterOrDefend = computed(() => {
+  if (!prompt.value?.options?.length) return false
+  return hasCounterOption.value || hasDefendOption.value || isCombatResponsePrompt.value
 })
 
 type ResponseActionKind = 'take' | 'counter' | 'defend' | null
@@ -125,15 +132,21 @@ function promptAttackElementName(raw: string): string {
   return String(raw || '').trim()
 }
 
+const isAttackResponsePrompt = computed(() =>
+  !!prompt.value && prompt.value.presentation?.kind === 'response' &&
+  (prompt.value.options || []).some((option) => promptOptionResponseKind(option) === 'take') &&
+  !!String(prompt.value.attack_element || '').trim()
+)
+
 const responseAttackElementHintText = computed(() => {
-  if (!prompt.value || !hasCounterOrDefend.value) return ''
+  if (!prompt.value || !isAttackResponsePrompt.value) return ''
   const attackElement = String(prompt.value.attack_element || '').trim()
-  if (!attackElement) return ''
   const displayName = promptAttackElementName(attackElement)
   if (!displayName) return ''
-  if (responsePromptUnrespondable.value || !hasCounterOption.value) return `此次攻击系别：${displayName}（无法应战）`
   if (hasCounterOption.value) return `此次攻击系别：${displayName}（应战需同系或暗灭）`
-  return `此次攻击系别：${displayName}`
+  // 引擎只在有可用牌时才给出应战/防御；没有时说明原因，避免玩家以为漏了按钮
+  if (!hasCounterOption.value && !hasDefendOption.value) return `此次攻击系别：${displayName} · 没有可应战或防御的牌，只能承受`
+  return `此次攻击系别：${displayName}（无法应战）`
 })
 
 const isDarkAttackResponsePrompt = computed(() => {
@@ -161,6 +174,48 @@ const promptEffectHints = computed(() =>
 )
 
 const promptInteraction = computed(() => prompt.value?.interaction ?? null)
+
+/** 当前提示所属技能的完整描述：优先 skill_id，否则按文案里的【技能名】在角色数据中查找。 */
+const promptSkillDescription = computed(() => {
+  const p = prompt.value
+  if (!p) return ''
+  const skillId = String(p.skill_id || '').trim()
+  const title = (String(p.message || '').match(/【([^】]+)】/) || [])[1] || ''
+  for (const character of Object.values(snapshotStore.characters)) {
+    const skill = character.skills?.find((s) => (skillId && s.id === skillId) || (!skillId && title && s.title === title))
+    if (skill) return skill.description || ''
+  }
+  return ''
+})
+
+// —— 停靠窄条（规范图模板 3/4/5）：选目标 / 选手牌 / 选扩展区盖牌在棋盘上作答 ——
+const docked = inject(DECISION_DOCKED, false)
+
+/** 当前提示用到的选择数量（目标 / 手牌 / 扩展区）。 */
+const stripSelectedCount = computed(() => {
+  const p = prompt.value?.presentation
+  if (p?.kind === 'target_picker') return interruptStore.selectedTargets.length
+  if (p?.card_source === 'field') return interruptStore.selectedFieldOptionIndexes.length
+  return isNonHandChooseCardsMultiMode.value ? selectedInlineCardIDs.value.length : interruptStore.selectedHandIndexes.length
+})
+
+const dockStripVisible = computed(() => {
+  if (!docked || !isVisible.value || !prompt.value) return false
+  if (showDecisionOverlay.value || isSkillChoicePrompt.value || isExtractPrompt.value) return false
+  return promptRendererKey.value === 'target_picker' || promptRendererKey.value === 'card_picker' || isFieldCoverSelectionPrompt()
+})
+
+/** 窄条那一行优先用后端的原话（"请选择要弃置的1张手牌"），去掉已在来由条里的【技能名】。 */
+const dockStripMessage = computed(() => {
+  const own = String(prompt.value?.message || '').replace(/^【[^】]+】\s*[:：]?\s*/, '').trim()
+  if (own) return own
+  return promptRendererKey.value === 'target_picker' ? targetSelectionPromptMessage.value : cardPickerPromptMessage.value
+})
+
+/** 目标选择一般点一下就提交；只有多目标或需要手动确认时才显示确认按钮。 */
+const dockStripShowConfirm = computed(() =>
+  promptRendererKey.value === 'target_picker' ? promptRequiresManualTargetConfirm.value : true,
+)
 
 function promptSelectedCountForContract(): number {
   const contract = promptInteraction.value
@@ -841,6 +896,7 @@ type RawDockOption = {
   hint?: string
   field_index?: number
   disabled?: boolean
+  disabled_reason?: string
   optionIndex?: number
 }
 
@@ -850,6 +906,8 @@ type DockButtonOption = {
   buttonLabel: string
   hint: string
   disabled?: boolean
+  /** 后端给出的不可选原因（如"需要至少1个蛹"），灰掉的选项上显示。 */
+  disabledReason?: string
   numeric: boolean
   optionIndex?: number
 }
@@ -1066,6 +1124,7 @@ function normalizeDockOption(option: RawDockOption): DockButtonOption {
     buttonLabel,
     hint,
     disabled: option.disabled,
+    disabledReason: String(option.disabled_reason || '').trim() || undefined,
     numeric: /^\d+$/.test(buttonLabel),
     optionIndex: option.optionIndex,
   }
@@ -1318,7 +1377,8 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
         button_label: option.button_label,
         hint: option.hint,
         optionIndex: prompt.value?.options.indexOf(option),
-        disabled: false
+        disabled: !!option.disabled,
+        disabled_reason: option.disabled_reason
       }))
     return buildDockButtons(options)
   }
@@ -1349,7 +1409,9 @@ const inlinePrimaryButtons = computed<DockButtonOption[]>(() => {
         hint: option.hint,
         field_index: option.field_index,
         optionIndex: prompt.value?.options.indexOf(option),
-        disabled: false
+        // 后端可以把选项标为禁用（展示但不可选，并给出原因）
+        disabled: !!option.disabled,
+        disabled_reason: option.disabled_reason
       }))
     return buildDockButtons(options)
   }
@@ -1394,6 +1456,30 @@ const skillTitleMap = computed(() => {
 function resolveSkillTitleById(skillId: string): string | null {
   return skillTitleMap.value.get(skillId) ?? null
 }
+
+// 决策面板头部上下文："谁 → 你，用什么"（攻击者 / 攻击系别 / 触发技能）
+const promptContextText = computed(() => {
+  const current = prompt.value
+  if (!current) return ''
+  const attackerId = String(current.attacker_id || '').trim()
+  const attacker = attackerId && attackerId !== myPlayerId.value ? playerViews.value[attackerId] : undefined
+  let actorName = ''
+  if (attacker) {
+    const roleId = String(attacker.role || '').trim()
+    const roleName = roleId ? (snapshotStore.characters[roleId]?.name || '') : ''
+    const playerName = String(attacker.name || '').trim()
+    actorName = roleName && playerName && roleName !== playerName ? `${playerName}（${roleName}）` : (roleName || playerName || attackerId)
+  }
+  const element = promptAttackElementName(String(current.attack_element || ''))
+  const skillId = String(current.skill_id || '').trim()
+  const skillTitle = skillId ? resolveSkillTitleById(skillId) : null
+
+  const parts: string[] = []
+  if (actorName) parts.push(element ? `${actorName} 以${element}攻击 → 你` : `${actorName} → 你`)
+  else if (element) parts.push(`${element}攻击 → 你`)
+  if (skillTitle) parts.push(`【${skillTitle}】`)
+  return parts.join(' ')
+})
 
 const skillPromptEntries = computed<SkillPromptEntry[]>(() => {
   if (!isSkillChoicePrompt.value || inlinePrimaryButtons.value.length === 0) return []
@@ -1599,6 +1685,7 @@ const decisionOverlayOptions = computed(() => {
     buttonLabel: option.buttonLabel,
     hint: option.hint,
     disabled: !!option.disabled,
+    disabledReason: option.disabledReason,
   }))
 })
 
@@ -1700,6 +1787,7 @@ watch(autoResolveOptionId, (optionId) => {
   <Transition name="prompt-inline-pop">
     <div v-if="hasAnyInlineButton" class="prompt-inline-root" data-testid="prompt-dialog">
       <div class="prompt-inline-surface">
+        <div v-if="promptContextText" class="prompt-inline-context" data-testid="prompt-context">{{ promptContextText }}</div>
         <template v-if="isExtractPrompt && prompt?.options?.length">
           <ExtractPromptRenderer
             :visible="isExtractPrompt && extractPromptOptions.length > 0"
@@ -1726,6 +1814,20 @@ watch(autoResolveOptionId, (optionId) => {
             :branches="[]"
             @select="handleOptionClick"
             @image-error="onSkillChoiceRendererImageError"
+          />
+
+          <DockStripActions
+            v-else-if="dockStripVisible"
+            :message="dockStripMessage"
+            :rules="promptEffectHints"
+            :selected="stripSelectedCount"
+            :max="prompt?.max ?? 0"
+            :can-confirm="canConfirmPrompt"
+            :show-confirm="dockStripShowConfirm"
+            :show-cancel="canCancelPrompt"
+            :cancel-label="cancelDockButton.buttonLabel"
+            @confirm="confirmPromptAction"
+            @cancel="handleOptionClick(cancelDockButton.id)"
           />
 
           <TargetPickerPromptRenderer
@@ -1853,7 +1955,7 @@ watch(autoResolveOptionId, (optionId) => {
           </div>
 
           <CardPickerPromptRenderer
-            v-else-if="promptRendererKey === 'card_picker'"
+            v-else-if="promptRendererKey === 'card_picker' && !dockStripVisible"
             :visible="promptNeedsCardConfirm"
             :message="cardPickerPromptMessage"
             :effect-hints="promptEffectHints"
@@ -1875,7 +1977,7 @@ watch(autoResolveOptionId, (optionId) => {
         </template>
 
         <div
-          v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow && !singleActivationCostConfirmOption && !showDecisionOverlay"
+          v-if="canCancelPrompt && !isSkillChoicePrompt && !showCardConfirmCancelRow && !singleActivationCostConfirmOption && !showDecisionOverlay && !dockStripVisible"
           class="prompt-inline-entry"
         >
           <div v-if="cancelDockButton.hint" class="prompt-inline-hint">{{ cancelDockButton.hint }}</div>
@@ -1908,6 +2010,7 @@ watch(autoResolveOptionId, (optionId) => {
   <DirectionPromptRenderer
     :visible="isVisible && isDirectionPrompt && directionPromptOptions.length > 0"
     :title="prompt?.message || '请选择方向'"
+    :context="promptContextText"
     :options="directionPromptOptions"
     @select="handleOptionClick"
   />
@@ -1923,6 +2026,7 @@ watch(autoResolveOptionId, (optionId) => {
     :inline-visible="false"
     :overlay-visible="isMultiSkillNameChoiceMode && skillBranchOptions.length > 0"
     :title="skillPromptTitle"
+    :context="promptContextText"
     :buttons="[]"
     :branches="skillBranchOptions"
     @select="handleOptionClick"
@@ -1932,6 +2036,7 @@ watch(autoResolveOptionId, (optionId) => {
   <DecisionOverlayRenderer
     :visible="showDecisionOverlay"
     :title="decisionOverlayTitle"
+    :context="promptContextText"
     :mode="decisionOverlayMode"
     :options="decisionOverlayOptions"
     :activation-hint="singleActivationCostConfirmHintText"
@@ -1940,6 +2045,8 @@ watch(autoResolveOptionId, (optionId) => {
     :can-cancel="decisionOverlayCanCancel"
     :cancel-label="cancelDockButton.buttonLabel || '取消'"
     :cancel-option-id="cancelDockButton.id"
+    :hand-count="myHand.length"
+    :skill-description="promptSkillDescription"
     @select="handleOptionClick"
     @cancel="handleOptionClick"
   />
@@ -2011,6 +2118,20 @@ watch(autoResolveOptionId, (optionId) => {
 .prompt-inline-grid {
   display: grid;
   gap: 8px;
+}
+
+/* 决策上下文："谁 → 你，用什么" */
+.prompt-inline-context {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid #26354f;
+  background: rgba(10, 16, 28, 0.85);
+  color: #f0c35a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  word-break: break-word;
 }
 
 .prompt-inline-entry {
@@ -2148,6 +2269,11 @@ watch(autoResolveOptionId, (optionId) => {
   object-fit: cover;
   pointer-events: none;
   user-select: none;
+  filter: var(--bt-chrome-filter);
+}
+
+.action-image-btn:disabled .action-image-btn-fill {
+  filter: var(--bt-chrome-filter-disabled);
 }
 
 .prompt-inline-btn.action-image-btn .action-image-btn-fill {
@@ -2377,7 +2503,6 @@ watch(autoResolveOptionId, (optionId) => {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  backdrop-filter: blur(3px);
 }
 .overlay-panel-root--skill {
   background:

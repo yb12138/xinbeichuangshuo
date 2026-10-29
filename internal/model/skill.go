@@ -252,6 +252,10 @@ type PromptOption struct {
 	TargetID    string `json:"target_id,omitempty"`    // 关联目标玩家/实体 ID（目标选择专用）
 	FieldIndex  *int   `json:"field_index,omitempty"`  // 场区索引（场牌/盖牌选择专用）
 	Element     string `json:"element,omitempty"`      // 结构化元素值（元素选择专用）
+	// Disabled 表示该选项本次不可选，但仍展示给玩家（灰掉并显示 DisabledReason），
+	// 让玩家知道还有这个分支以及为什么用不了。选择被禁用的选项会被服务端拒绝。
+	Disabled       bool   `json:"disabled,omitempty"`
+	DisabledReason string `json:"disabled_reason,omitempty"`
 }
 
 // Prompt 定义用户交互提示
@@ -280,6 +284,9 @@ type Prompt struct {
 	AttackerID       string   `json:"attacker_id,omitempty"`
 	CounterTargetIDs []string `json:"counter_target_ids,omitempty"`
 	AttackElement    string   `json:"attack_element,omitempty"` // Earth/Water/Fire/Wind/Thunder/Dark
+	// 应战/防御可用的卡牌 ID（与提交校验同源），前端据此高亮可选手牌
+	DefendCardIDs  []string `json:"defend_card_ids,omitempty"`
+	CounterCardIDs []string `json:"counter_card_ids,omitempty"`
 }
 
 // PlayerInput 定义玩家输入
@@ -341,6 +348,9 @@ type IGameEngine interface {
 	DrawCardsWithOptions(playerID string, amount int, opts DrawOptions)
 	DrawRawCards(amount int) ([]Card, bool)
 	NotifyCardRevealed(playerID string, cards []Card, actionType DamageType)
+	// NotifySkillActivated 发出 skill_activated 事件（前端据此播技能开场与目标效果）。
+	// 供被动/钩子/选择结算等不走 skill executor 的技能显式补发；executor 路径已自动发出，勿重复调用。
+	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)
 	DiscardCard(card *FieldCard) error //丢弃指定牌
 	AppendToDiscard(cards []Card)
 	Heal(playerID string, amount int)

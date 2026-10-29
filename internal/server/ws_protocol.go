@@ -47,6 +47,17 @@ type TimelineDelta = protocol.TimelineDelta
 
 type TimelineEvent = protocol.TimelineEvent
 
+type ActionFlowActorDTO = protocol.ActionFlowActorDTO
+
+type ActionFlowNodeDTO = protocol.ActionFlowNodeDTO
+type ActionFlowEffectDTO = protocol.ActionFlowEffectDTO
+
+type ActionFlowEdgeDTO = protocol.ActionFlowEdgeDTO
+
+type ActionFlowLogDTO = protocol.ActionFlowLogDTO
+
+type ActionFlowDTO = protocol.ActionFlowDTO
+
 type TimelineNotifyPayload = protocol.TimelineNotifyPayload
 
 func newWSMessage(cmd protocol.WSCommand, data interface{}) WSMessage {

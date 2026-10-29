@@ -142,6 +142,8 @@ type MagicBulletOps interface {
 	SetMagicBulletChain(chain *model.MagicBulletChain)
 	GetPlayableCardByIndex(player *model.Player, idx int) (model.Card, bool)
 	GetPlayableCardByCardID(player *model.Player, cardID string) (model.Card, bool)
+	// PlayableCards 列出可打出的牌：手牌 + 各角色登记的可打出盖牌（与 GetPlayableCardByCardID 查找范围一致）
+	PlayableCards(player *model.Player) []model.Card
 	PerformMagic(playerID, targetID string, cardIdx int) error
 	ExecuteMagicBullet(player *model.Player, reverse, isFusion bool, fusionCard *model.Card) error
 	FindNextMagicBulletTarget(playerID string) string
@@ -152,6 +154,9 @@ type MagicBulletOps interface {
 
 // SkillOps 技能状态与记录。
 type SkillOps interface {
+	// WithSkillCause 在技能因果下执行 fn：fn 内的事件与状态变化归属该技能（ownerID 为技能持有者）。
+	// 一个选择 / hook 在运行时才决定是哪个技能时使用（如灵符选择雷鸣或风行）。
+	WithSkillCause(skillID, ownerID string, fn func())
 	IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool
 	RecordSkillUsage(playerID, title string, skillType model.SkillType)
 	IsActionSkillUsableForExtraMagic(player *model.Player, skillDef model.SkillDefinition) bool
@@ -328,6 +333,7 @@ type BuyRewardResult struct {
 	AddGems     int    // 向阵营战绩区添加的宝石数
 	AddCrystals int    // 向阵营战绩区添加的水晶数
 	LogMessage  string // 日志消息
+	SkillID     string // 改写所属技能：奖励在该技能因果下结算（演出归属）
 }
 
 // SpecialActionHookSpec 特殊行动钩子：角色模块可改写特殊行动的执行内容。

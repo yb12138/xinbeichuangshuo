@@ -44,6 +44,10 @@ func factionResolveHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 		return engineplayer.TimingHookResult{}
 	}
 
-	ApplyFactionCounterBonuses(rt.AsChoiceRuntime(), player, counterCardPtr)
+	attackerID := ""
+	if ctx.CombatRequest != nil {
+		attackerID = ctx.CombatRequest.AttackerID
+	}
+	ApplyFactionCounterBonuses(rt.AsChoiceRuntime(), player, counterCardPtr, attackerID)
 	return engineplayer.TimingHookResult{Handled: true}
 }

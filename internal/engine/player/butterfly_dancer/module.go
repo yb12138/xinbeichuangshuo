@@ -27,9 +27,9 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingTurnBeforeStart, Priority: 100, Hook: witherExpiryHook},
+			{Timing: player.TimingTurnBeforeStart, Priority: 100, Hook: witherExpiryHook, SkillID: "bt_wither"},
 			{Timing: player.TimingDamageApplied, Priority: 100, Hook: damageResponseHook, RoleFilter: &player.HookRoleNone},
-			{Timing: player.TimingDamageTaken, Priority: 100, Hook: pilgrimageBeforeApplyHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingDamageTaken, Priority: 100, Hook: pilgrimageBeforeApplyHook, RoleFilter: &player.HookRoleNone, SkillID: "bt_pilgrimage"},
 		},
 		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int, extra player.MoraleLossModifierExtra) int {
 			for _, p := range engine.GetAllPlayers() {
@@ -86,18 +86,18 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"bt_cocoon_overflow_discard": types.ChoiceRouteRole("butterfly_dancer"),
 		"bt_cocoon_pick":             types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_dance_discard":           types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_dance_mode":              types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_mirror_pair":             types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_pilgrimage_confirm":      types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_pilgrimage_pick":         types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_poison_pick":             types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_reverse_branch1_pick":    types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_reverse_branch2_cost":    types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_reverse_branch2_pick":    types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_reverse_mode":            types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_reverse_target":          types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_wither_confirm":          types.ChoiceRouteRole("butterfly_dancer"),
-		"bt_wither_target":           types.ChoiceRouteRole("butterfly_dancer"),
+		"bt_dance_discard":           types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_dance"),
+		"bt_dance_mode":              types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_dance"),
+		"bt_mirror_pair":             types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_mirror"),
+		"bt_pilgrimage_confirm":      types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_pilgrimage"),
+		"bt_pilgrimage_pick":         types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_pilgrimage"),
+		"bt_poison_pick":             types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_poison_powder"),
+		"bt_reverse_branch1_pick":    types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_reverse_butterfly"),
+		"bt_reverse_branch2_cost":    types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_reverse_butterfly"),
+		"bt_reverse_branch2_pick":    types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_reverse_butterfly"),
+		"bt_reverse_mode":            types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_reverse_butterfly"),
+		"bt_reverse_target":          types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_reverse_butterfly"),
+		"bt_wither_confirm":          types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_wither"),
+		"bt_wither_target":           types.ChoiceRouteRole("butterfly_dancer").WithSkill("bt_wither"),
 	}
 }

@@ -1,0 +1,59 @@
+/*
+ * 对战界面换皮的共享设计变量（参考 docs/design/battle-reference.png）。
+ * 黑漆底板 + 银色镀铬细边框；阵营色只用于名牌条与细边线；发光只给当前行动/选中元素。
+ * 各组件只引用这里的变量，不要另起色值。
+ */
+:root {
+  /* 底板 */
+  --bt-bg-0: #0b0f16;
+  --bt-bg-1: #111722;
+  --bt-panel: rgba(13, 18, 27, 0.92);
+  --bt-panel-raised: rgba(20, 27, 39, 0.95);
+
+  /* 银色镀铬 */
+  --bt-chrome-hi: #e9edf3;
+  --bt-chrome: #b9c1cd;
+  --bt-chrome-mid: #7d8796;
+  --bt-chrome-lo: #3c4452;
+  --bt-hairline: rgba(185, 193, 205, 0.55);
+  --bt-hairline-soft: rgba(185, 193, 205, 0.22);
+  --bt-chrome-gradient: linear-gradient(180deg, var(--bt-chrome-hi) 0%, var(--bt-chrome) 38%, var(--bt-chrome-lo) 62%, var(--bt-chrome) 100%);
+
+  /* 阵营色（只做点缀） */
+  --bt-blue: #3b6fd8;
+  --bt-blue-soft: rgba(59, 111, 216, 0.35);
+  --bt-red: #c0303c;
+  --bt-red-soft: rgba(192, 48, 60, 0.35);
+  --bt-violet: #7a4fb5;
+
+  /* 状态色 */
+  --bt-active: #f0c35a;              /* 当前行动金框 */
+  --bt-active-glow: rgba(240, 195, 90, 0.45);
+  --bt-select: #9fd4ff;              /* 选中/可选 */
+  --bt-select-glow: rgba(159, 212, 255, 0.45);
+  --bt-danger: #e2525e;              /* 爆牌/超限 */
+  --bt-heal: #59e39a;
+
+  /* 文字 */
+  --bt-text: #e8ecf4;
+  --bt-text-sub: #9aa4b5;
+  --bt-text-dim: #66707f;
+  --bt-font-num: "Georgia", "Times New Roman", serif;
+
+  /* 把金色圆章素材（public/assets/ui/action_*.png、prompt_btn_*.png）转成冷调银色 */
+  --bt-chrome-filter: grayscale(0.9) sepia(0.15) hue-rotate(185deg) saturate(0.9) brightness(1.18) contrast(1.12);
+  /* 素材已是灰度，禁用态只能靠压暗区分 */
+  --bt-chrome-filter-disabled: grayscale(1) brightness(0.55) contrast(0.95);
+
+  /* 形状 */
+  --bt-radius: 8px;
+  --bt-radius-sm: 5px;
+  --bt-frame-shadow: 0 0 0 1px var(--bt-hairline), 0 0 0 3px rgba(0, 0, 0, 0.55), 0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+/* 通用：镀铬细边框面板 */
+.bt-chrome-panel {
+  background: var(--bt-panel);
+  border-radius: var(--bt-radius);
+  box-shadow: var(--bt-frame-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}

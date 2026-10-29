@@ -94,7 +94,13 @@ func campCupChangedHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHook
 		if player == nil || !rt.IsCharacter(player, "holy_lancer") {
 			continue
 		}
+		before := player.MaxHeal
 		syncRevelationMaxHeal(rt, player)
+		// 星杯变化令神圣启示重新生效（治疗上限 2→3）时发 skill_activated；
+		// 失效（3→2）与开局同步不算发动。
+		if player.MaxHeal > before {
+			engineplayer.NotifySkillActivated(rt, player, player.ID, "holy_lancer_revelation", player.ID)
+		}
 	}
 	return engineplayer.TimingHookResult{}
 }

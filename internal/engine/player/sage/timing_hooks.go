@@ -26,6 +26,7 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 	}
 	// Wisdom Codex: damage > 3
 	if ctx.Damage > 3 {
+		player.NotifySkillActivated(rt, target, target.ID, "sage_wisdom_codex", target.ID)
 		maxEnergy := rt.GetPlayerEnergyCap(target)
 		gain := player.AddPlayerGemCapped(target, 2, maxEnergy)
 		if gain > 0 {

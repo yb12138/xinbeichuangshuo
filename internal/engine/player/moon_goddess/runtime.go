@@ -39,6 +39,7 @@ func applyDarkMoonCurse(rt engineplayer.ChoiceRuntime, p *model.Player, removed 
 	if p == nil || removed <= 0 {
 		return
 	}
+	engineplayer.NotifySkillActivated(rt, p, p.ID, "mg_dark_moon_curse", p.ID)
 	actual := rt.ApplyCampMoraleLoss(p.Camp, removed)
 	rt.Log(fmt.Sprintf("%s 的 [暗月诅咒] 触发：移除%d个暗月，我方士气-%d", p.Name, removed, actual))
 	rt.CheckGameEnd()

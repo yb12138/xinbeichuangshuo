@@ -361,6 +361,36 @@ func GetCardIndicesByElement(p *model.Player, element model.Element) []int {
 	return out
 }
 
+// SkillActivationNotifier 能发出 skill_activated 事件的运行时
+// （model.IGameEngine / ChoiceRuntime / HookRuntime 均满足）。
+type SkillActivationNotifier interface {
+	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)
+}
+
+// NotifySkillActivated 为绕过技能执行器的被动/钩子/选择结算技能补发 skill_activated 事件，
+// 让前端播放技能开场与目标效果。走 executor 的技能已自动发出，勿重复调用。
+//
+//   - owner：技能定义所属玩家，从其角色技能表取标题与描述；找不到定义时不发事件。
+//   - activatorID：事件上的发动者，通常就是 owner.ID；"持有者触发他人技能"
+//     （如吟游诗人的乐章由持有者结算）时传持有者。
+//   - targetIDs：实际受影响的玩家，自动去重、去空。
+//
+// 只在效果真正生效的那一刻调用一次；不要在可用性判断、提示构建或玩家取消的分支调用。
+func NotifySkillActivated(rt SkillActivationNotifier, owner *model.Player, activatorID, skillID string, targetIDs ...string) {
+	if rt == nil || owner == nil || owner.Character == nil || skillID == "" {
+		return
+	}
+	if activatorID == "" {
+		activatorID = owner.ID
+	}
+	for _, def := range owner.Character.Skills {
+		if def.ID == skillID {
+			rt.NotifySkillActivated(activatorID, def.ID, def.Title, def.Description, runtimeutil.DedupeIDs(targetIDs))
+			return
+		}
+	}
+}
+
 // MustChoiceResumePointFromMap 从选择上下文中提取恢复点，缺失则 panic。
 func MustChoiceResumePointFromMap(data map[string]interface{}, key string) interface{} {
 	if data == nil {

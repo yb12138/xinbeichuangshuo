@@ -238,6 +238,7 @@ func (e *GameEngine) PushInterrupt(interrupt *model.Interrupt) {
 	if e.interruptOrchestrator == nil {
 		panic("engine: interrupt orchestrator not installed")
 	}
+	e.stampInterruptCause(interrupt)
 	e.interruptOrchestrator.PushInterrupt(interrupt)
 }
 

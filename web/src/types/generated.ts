@@ -66,6 +66,72 @@ export interface PromptPresentation {
   total_steps?: number
 }
 
+export interface ActionFlowActorDTO {
+  player_id: string
+  order: number
+}
+
+export interface ActionFlowDTO {
+  flow_id: string
+  action_id: string
+  narrative_window_id?: string
+  actor_user_id?: string
+  action_type: string
+  actors: ActionFlowActorDTO[]
+  nodes?: ActionFlowNodeDTO[]
+  edges?: ActionFlowEdgeDTO[]
+  logs?: ActionFlowLogDTO[]
+}
+
+export interface ActionFlowEdgeDTO {
+  id: string
+  order: number
+  from_user_id: string
+  to_user_id: string
+  phase: string
+  card_event_id?: number
+  cards?: Card[]
+  node_ids?: string[]
+  outcome?: string
+  damage?: number
+  damage_type?: string
+  label?: string
+}
+
+export interface ActionFlowEffectDTO {
+  kind: string
+  summary?: string
+  target_ids?: string[]
+}
+
+export interface ActionFlowLogDTO {
+  order: number
+  text: string
+}
+
+export interface ActionFlowNodeDTO {
+  id: string
+  order: number
+  kind: string
+  actor_user_id?: string
+  target_user_ids?: string[]
+  event_id?: number
+  anchor_edge_id?: string
+  skill_id?: string
+  skill_name?: string
+  effect_text?: string
+  cards?: Card[]
+  outcome?: string
+  damage?: number
+  damage_type?: string
+  label?: string
+  cause_id?: string
+  parent_cause_id?: string
+  origin_cause_id?: string
+  deltas?: TimelineDelta[]
+  effects?: ActionFlowEffectDTO[]
+}
+
 export interface ActionStepPayload {
   line: string
   kind: string
@@ -86,6 +152,8 @@ export interface AvailableSkill {
   require_exclusive?: boolean
   place_card?: boolean
   place_effect?: string
+  disabled?: boolean
+  disabled_reason?: string
 }
 
 export interface CardRevealedPayload {
@@ -94,6 +162,15 @@ export interface CardRevealedPayload {
   cards: Card[]
   action_type: string
   hidden: boolean
+}
+
+export interface Cause {
+  id: string
+  skill_id?: string
+  skill_name?: string
+  owner_id?: string
+  parent_id?: string
+  origin_id?: string
 }
 
 export interface CharacterView {
@@ -211,6 +288,8 @@ export interface PromptDTO {
   attacker_id?: string
   counter_target_ids?: string[]
   attack_element?: string
+  defend_card_ids?: string[]
+  counter_card_ids?: string[]
 }
 
 export interface PromptInteractionDTO {
@@ -229,6 +308,8 @@ export interface PromptOptionDTO {
   target_id?: string
   field_index?: number
   element?: string
+  disabled?: boolean
+  disabled_reason?: string
 }
 
 export interface ProtocolErrorPayload {
@@ -314,8 +395,18 @@ export interface TargetNode {
 
 export interface TimelineDelta {
   type: string
+  scope?: string
   target_user_id?: string
+  camp?: string
+  field?: string
+  before?: number
+  after?: number
   value?: number
+  reason?: string
+  source_event_id?: string
+  before_text?: string
+  after_text?: string
+  field_card?: FieldCard
 }
 
 export interface TimelineEvent {
@@ -327,6 +418,18 @@ export interface TimelineEvent {
   timing?: string
   chain_id: string
   parent_event_id?: number
+  source_event_id?: string
+  narrative_window_id?: string
+  action_id?: string
+  combat_id?: string
+  narrative_kind?: string
+  visual_kind?: string
+  card_role?: string
+  skill_phase?: string
+  effect_type?: string
+  extra_action_type?: string
+  extra_action_element?: string
+  field_card?: FieldCard
   type: string
   outcome: string
   visibility: string
@@ -336,6 +439,9 @@ export interface TimelineEvent {
   target_name?: string
   action_type?: string
   skill_id?: string
+  skill_name?: string
+  effect_text?: string
+  summary?: string
   card_ids?: string[]
   cards?: Card[]
   hidden?: boolean
@@ -348,6 +454,7 @@ export interface TimelineEvent {
   deltas?: TimelineDelta[]
   message?: string
   gameplay_type?: string
+  cause?: Cause
 }
 
 export interface TimelineNotifyPayload {
@@ -356,6 +463,7 @@ export interface TimelineNotifyPayload {
   seq_end: number
   is_replay: boolean
   events: TimelineEvent[]
+  action_flows?: ActionFlowDTO[]
 }
 
 export interface WSMessage {
@@ -376,3 +484,7 @@ export type GameplayEvent =
   | ({ event_type: 'action_step'; line: ActionStepPayload['line']; kind: ActionStepPayload['kind'] })
   | ({ event_type: 'combat_cue'; attacker_id: CombatCuePayload['attacker_id']; target_id: CombatCuePayload['target_id']; phase: CombatCuePayload['phase'] })
   | ({ event_type: 'draw_cards'; player_id: DrawCardsPayload['player_id']; player_name: DrawCardsPayload['player_name']; draw_count: DrawCardsPayload['draw_count']; reason: DrawCardsPayload['reason'] })
+
+  | { event_type: 'skill_activated'; player_id: string; player_name: string; skill_id: string; skill_name: string; effect_text: string; target_ids?: string[] }
+  | { event_type: 'special_action'; player_id: string; player_name: string; action_type: string; target_ids?: string[]; summary: string }
+  | { event_type: 'state_delta'; deltas: TimelineDelta[]; reason?: string }

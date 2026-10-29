@@ -234,6 +234,7 @@ func handleSoulConvertColorChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 	default:
 		return fmt.Errorf("无效的灵魂转换模式")
 	}
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "ss_soul_convert", user.ID)
 
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {

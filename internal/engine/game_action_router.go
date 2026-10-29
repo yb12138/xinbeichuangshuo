@@ -116,5 +116,9 @@ func (e *GameEngine) HandleInterruptAction(act model.PlayerAction) error {
 	if e.interruptOrchestrator == nil {
 		return fmt.Errorf("中断编排器未初始化")
 	}
-	return e.interruptOrchestrator.DispatchAction(act)
+	var err error
+	e.withCause(e.pendingInterruptCause(), func() {
+		err = e.interruptOrchestrator.DispatchAction(act)
+	})
+	return err
 }

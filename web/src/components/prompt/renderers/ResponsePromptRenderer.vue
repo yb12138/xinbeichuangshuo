@@ -156,17 +156,33 @@ function responseButtonClass(option: ResponsePromptOption): string {
 
 .prompt-response-btn--take {
   border-color: rgba(205, 171, 113, 0.68);
-  background-image: url('/assets/ui/prompt_btn_take.png');
+  --prompt-btn-image: url('/assets/ui/prompt_btn_take.png');
 }
 
 .prompt-response-btn--counter {
   border-color: rgba(157, 141, 228, 0.56);
-  background-image: url('/assets/ui/prompt_btn_counter.png');
+  --prompt-btn-image: url('/assets/ui/prompt_btn_counter.png');
 }
 
 .prompt-response-btn--defend {
   border-color: rgba(111, 170, 225, 0.6);
-  background-image: url('/assets/ui/prompt_btn_defend.png');
+  --prompt-btn-image: url('/assets/ui/prompt_btn_defend.png');
+}
+
+.prompt-response-btn--take::before,
+.prompt-response-btn--counter::before,
+.prompt-response-btn--defend::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--prompt-btn-image) center / cover no-repeat;
+  filter: var(--bt-chrome-filter);
+  pointer-events: none;
+}
+
+.prompt-response-btn--disabled::before {
+  filter: var(--bt-chrome-filter-disabled);
 }
 
 .prompt-response-btn--disabled {
@@ -184,6 +200,11 @@ function responseButtonClass(option: ResponsePromptOption): string {
   object-fit: cover;
   pointer-events: none;
   user-select: none;
+  filter: var(--bt-chrome-filter);
+}
+
+.action-image-btn:disabled .action-image-btn-fill {
+  filter: var(--bt-chrome-filter-disabled);
 }
 
 .action-image-fallback-text {

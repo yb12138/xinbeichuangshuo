@@ -48,6 +48,18 @@ func (sd *SkillDispatcher) DispatchOrientationChanges(before any) {
 	}
 }
 
+func (sd *SkillDispatcher) SnapshotPendingActions(player *model.Player) any {
+	return snapshotPendingActions(player)
+}
+
+func (sd *SkillDispatcher) PublishPendingActionDiff(player *model.Player, before any, source string) {
+	if sd == nil || sd.engine == nil {
+		return
+	}
+	beforeMap, _ := before.(map[string]int)
+	sd.engine.publishPendingActionDiff(player, beforeMap, source)
+}
+
 func (sd *SkillDispatcher) SyncPendingDamageFromContext(ctx *model.Context) {
 	if sd == nil || sd.engine == nil {
 		return
@@ -60,6 +72,13 @@ func (sd *SkillDispatcher) RecordSkillUsage(playerID, title string, skillType mo
 		return
 	}
 	sd.engine.recordSkillUsage(playerID, title, skillType)
+}
+
+func (sd *SkillDispatcher) NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string) {
+	if sd == nil || sd.engine == nil {
+		return
+	}
+	sd.engine.NotifySkillActivated(playerID, skillID, skillName, effectText, targetIDs)
 }
 
 func (sd *SkillDispatcher) ApplyHitCheckAugment(skillIDs []string, ctx *model.Context) []string {
@@ -130,10 +149,37 @@ func (sd *SkillDispatcher) PopInterrupt() {
 	sd.engine.PopInterrupt()
 }
 
+func (sd *SkillDispatcher) RunInSkillCause(skill model.SkillDefinition, ctx *model.Context, fn func()) {
+	if sd == nil || sd.engine == nil {
+		fn()
+		return
+	}
+	ownerID := ""
+	if ctx != nil && ctx.User != nil {
+		ownerID = ctx.User.ID
+	}
+	// 场上牌技能（封印、圣盾）：归属放置者，Origin 指向放置时的因果。
+	if ctx != nil && ctx.User != nil {
+		for _, fc := range ctx.User.Field {
+			if fc == nil || fc.Mode != model.FieldEffect || model.GetHandlerIDByEffect(fc.Effect) != skill.ID {
+				continue
+			}
+			origin := fc.Cause
+			if origin == nil {
+				origin = &model.Cause{SkillID: skill.ID, OwnerID: fc.SourceID}
+			}
+			sd.engine.withOriginCause(origin, fn)
+			return
+		}
+	}
+	sd.engine.WithSkillCause(skill.ID, ownerID, fn)
+}
+
 func (sd *SkillDispatcher) SetPendingInterrupt(intr *model.Interrupt) {
 	if sd == nil || sd.engine == nil {
 		return
 	}
+	sd.engine.stampInterruptCause(intr)
 	sd.engine.State.SetPendingInterrupt(intr)
 }
 
@@ -191,7 +237,11 @@ func (sd *SkillDispatcher) ConsumeSkillEnergyCost(playerID string, gemCost, crys
 	if p == nil {
 		return false
 	}
-	return consumeSkillEnergyCost(p, gemCost, crystalCost)
+	if !consumeSkillEnergyCost(p, gemCost, crystalCost) {
+		return false
+	}
+	sd.engine.recordActionResourceDelta()
+	return true
 }
 
 // dropQueuedOverflowDiscardForPlayer 清理精灵密仪等确认后残留的爆牌弃牌中断。

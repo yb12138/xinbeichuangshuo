@@ -6,6 +6,7 @@ import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
 import { useTimelineStore } from '../../stores/timeline.store'
 import { useInterruptStore } from '../../stores/interrupt.store'
+import { useBattleFxStore } from '../../stores/battlefx.store'
 import type { WsMessage } from '../../network/protocol'
 
 class FakeStorage {
@@ -76,6 +77,7 @@ describe('useWebSocket integration', () => {
         protocol: 'http:',
         hostname: 'localhost',
         host: 'localhost:5173',
+        search: '',
       },
       localStorage: storage,
     })
@@ -96,6 +98,7 @@ describe('useWebSocket integration', () => {
     const snapshotStore = useSnapshotStore()
     const timelineStore = useTimelineStore()
     const battleReviewStore = useBattleReviewStore()
+    const battleFxStore = useBattleFxStore()
 
     storage.setItem('xbs_reconnect_ROOM1_Alice', JSON.stringify({
       room_code: 'ROOM1',
@@ -203,7 +206,10 @@ describe('useWebSocket integration', () => {
     expect(sessionStore.gameStarted).toBe(true)
     expect(snapshotStore.turnStage).toBe('Main')
     expect(snapshotStore.players.p1?.name).toBe('Alice')
-    expect(timelineStore.entries).toHaveLength(1)
+    expect(timelineStore.payloads).toHaveLength(1)
+    expect(timelineStore.entries).toHaveLength(0)
+    expect(battleFxStore.damageEffects).toHaveLength(1)
+    expect(battleFxStore.actionNarrative?.events.map(event => event.label)).toContain('造成 2 点伤害')
     expect(storage.getItem('xbs_reconnect_ROOM1_Alice')).toContain('token-1')
     expect(useInterruptStore().errorMessage).toBe('未知命令')
     expect(battleReviewStore.logs).toContain('[WS][ProtocolError] unknown_cmd: 未知命令')
@@ -211,6 +217,28 @@ describe('useWebSocket integration', () => {
     actions!.sendChat('hello')
     expect(socket?.sent).toContain('{"Cmd":"ChatMessage","Data":{"message":"hello"}}')
     expect(battleReviewStore.logs).toContain('[WS] 连接成功')
+  })
+
+  it('allows a ws backend override from the URL query for local battle smoke tests', () => {
+    vi.unstubAllGlobals()
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    vi.stubGlobal('window', {
+      location: {
+        protocol: 'http:',
+        hostname: 'localhost',
+        host: 'localhost:5175',
+        search: '?ws=http%3A%2F%2F127.0.0.1%3A18080',
+      },
+      localStorage: storage,
+    })
+
+    actions = useWebSocket()
+    actions.connect('ROOM2', 'Bob')
+
+    const latestSocket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
+    expect(latestSocket?.url).toBe(
+      'ws://127.0.0.1:18080/ws?room=ROOM2&name=Bob'
+    )
   })
 
   it('disconnect resets state without creating a new reconnect attempt', () => {

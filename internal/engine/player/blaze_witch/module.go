@@ -26,10 +26,10 @@ func RoleEntry() player.RoleEntry {
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingActionStart, Priority: 100, Hook: beforeActionFlameReleaseHook},
+			{Timing: player.TimingTurnStart, Priority: 100, Hook: beforeActionFlameReleaseHook},
 			{Timing: player.TimingPostDamageResolved, Priority: 200, Hook: postDamageResolvedHook},
 			{Timing: player.TimingDamageAfterApply, Priority: 100, Hook: afterApplyHook},
-			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
+			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook, SkillID: "bw_rebirth_clock"},
 			{Timing: player.TimingAttackModifyCard, Priority: 100, Hook: attackCardTransformHook},
 		},
 		AttackCardElementTransform: AttackElement,
@@ -93,12 +93,12 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"bw_blazing_codex_target":   types.ChoiceRouteRole("blaze_witch"),
-		"bw_mana_inversion_cards":   types.ChoiceRouteRole("blaze_witch"),
-		"bw_mana_inversion_target":  types.ChoiceRouteRole("blaze_witch"),
-		"bw_pain_link_pick":         types.ChoiceRouteRole("blaze_witch"),
-		"bw_substitute_doll_card":   types.ChoiceRouteRole("blaze_witch"),
-		"bw_substitute_doll_target": types.ChoiceRouteRole("blaze_witch"),
-		"bw_witch_wrath_draw":       types.ChoiceRouteRole("blaze_witch"),
+		"bw_blazing_codex_target":   types.ChoiceRouteRole("blaze_witch").WithSkill("bw_blazing_codex"),
+		"bw_mana_inversion_cards":   types.ChoiceRouteRole("blaze_witch").WithSkill("bw_mana_inversion"),
+		"bw_mana_inversion_target":  types.ChoiceRouteRole("blaze_witch").WithSkill("bw_mana_inversion"),
+		"bw_pain_link_pick":         types.ChoiceRouteRole("blaze_witch").WithSkill("bw_pain_link"),
+		"bw_substitute_doll_card":   types.ChoiceRouteRole("blaze_witch").WithSkill("bw_substitute_doll"),
+		"bw_substitute_doll_target": types.ChoiceRouteRole("blaze_witch").WithSkill("bw_substitute_doll"),
+		"bw_witch_wrath_draw":       types.ChoiceRouteRole("blaze_witch").WithSkill("bw_witch_wrath"),
 	}
 }

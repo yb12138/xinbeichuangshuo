@@ -178,6 +178,56 @@ describe('ActionPanel skill availability', () => {
     expect(sharedLifeButton).toHaveTextContent('缺少可用于发动的「同生共死」独有技手牌')
   })
 
+  it('does not show the main action hub while reconnecting into a combat response snapshot', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'blood_priestess')
+    useSnapshotStore().updateGameState(buildState({
+      combat_stage: 'CombatHitCheck',
+      subflow: '',
+      current_player: 'p1',
+    }))
+
+    render(ActionPanel, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PromptDialog: true,
+        },
+      },
+    })
+
+    expect(screen.queryByTestId('action-attack')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('action-magic')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('action-special')).not.toBeInTheDocument()
+  })
+
+  it('does not show the main action hub while reconnecting into a response subflow', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'blood_priestess')
+    useSnapshotStore().updateGameState(buildState({
+      combat_stage: '',
+      subflow: 'Response',
+      current_player: 'p1',
+    }))
+
+    render(ActionPanel, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PromptDialog: true,
+        },
+      },
+    })
+
+    expect(screen.queryByTestId('action-attack')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('action-magic')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('action-special')).not.toBeInTheDocument()
+  })
+
   it('submits server-published targeted skills before backend prompt-driven target selection', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -290,6 +340,41 @@ describe('ActionPanel skill availability', () => {
       { clearSkillMode: true },
     )
     expect(useInterruptStore().skillMode).not.toBe('choosing_target')
+  })
+
+  it('greys out a skill the server marks disabled and shows its reason instead of erroring on click', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const stormSkill: AvailableSkill = {
+      id: 'hb_holy_shard_storm',
+      title: '圣屑飓暴',
+      description: '弃2张同系攻击牌并展示，视为1次圣命格同系主动攻击。',
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+      disabled: true,
+      disabled_reason: '手牌中没有2张同系攻击牌。',
+    }
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Blue', 'holy_bow')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p1: buildPlayer({ id: 'p1', name: '圣弓', camp: 'Blue', role: 'holy_bow' }),
+        p2: buildPlayer({ id: 'p2', name: '目标', camp: 'Red', role: 'enemy', is_active: false }),
+      },
+      available_skills: [stormSkill],
+      characters: [buildCharacter({ id: 'holy_bow', name: '圣弓', skills: [{ ...stormSkill, type: 2 }] })],
+    }))
+    useInterruptStore().setSkillMode('choosing_skill')
+
+    render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+
+    expect(screen.getByText('手牌中没有2张同系攻击牌。')).toBeTruthy()
+    await userEvent.click(screen.getByTestId('skill-hb_holy_shard_storm'))
+    expect(mocks.submitUseSkill).not.toHaveBeenCalled()
   })
 
   it('requires exclusive-card confirmation before target selection for prayer blessing skills', async () => {
@@ -452,5 +537,63 @@ describe('ActionPanel skill availability', () => {
       )
       unmount()
     }
+  })
+})
+
+describe('ActionPanel action hub notice and end-turn', () => {
+  function hubPrompt(message: string, optionIds: string[] = ['attack', 'magic', 'cannot_act']) {
+    return {
+      type: 'confirm',
+      player_id: 'p1',
+      choice_type: 'action_hub',
+      message,
+      options: optionIds.map((id) => ({ id, label: id, button_label: id })),
+      min: 1,
+      max: 1,
+      presentation: { kind: 'action_hub', numeric_base: 0 },
+    } as unknown as Parameters<ReturnType<typeof useInterruptStore>['setPrompt']>[0]
+  }
+
+  function renderHub(message: string, optionIds?: string[]) {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'blood_priestess')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(hubPrompt(message, optionIds))
+    return render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+  }
+
+  it('hides the default "请选择行动类型" notice', () => {
+    renderHub('请选择行动类型')
+    expect(screen.getByTestId('action-attack')).toBeInTheDocument()
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+  })
+
+  it('shows rule constraints as a warning without the trailing default sentence', () => {
+    renderHub('你的审判已达上限：本行动阶段必须发动【末日审判】。')
+    const notice = screen.getByTestId('action-hub-notice')
+    expect(notice).toHaveTextContent('必须发动【末日审判】')
+    expect(notice.className).toContain('dock-notice--rule')
+  })
+
+  it('moves the 充盈 bonus into a footer chip', () => {
+    renderHub('请选择行动类型（【充盈】下一次主动攻击伤害额外+2）')
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+    expect(screen.getByTestId('action-hub-fullness')).toHaveTextContent('+2')
+  })
+
+  it('never renders an end-turn button; cannot-act sits in the footer', () => {
+    renderHub('请选择行动类型')
+    expect(screen.queryByTestId('action-pass')).toBeNull()
+    expect(screen.queryByText('结束回合')).toBeNull()
+    const cannotAct = screen.getByTestId('action-cannot-act')
+    expect(cannotAct.closest('footer')).not.toBeNull()
+  })
+
+  it('labels cannot-act as giving up the extra action during an extra action', () => {
+    renderHub('当前为额外攻击行动，仅可执行攻击。请选择行动类型', ['attack', 'cannot_act'])
+    expect(screen.getByTestId('action-cannot-act')).toHaveTextContent('放弃额外行动')
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+    expect(screen.getByText('仅可攻击')).toBeInTheDocument()
   })
 })

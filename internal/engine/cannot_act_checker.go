@@ -93,6 +93,7 @@ func (e *GameEngine) executeCannotActFlow(player *model.Player) {
 		e.State.DiscardPile = append(e.State.DiscardPile, c)
 	}
 	player.Hand = player.Hand[:0]
+	e.addActionDiscard(player.ID, handCount)
 
 	// 重摸相同数量的牌
 	cards, newDeck, newDiscard := rules.DrawCards(e.State.Deck, e.State.DiscardPile, handCount)

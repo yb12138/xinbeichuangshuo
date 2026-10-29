@@ -41,20 +41,28 @@ func buildMagicMissilePrompt(rt player.ChoiceRuntime) *model.Prompt {
 		effectHints = append(effectHints, "你身上有【圣盾】：可先应战/防御；若本次选择承受伤害，将自动消耗圣盾抵挡魔弹。")
 	}
 
+	// 只给出真正能用的应对方式：与提交校验（resolveMagicMissileCounter/Defend）同源
+	counterCardIDs, defendCardIDs := magicMissileResponseCards(rt, p, chain)
+	options := []model.PromptOption{{ID: "take", Label: takeLabel}}
+	if len(counterCardIDs) > 0 {
+		options = append(options, model.PromptOption{ID: "counter", Label: "打出【魔弹】传递"})
+	}
+	if len(defendCardIDs) > 0 {
+		options = append(options, model.PromptOption{ID: "defend", Label: "使用【圣光】抵挡"})
+	}
+
 	return &model.Prompt{
-		Type:       model.PromptConfirm,
-		PlayerID:   playerID,
-		AttackerID: chain.SourcePlayerID,
-		Message:    fmt.Sprintf("你成为了【魔弹】的目标，当前伤害为 %d，请选择应对：", damage),
-		Options: []model.PromptOption{
-			{ID: "take", Label: takeLabel},
-			{ID: "counter", Label: "打出【魔弹】传递"},
-			{ID: "defend", Label: "使用【圣光】抵挡"},
-		},
-		EffectHints:  effectHints,
-		Min:          1,
-		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "magic_missile"},
+		Type:           model.PromptConfirm,
+		PlayerID:       playerID,
+		AttackerID:     chain.SourcePlayerID,
+		Message:        fmt.Sprintf("你成为了【魔弹】的目标，当前伤害为 %d，请选择应对：", damage),
+		Options:        options,
+		CounterCardIDs: counterCardIDs,
+		DefendCardIDs:  defendCardIDs,
+		EffectHints:    effectHints,
+		Min:            1,
+		Max:            1,
+		Presentation:   &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "magic_missile"},
 	}
 }
 
@@ -242,27 +250,58 @@ func resolveMagicMissileTake(rt player.ChoiceRuntime, p *model.Player, chain *mo
 	return nil
 }
 
-func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain, act model.PlayerAction) error {
-	card, cardOK := playableCardForAction(rt, p, act)
-	if !cardOK {
-		return fmt.Errorf("无效的卡牌ID")
-	}
+// validateMagicMissileCounterCard 校验能否用某张牌把魔弹传递下去（只判定，不改状态）。
+func validateMagicMissileCounterCard(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain, card model.Card) error {
 	if err := rt.DispatchHitCheckMagicMissileCounter(p, chain, &card); err != nil {
 		return err
 	}
 	if card.Name != "魔弹" {
 		return fmt.Errorf("必须使用【魔弹】进行传递")
 	}
-
-	hasParticipated := false
 	for _, pid := range chain.InvolvedIDs {
 		if pid == p.ID {
-			hasParticipated = true
-			break
+			return fmt.Errorf("你在本轮传递中已参与过，无法再次传递")
 		}
 	}
-	if hasParticipated {
-		return fmt.Errorf("你在本轮传递中已参与过，无法再次传递")
+	return nil
+}
+
+// validateMagicMissileDefendCard 校验能否用某张牌抵挡魔弹（只判定，不改状态）。
+func validateMagicMissileDefendCard(card model.Card) error {
+	if card.Name == "圣盾" {
+		return fmt.Errorf("【圣盾】不能在防御时打出，请提前放置到场上触发")
+	}
+	if card.Name != "圣光" {
+		return fmt.Errorf("必须使用【圣光】抵挡")
+	}
+	return nil
+}
+
+// magicMissileResponseCards 用提交校验同源的判定，列出可传递 / 可抵挡魔弹的牌 ID。
+func magicMissileResponseCards(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain) (counterIDs, defendIDs []string) {
+	cards := rt.PlayableCards(p)
+	for _, card := range cards {
+		if validateMagicMissileCounterCard(rt, p, chain, card) == nil {
+			counterIDs = append(counterIDs, card.ID)
+		}
+	}
+	if rt.DispatchHitCheckMagicMissileDefend(p, chain) == nil {
+		for _, card := range cards {
+			if validateMagicMissileDefendCard(card) == nil {
+				defendIDs = append(defendIDs, card.ID)
+			}
+		}
+	}
+	return counterIDs, defendIDs
+}
+
+func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain, act model.PlayerAction) error {
+	card, cardOK := playableCardForAction(rt, p, act)
+	if !cardOK {
+		return fmt.Errorf("无效的卡牌ID")
+	}
+	if err := validateMagicMissileCounterCard(rt, p, chain, card); err != nil {
+		return err
 	}
 
 	consumed, err := consumePlayableCardForAction(rt, p, act)
@@ -283,11 +322,8 @@ func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *
 	if !cardOK {
 		return fmt.Errorf("无效的卡牌ID")
 	}
-	if card.Name == "圣盾" {
-		return fmt.Errorf("【圣盾】不能在防御时打出，请提前放置到场上触发")
-	}
-	if card.Name != "圣光" {
-		return fmt.Errorf("必须使用【圣光】抵挡")
+	if err := validateMagicMissileDefendCard(card); err != nil {
+		return err
 	}
 	rt.Log(fmt.Sprintf("[Magic] %s 使用【圣光】，抵挡了魔弹", p.Name))
 	consumed, err := consumePlayableCardForAction(rt, p, act)
@@ -403,7 +439,18 @@ func resolveMagicBulletDirectionAction(rt player.ChoiceRuntime, act model.Player
 		direction = "逆时针"
 		rt.Log(fmt.Sprintf("[Skill] %s 发动【魔弹掌控】，魔弹将%s传递！", p.Name, direction))
 	}
-	return rt.ExecuteMagicBullet(p, reverse, isFusion, fusionCard)
+	if err := rt.ExecuteMagicBullet(p, reverse, isFusion, fusionCard); err != nil {
+		return err
+	}
+	if reverse {
+		// 仅选择逆向传递才算发动魔弹掌控；目标为逆向后的首个魔弹目标。
+		var targetIDs []string
+		if chain := rt.GetMagicBulletChain(); chain != nil && chain.TargetID != "" {
+			targetIDs = []string{chain.TargetID}
+		}
+		player.NotifySkillActivated(rt, p, p.ID, "magic_bullet_control", targetIDs...)
+	}
+	return nil
 }
 
 func handleMagicBlastAction(rt player.ChoiceRuntime, act model.PlayerAction) (player.InterruptActionResult, error) {

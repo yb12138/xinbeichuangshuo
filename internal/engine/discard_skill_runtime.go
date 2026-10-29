@@ -153,8 +153,16 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 	}
 
 	beforePoses := e.SnapshotPlayerPoses()
-	if err := handler.Execute(ctx); err != nil {
-		return fmt.Errorf("技能执行失败: %v", err)
+	ownerID := ""
+	if ctx.User != nil {
+		ownerID = ctx.User.ID
+	}
+	var execErr error
+	e.WithSkillCause(skillID, ownerID, func() {
+		execErr = handler.Execute(ctx)
+	})
+	if execErr != nil {
+		return fmt.Errorf("技能执行失败: %v", execErr)
 	}
 	e.DispatchOrientationChanges(beforePoses)
 

@@ -1,6 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Card } from '../types/game'
+import type { ActionFlowDTO, TimelineEvent, TimelineNotifyPayload } from '../network/protocol'
 import { useSessionStore } from './session.store'
 import { useSnapshotStore } from './snapshot.store'
 import { useUiStore } from './ui.store'
@@ -13,25 +14,6 @@ export interface InitiatorFocusState {
   side: InitiatorFocusSide
   mode: InitiatorFocusMode
   startedAt: number
-}
-
-export interface FlyingCardView {
-  id: number
-  cards: Card[]
-  playerId: string
-  playerName: string
-  actionType: string
-  holdMode: 'timed' | 'until_response' | 'until_next_card_or_draw'
-  hidden?: boolean
-}
-
-interface FlyingCardQueueItem {
-  cards: Card[]
-  playerId: string
-  playerName: string
-  actionType: string
-  holdMode: 'timed' | 'until_response' | 'until_next_card_or_draw'
-  hidden?: boolean
 }
 
 export interface DrawBurstView {
@@ -56,10 +38,112 @@ export interface CombatCueView {
   phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield'
 }
 
+export type SkillAnnouncementPhase = 'featured' | 'settled'
+export type NarrativeActorReason = 'turn' | 'attack' | 'response' | 'target' | 'skill' | 'damage'
+export type NarrativeEventKind = 'turn' | 'attack' | 'magic' | 'respond' | 'take' | 'damage' | 'skill' | 'system'
+export type NarrativeLinkKind = 'attack' | 'respond' | 'skill' | 'damage'
+export type NarrativePlaybackStepKind = 'action' | 'combat' | 'response' | 'skill' | 'damage' | 'effect' | 'extra' | 'discard'
+export type NarrativePlaybackStepStatus = 'pending' | 'active' | 'completed'
+
+export interface SkillAnnouncementView {
+  id: number
+  actorId: string
+  actorName: string
+  skillName: string
+  effectText: string
+  phase: SkillAnnouncementPhase
+  startedAt: number
+}
+
+export interface ActionNarrativeCardView {
+  id: number
+  timelineEventId?: number
+  playerId: string
+  targetId?: string
+  card: Card
+  actionType: string
+  createdAt: number
+}
+
+export interface ActionNarrativeLinkView {
+  id: number
+  fromType: 'actor' | 'card'
+  fromId: string | number
+  toPlayerId: string
+  kind: NarrativeLinkKind
+  createdAt: number
+}
+
+export interface ActionNarrativeEventView {
+  id: number
+  timelineEventId?: number
+  kind: NarrativeEventKind
+  label: string
+  actorId?: string
+  targetId?: string
+  damage?: number
+  createdAt: number
+}
+
+export interface ActionNarrativeView {
+  currentActionPlayerId: string
+  featuredActorId: string
+  featuredReason: NarrativeActorReason
+  opposedActorIds: string[]
+  settledActorIds: string[]
+  playedCards: ActionNarrativeCardView[]
+  links: ActionNarrativeLinkView[]
+  events: ActionNarrativeEventView[]
+  startedAt: number
+}
+
+export interface NarrativePlaybackStepView {
+  id: string
+  kind: NarrativePlaybackStepKind
+  label: string
+  actorId?: string
+  targetIds: string[]
+  itemIds: string[]
+  order: number
+  durationMs: number
+  status: NarrativePlaybackStepStatus
+}
+
+export interface NarrativePlaybackView {
+  steps: NarrativePlaybackStepView[]
+  activeStepId?: string
+  completedStepIds: string[]
+  isReview: boolean
+  startedAt: number
+}
+
+/** 上一手行动快照：回合切换/行动结束时保留，新行动产生内容后再撤下 */
+export interface PreviousActionSnapshot {
+  narrative: ActionNarrativeView | null
+  playback: NarrativePlaybackView | null
+  actionFlow: ActionFlowDTO | null
+  capturedAt: number
+}
+
+export type TurnBannerCamp = 'Red' | 'Blue' | ''
+
+export interface TurnBannerRequest {
+  id: number
+  text: string
+  camp: TurnBannerCamp
+}
+
 interface CombatCueQueueItem {
   attackerId: string
   targetId: string
   phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield'
+}
+
+interface SkillAnnouncementQueueItem {
+  actorId: string
+  actorName: string
+  skillName: string
+  effectText: string
 }
 
 export const useBattleFxStore = defineStore('battlefx', () => {
@@ -69,11 +153,6 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
   const { players } = storeToRefs(snapshotStore)
   const { cinematicMode } = storeToRefs(uiStore)
-
-  const flyingCards = ref<FlyingCardView[]>([])
-  let flyingCardsId = 0
-  const flyingCardsQueue = ref<FlyingCardQueueItem[]>([])
-  let flyingCardsTimer: ReturnType<typeof setTimeout> | null = null
 
   const drawBursts = ref<DrawBurstView[]>([])
   let drawBurstId = 0
@@ -90,6 +169,30 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   const damageEffects = ref<DamageEffectView[]>([])
   let damageEffectsId = 0
+
+  const skillAnnouncements = ref<SkillAnnouncementView[]>([])
+  let skillAnnouncementId = 0
+  const skillAnnouncementQueue = ref<SkillAnnouncementQueueItem[]>([])
+  let skillAnnouncementTimer: ReturnType<typeof setTimeout> | null = null
+  const skillAnnouncementRemovalTimers = new Map<number, ReturnType<typeof setTimeout>>()
+
+  const actionNarrative = ref<ActionNarrativeView | null>(null)
+  const actionFlowsById = ref<Record<string, ActionFlowDTO>>({})
+  const activeActionFlowId = ref('')
+  const latestActionFlow = computed(() => {
+    if (!activeActionFlowId.value) return null
+    return actionFlowsById.value[activeActionFlowId.value] ?? null
+  })
+  const narrativePlayback = ref<NarrativePlaybackView | null>(null)
+  const previousActionSnapshot = ref<PreviousActionSnapshot | null>(null)
+  const turnBannerRequest = ref<TurnBannerRequest | null>(null)
+  let turnBannerId = 0
+  let narrativeCardId = 0
+  let narrativeLinkId = 0
+  let narrativeEventId = 0
+  let narrativePlaybackTimer: ReturnType<typeof setTimeout> | null = null
+  const narrativeTargetByActor = new Map<string, string>()
+  const structuredNarrativeEventIds = new Set<number>()
 
   function resolveInitiatorFocusSide(playerId: string): InitiatorFocusSide {
     const rosterIndex = roomPlayers.value.findIndex((player) => player.id === playerId)
@@ -121,6 +224,705 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     cancelInitiatorFocusIdleTimer()
     cancelInitiatorFocusResolveTimer()
     initiatorFocus.value = null
+  }
+
+  function clearSkillAnnouncementTimer() {
+    if (!skillAnnouncementTimer) return
+    clearTimeout(skillAnnouncementTimer)
+    skillAnnouncementTimer = null
+  }
+
+  function clearSkillAnnouncementRemovalTimers() {
+    for (const timer of skillAnnouncementRemovalTimers.values()) {
+      clearTimeout(timer)
+    }
+    skillAnnouncementRemovalTimers.clear()
+  }
+
+  function normalizeNarrativeActionType(actionType?: string) {
+    return String(actionType || '').trim().toLowerCase()
+  }
+
+  function uniqueIds(ids: string[]) {
+    return [...new Set(ids.filter(Boolean))]
+  }
+
+  function trimNarrative(next: ActionNarrativeView): ActionNarrativeView {
+    return {
+      ...next,
+      settledActorIds: next.settledActorIds.slice(-5),
+      opposedActorIds: next.opposedActorIds.slice(-2),
+      playedCards: next.playedCards,
+      links: next.links,
+      events: next.events,
+    }
+  }
+
+  function ensureActionNarrative(playerId: string, reason: NarrativeActorReason = 'turn') {
+    if (!playerId) return null
+    if (!actionNarrative.value) {
+      actionNarrative.value = {
+        currentActionPlayerId: playerId,
+        featuredActorId: playerId,
+        featuredReason: reason,
+        opposedActorIds: [],
+        settledActorIds: [],
+        playedCards: [],
+        links: [],
+        events: [],
+        startedAt: Date.now(),
+      }
+      return actionNarrative.value
+    }
+    return actionNarrative.value
+  }
+
+  function beginActionNarrative(playerId: string) {
+    if (!playerId) return
+    if (actionNarrative.value?.currentActionPlayerId === playerId) {
+      actionNarrative.value = trimNarrative({
+        ...actionNarrative.value,
+        featuredActorId: actionNarrative.value.featuredActorId || playerId,
+        featuredReason: actionNarrative.value.featuredReason || 'turn',
+      })
+      return
+    }
+    narrativeTargetByActor.clear()
+    actionNarrative.value = {
+      currentActionPlayerId: playerId,
+      featuredActorId: playerId,
+      featuredReason: 'turn',
+      opposedActorIds: [],
+      settledActorIds: [],
+      playedCards: [],
+      links: [],
+      events: [],
+      startedAt: Date.now(),
+    }
+    addNarrativeEvent({ kind: 'turn', label: '行动回合', actorId: playerId })
+  }
+
+  function settleNarrativeActor(playerId: string) {
+    const current = actionNarrative.value
+    if (!current || !playerId) return
+    actionNarrative.value = trimNarrative({
+      ...current,
+      opposedActorIds: current.opposedActorIds.filter(id => id !== playerId),
+      settledActorIds: uniqueIds([...current.settledActorIds, playerId]),
+    })
+  }
+
+  function featureNarrativeActor(playerId: string, reason: NarrativeActorReason = 'turn') {
+    const current = ensureActionNarrative(playerId, reason)
+    if (!current || !playerId) return
+    const prevFeatured = current.featuredActorId
+    const settled = prevFeatured && prevFeatured !== playerId
+      ? uniqueIds([...current.settledActorIds, prevFeatured])
+      : current.settledActorIds
+    actionNarrative.value = trimNarrative({
+      ...current,
+      featuredActorId: playerId,
+      featuredReason: reason,
+      opposedActorIds: current.opposedActorIds.filter(id => id !== playerId),
+      settledActorIds: settled.filter(id => id !== playerId),
+    })
+  }
+
+  function opposeNarrativeActor(playerId: string) {
+    const current = actionNarrative.value
+    if (!current || !playerId || playerId === current.featuredActorId) return
+    actionNarrative.value = trimNarrative({
+      ...current,
+      opposedActorIds: uniqueIds([...current.opposedActorIds.filter(id => id !== playerId), playerId]),
+      settledActorIds: current.settledActorIds.filter(id => id !== playerId),
+    })
+  }
+
+  function addNarrativeLink(
+    from: { type: 'actor' | 'card'; id: string | number },
+    toPlayerId: string,
+    kind: NarrativeLinkKind,
+  ) {
+    const current = actionNarrative.value
+    if (!current || !toPlayerId) return
+    narrativeLinkId++
+    actionNarrative.value = trimNarrative({
+      ...current,
+      links: [
+        ...current.links,
+        {
+          id: narrativeLinkId,
+          fromType: from.type,
+          fromId: from.id,
+          toPlayerId,
+          kind,
+          createdAt: Date.now(),
+        },
+      ],
+    })
+  }
+
+  function eventLabelForCombatPhase(phase: CombatCueView['phase']) {
+    if (phase === 'attack') return '攻击'
+    if (phase === 'counter') return '应战'
+    if (phase === 'defend') return '防御'
+    if (phase === 'shield') return '圣盾'
+    return '命中'
+  }
+
+  function eventKindForCombatPhase(phase: CombatCueView['phase']): NarrativeEventKind {
+    if (phase === 'attack') return 'attack'
+    if (phase === 'counter' || phase === 'defend' || phase === 'shield') return 'respond'
+    return 'take'
+  }
+
+  function linkKindForActionType(actionType: string): NarrativeLinkKind {
+    const normalized = normalizeNarrativeActionType(actionType)
+    if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'respond'
+    if (normalized === 'skill' || normalized === 'magic' || normalized === 'discard' || normalized === 'skill_cost' || normalized === 'field_effect') return 'skill'
+    return 'attack'
+  }
+
+  function labelForCardAction(actionType: string) {
+    const normalized = normalizeNarrativeActionType(actionType)
+    if (normalized === 'counter') return '应战'
+    if (normalized === 'defend') return '防御'
+    if (normalized === 'shield') return '圣盾'
+    if (normalized === 'magic') return '法术'
+    if (normalized === 'field_effect') return '施加封印'
+    if (normalized === 'discard' || normalized === 'skill_cost') return '弃牌'
+    return '发起攻击'
+  }
+
+  function playbackKindForCardAction(actionType: string): NarrativePlaybackStepKind {
+    const normalized = normalizeNarrativeActionType(actionType)
+    if (normalized === 'counter' || normalized === 'defend' || normalized === 'shield') return 'response'
+    if (normalized === 'field_effect') return 'skill'
+    if (normalized === 'discard' || normalized === 'skill_cost') return 'discard'
+    return 'combat'
+  }
+
+  function playbackKindForEvent(event: ActionNarrativeEventView): NarrativePlaybackStepKind {
+    if (event.kind === 'damage') return 'damage'
+    if (event.kind === 'turn') return 'action'
+    if (event.kind === 'respond' || event.kind === 'take') return 'response'
+    if (event.kind === 'attack' || event.kind === 'magic') return 'combat'
+    const label = event.label || ''
+    if (label.startsWith('获得额外行动')) return 'extra'
+    if (label.startsWith('效果：')) return 'effect'
+    return 'skill'
+  }
+
+  function playbackDurationForKind(kind: NarrativePlaybackStepKind) {
+    if (kind === 'skill') return 1120
+    if (kind === 'damage') return 1020
+    if (kind === 'effect' || kind === 'extra') return 1080
+    return 940
+  }
+
+  function clearNarrativePlaybackTimer() {
+    if (!narrativePlaybackTimer) return
+    clearTimeout(narrativePlaybackTimer)
+    narrativePlaybackTimer = null
+  }
+
+  function rebuildNarrativePlayback() {
+    const current = actionNarrative.value
+    if (!current) {
+      narrativePlayback.value = null
+      clearNarrativePlaybackTimer()
+      return
+    }
+
+    const steps: NarrativePlaybackStepView[] = []
+    const pushStep = (step: Omit<NarrativePlaybackStepView, 'status'>) => {
+      if (!step.itemIds.length) return
+      steps.push({ ...step, status: 'pending' })
+    }
+
+    for (const card of current.playedCards) {
+      const kind = playbackKindForCardAction(card.actionType)
+      pushStep({
+        id: `card-${card.id}`,
+        kind,
+        label: labelForCardAction(card.actionType),
+        actorId: card.playerId,
+        targetIds: card.targetId ? [card.targetId] : [],
+        itemIds: [`card-${card.id}`],
+        order: card.createdAt,
+        durationMs: playbackDurationForKind(kind),
+      })
+    }
+
+    for (const event of current.events) {
+      const kind = playbackKindForEvent(event)
+      if (kind === 'action') {
+        if (steps.some(step => step.kind === 'action' && step.actorId === event.actorId)) continue
+        pushStep({
+          id: `event-${event.id}`,
+          kind,
+          label: event.label,
+          actorId: event.actorId,
+          targetIds: event.targetId ? [event.targetId] : [],
+          itemIds: [],
+          order: event.createdAt,
+          durationMs: playbackDurationForKind(kind),
+        })
+        continue
+      }
+
+      if (event.kind !== 'skill' && event.kind !== 'damage') continue
+      pushStep({
+        id: `${event.kind}-${event.id}`,
+        kind,
+        label: event.label,
+        actorId: event.actorId,
+        targetIds: event.targetId ? [event.targetId] : [],
+        itemIds: [`${event.kind}-${event.id}`],
+        order: event.createdAt,
+        durationMs: playbackDurationForKind(kind),
+      })
+    }
+
+    steps.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id))
+
+    const previous = narrativePlayback.value
+    const previousCompleted = new Set(previous?.completedStepIds || [])
+    let activeStepId = previous?.activeStepId && steps.some(step => step.id === previous.activeStepId)
+      ? previous.activeStepId
+      : undefined
+    let isReview = !!previous?.isReview && steps.every(step => previous.steps.some(prevStep => prevStep.id === step.id))
+
+    for (const step of steps) {
+      if (previousCompleted.has(step.id)) {
+        step.status = 'completed'
+      }
+    }
+
+    if (!activeStepId && !isReview) {
+      const next = steps.find(step => !previousCompleted.has(step.id))
+      if (next) activeStepId = next.id
+    }
+
+    if (activeStepId) {
+      isReview = false
+      for (const step of steps) {
+        if (step.id === activeStepId) {
+          step.status = 'active'
+        } else if (previousCompleted.has(step.id) || step.order < (steps.find(item => item.id === activeStepId)?.order ?? 0)) {
+          step.status = 'completed'
+        } else {
+          step.status = 'pending'
+        }
+      }
+    } else if (steps.length) {
+      isReview = true
+      for (const step of steps) {
+        step.status = 'completed'
+      }
+    }
+
+    narrativePlayback.value = {
+      steps,
+      activeStepId,
+      completedStepIds: steps.filter(step => step.status === 'completed').map(step => step.id),
+      isReview,
+      startedAt: previous?.startedAt ?? Date.now(),
+    }
+    scheduleNarrativePlaybackAdvance()
+  }
+
+  function scheduleNarrativePlaybackAdvance() {
+    clearNarrativePlaybackTimer()
+    const playback = narrativePlayback.value
+    if (!playback || playback.isReview || !playback.activeStepId) return
+    const active = playback.steps.find(step => step.id === playback.activeStepId)
+    if (!active) return
+    narrativePlaybackTimer = setTimeout(() => {
+      const currentPlayback = narrativePlayback.value
+      if (!currentPlayback || currentPlayback.activeStepId !== active.id) return
+      const activeIndex = currentPlayback.steps.findIndex(step => step.id === active.id)
+      const nextStep = currentPlayback.steps.slice(activeIndex + 1).find(step => step.status !== 'completed')
+      const completedStepIds = uniqueIds([...currentPlayback.completedStepIds, active.id])
+      narrativePlayback.value = {
+        ...currentPlayback,
+        activeStepId: nextStep?.id,
+        completedStepIds,
+        isReview: !nextStep,
+        steps: currentPlayback.steps.map((step) => {
+          if (completedStepIds.includes(step.id)) return { ...step, status: 'completed' }
+          if (nextStep && step.id === nextStep.id) return { ...step, status: 'active' }
+          return { ...step, status: nextStep ? 'pending' : 'completed' }
+        }),
+      }
+      scheduleNarrativePlaybackAdvance()
+    }, active.durationMs)
+  }
+
+  function addNarrativeEvent(event: Omit<ActionNarrativeEventView, 'id' | 'createdAt'> & { createdAt?: number }) {
+    const actorId = event.actorId || actionNarrative.value?.featuredActorId || actionNarrative.value?.currentActionPlayerId
+    const current = ensureActionNarrative(actorId || event.targetId || '', event.kind === 'skill' ? 'skill' : 'turn')
+    if (!current) return
+    // “行动回合”只是占位事件，不算新行动的实际内容
+    if (event.kind !== 'turn') dismissPreviousAction()
+    narrativeEventId++
+    const { createdAt, ...rest } = event
+    actionNarrative.value = trimNarrative({
+      ...current,
+      events: [
+        ...current.events,
+        {
+          ...rest,
+          id: narrativeEventId,
+          createdAt: createdAt ?? Date.now(),
+        },
+      ],
+    })
+    rebuildNarrativePlayback()
+  }
+
+  function addNarrativeCard(playerId: string, card: Card, actionType: string, targetId?: string, options?: { createdAt?: number; timelineEventId?: number }) {
+    const normalizedActionType = normalizeNarrativeActionType(actionType)
+    if (!playerId || !card || !['attack', 'magic', 'counter', 'defend', 'shield', 'discard', 'skill_cost', 'field_effect'].includes(normalizedActionType)) return
+    const current = ensureActionNarrative(playerId, normalizedActionType === 'magic' || normalizedActionType === 'field_effect' ? 'skill' : 'attack')
+    if (!current) return
+    const resolvedTargetId = targetId || narrativeTargetByActor.get(playerId)
+    dismissPreviousAction()
+    narrativeCardId++
+    const cardView: ActionNarrativeCardView = {
+      id: narrativeCardId,
+      playerId,
+      targetId: resolvedTargetId,
+      card,
+      actionType: normalizedActionType,
+      createdAt: options?.createdAt ?? Date.now(),
+      timelineEventId: options?.timelineEventId,
+    }
+    actionNarrative.value = trimNarrative({
+      ...current,
+      playedCards: [...current.playedCards, cardView],
+    })
+    if (resolvedTargetId) {
+      addNarrativeLink({ type: 'card', id: cardView.id }, resolvedTargetId, linkKindForActionType(normalizedActionType))
+    }
+    rebuildNarrativePlayback()
+  }
+
+  function bindLatestNarrativeCardTarget(playerId: string, targetId: string, kind: NarrativeLinkKind) {
+    const current = actionNarrative.value
+    if (!current || !playerId || !targetId) return
+    const cards = [...current.playedCards]
+    for (let index = cards.length - 1; index >= 0; index--) {
+      const card = cards[index]
+      if (!card || card.playerId !== playerId || card.targetId) continue
+      cards[index] = { ...card, targetId }
+      actionNarrative.value = trimNarrative({
+        ...current,
+        playedCards: cards,
+      })
+      addNarrativeLink({ type: 'card', id: card.id }, targetId, kind)
+      rebuildNarrativePlayback()
+      return
+    }
+  }
+
+  function addNarrativeCombatCue(attackerId: string, targetId: string, phase: CombatCueView['phase']) {
+    if (!attackerId || !targetId) return
+    if (!actionNarrative.value) {
+      beginActionNarrative(attackerId)
+    }
+    narrativeTargetByActor.set(attackerId, targetId)
+    if (phase === 'attack') {
+      featureNarrativeActor(attackerId, 'attack')
+      opposeNarrativeActor(targetId)
+      addNarrativeLink({ type: 'actor', id: attackerId }, targetId, 'attack')
+    } else {
+      featureNarrativeActor(attackerId, 'response')
+      opposeNarrativeActor(targetId)
+      addNarrativeLink({ type: 'actor', id: attackerId }, targetId, phase === 'take' ? 'damage' : 'respond')
+    }
+    addNarrativeEvent({
+      kind: eventKindForCombatPhase(phase),
+      label: eventLabelForCombatPhase(phase),
+      actorId: attackerId,
+      targetId,
+    })
+  }
+
+  function addNarrativeDamage(
+    sourceId: string | undefined,
+    targetId: string,
+    damage: number,
+    damageType?: string,
+    options?: { createdAt?: number; timelineEventId?: number },
+  ) {
+    if (!targetId || damage <= 0) return
+    const actorId = sourceId || actionNarrative.value?.featuredActorId || targetId
+    ensureActionNarrative(actorId, 'damage')
+    opposeNarrativeActor(targetId)
+    addNarrativeEvent({
+      timelineEventId: options?.timelineEventId,
+      kind: 'damage',
+      label: `造成 ${damage} 点伤害`,
+      actorId,
+      targetId,
+      damage,
+      createdAt: options?.createdAt,
+    })
+    if (actorId && actorId !== targetId) {
+      addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'damage')
+    }
+    void damageType
+  }
+
+  function addNarrativeSkill(actorId: string, skillName: string, effectText?: string, targetIds: string[] = []) {
+    if (!actorId || !skillName) return
+    featureNarrativeActor(actorId, 'skill')
+    for (const targetId of targetIds) {
+      opposeNarrativeActor(targetId)
+      addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'skill')
+    }
+    addNarrativeEvent({
+      kind: 'skill',
+      label: effectText ? `${skillName}：${effectText}` : `发动「${skillName}」`,
+      actorId,
+      targetId: targetIds[0],
+    })
+  }
+
+  function narrativeHasContent(narrative: ActionNarrativeView | null) {
+    if (!narrative) return false
+    return narrative.playedCards.length > 0 || narrative.events.some(event => event.kind !== 'turn')
+  }
+
+  function capturePreviousAction() {
+    const narrative = narrativeHasContent(actionNarrative.value) ? actionNarrative.value : null
+    const actionFlow = latestActionFlow.value
+    if (!narrative && !actionFlow) return
+    const playback = narrative ? narrativePlayback.value : null
+    previousActionSnapshot.value = {
+      narrative,
+      // 快照静态展示：所有步骤视为已完成，不再推进回放计时
+      playback: playback
+        ? {
+            ...playback,
+            steps: playback.steps.map(step => ({ ...step, status: 'completed' as const })),
+            activeStepId: undefined,
+            completedStepIds: playback.steps.map(step => step.id),
+            isReview: true,
+          }
+        : null,
+      actionFlow,
+      capturedAt: Date.now(),
+    }
+  }
+
+  function dismissPreviousAction() {
+    if (previousActionSnapshot.value) previousActionSnapshot.value = null
+  }
+
+  function showTurnBanner(text: string, camp: TurnBannerCamp = '') {
+    if (!text) return
+    turnBannerId++
+    turnBannerRequest.value = { id: turnBannerId, text, camp }
+  }
+
+  /**
+   * 清空当前行动叙事。默认先把有内容的叙事存为“上一手”快照；
+   * 重置/重放/对局结束等场景传 snapshot: false 直接清空。
+   */
+  function clearActionNarrative(options: { snapshot?: boolean } = {}) {
+    if (options.snapshot === false) {
+      dismissPreviousAction()
+    } else {
+      capturePreviousAction()
+    }
+    actionNarrative.value = null
+    narrativePlayback.value = null
+    clearNarrativePlaybackTimer()
+    narrativeTargetByActor.clear()
+  }
+
+  function clearActionFlows() {
+    actionFlowsById.value = {}
+    activeActionFlowId.value = ''
+  }
+
+  function upsertActionFlows(flows: ActionFlowDTO[] = []) {
+    const validFlows = flows.filter(flow => !!flow?.flow_id)
+    if (!validFlows.length) return
+    const next = { ...actionFlowsById.value }
+    dismissPreviousAction()
+    for (const flow of validFlows) {
+      next[flow.flow_id] = flow
+      activeActionFlowId.value = flow.flow_id
+    }
+    actionFlowsById.value = next
+  }
+
+  function hasStructuredNarrative(events: TimelineEvent[] = []) {
+    return events.some(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
+  }
+
+  function isRedundantSkillFieldEffect(event: TimelineEvent, events: TimelineEvent[]) {
+    const kind = String(event.narrative_kind || '').trim()
+    const visualKind = String(event.visual_kind || '').trim()
+    const actionId = String(event.action_id || '').trim()
+    const effectType = String(event.effect_type || '').trim()
+    if (kind !== 'field_effect_applied' || visualKind !== 'effect_token' || !actionId) return false
+    if (effectType === 'attack_miss') return false
+    const hasSkillToken = events.some((candidate) =>
+      candidate !== event &&
+      String(candidate.action_id || '').trim() === actionId &&
+      String(candidate.visual_kind || '').trim() === 'skill_token' &&
+      String(candidate.narrative_kind || '').trim().startsWith('skill')
+    )
+    if (hasSkillToken) return true
+    return events.some((candidate) =>
+      candidate !== event &&
+      String(candidate.action_id || '').trim() === actionId &&
+      String(candidate.visual_kind || '').trim() === 'card' &&
+      String(candidate.card_role || '').trim().toLowerCase() === 'field_effect'
+    )
+  }
+
+  function applyStructuredTimelineNarrative(payload: TimelineNotifyPayload) {
+    const rawEvents = [...(payload.events || [])]
+      .sort((a, b) => (a.event_id || 0) - (b.event_id || 0))
+    const hasActionClosed = rawEvents.some(event => String(event.narrative_kind || '').trim() === 'action_closed')
+    const actionFlows = [...(payload.action_flows || [])]
+
+    if (payload.is_replay) {
+      clearActionNarrative({ snapshot: false })
+      clearActionFlows()
+      structuredNarrativeEventIds.clear()
+    }
+
+    if (actionFlows.length) {
+      clearActionNarrative({ snapshot: false })
+      upsertActionFlows(actionFlows)
+      if (hasActionClosed) {
+        capturePreviousAction()
+        clearActionFlows()
+      }
+      return
+    }
+
+    if (hasActionClosed) {
+      clearActionFlows()
+    }
+
+    const events = rawEvents
+      .filter(event => !!event.narrative_kind || !!event.visual_kind || !!event.narrative_window_id)
+    if (!events.length) return
+
+    for (const event of events) {
+      const eventId = Number(event.event_id || 0)
+      if (eventId && structuredNarrativeEventIds.has(eventId)) continue
+      if (eventId) structuredNarrativeEventIds.add(eventId)
+
+      const kind = String(event.narrative_kind || '').trim()
+      const visualKind = String(event.visual_kind || '').trim()
+      const actorId = event.actor_user_id || ''
+      const targetIds = uniqueIds(event.target_user_ids || [])
+      const createdAt = eventId || Date.now()
+
+      const primaryTargetId = targetIds[0]
+      if (actorId && primaryTargetId) {
+        narrativeTargetByActor.set(actorId, primaryTargetId)
+      }
+
+      if (isRedundantSkillFieldEffect(event, events)) {
+        continue
+      }
+
+      if (kind === 'action_started') {
+        if (actorId) {
+          beginActionNarrative(actorId)
+          for (const targetId of targetIds) {
+            narrativeTargetByActor.set(actorId, targetId)
+          }
+        }
+        continue
+      }
+
+      if (kind === 'action_closed') {
+        clearActionNarrative()
+        clearActionFlows()
+        continue
+      }
+
+      if (actorId) {
+        const reason: NarrativeActorReason =
+          kind.startsWith('skill') ? 'skill' :
+          kind === 'damage_dealt' ? 'damage' :
+          kind === 'combat_response' ? 'response' :
+          kind === 'combat_declared' || kind === 'card_played' ? 'attack' :
+          'turn'
+        featureNarrativeActor(actorId, reason)
+      }
+      for (const targetId of targetIds) {
+        opposeNarrativeActor(targetId)
+      }
+
+      if (kind === 'combat_declared' || kind === 'combat_response') {
+        for (const targetId of targetIds) {
+          narrativeTargetByActor.set(actorId, targetId)
+          bindLatestNarrativeCardTarget(
+            actorId,
+            targetId,
+            kind === 'combat_response' ? 'respond' : 'attack',
+          )
+        }
+      }
+
+      if (visualKind === 'card' && event.cards?.length && actorId) {
+        const cardRole = String(event.card_role || event.action_type || '').trim().toLowerCase()
+        const targetId = targetIds[0] || narrativeTargetByActor.get(actorId)
+        for (const card of event.cards) {
+          addNarrativeCard(actorId, card as Card, cardRole || 'attack', targetId, { createdAt, timelineEventId: eventId })
+        }
+        continue
+      }
+
+      if (visualKind === 'skill_token' && actorId) {
+        const skillName = event.skill_name || event.summary || '技能发动'
+        for (const targetId of targetIds) {
+          addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'skill')
+        }
+        addNarrativeEvent({
+          timelineEventId: eventId,
+          kind: 'skill',
+          label: event.effect_text ? `${skillName}：${event.effect_text}` : `发动「${skillName}」`,
+          actorId,
+          targetId: targetIds[0],
+          createdAt,
+        })
+        continue
+      }
+
+      if ((visualKind === 'effect_token' || visualKind === 'action_marker') && actorId) {
+        const title = event.effect_type === 'attack_miss'
+          ? '未命中'
+          : event.field_card?.card?.name || event.summary || event.extra_action_type || event.effect_type || '效果'
+        for (const targetId of targetIds) {
+          addNarrativeLink({ type: 'actor', id: actorId }, targetId, 'skill')
+        }
+        addNarrativeEvent({
+          timelineEventId: eventId,
+          kind: 'skill',
+          label: visualKind === 'action_marker' ? `获得额外行动：${title}` : `效果：${title}`,
+          actorId,
+          targetId: targetIds[0],
+          createdAt,
+        })
+        continue
+      }
+
+      if (kind === 'damage_dealt' && targetIds[0] && event.damage) {
+        addNarrativeDamage(actorId, targetIds[0], event.damage, event.damage_type, { createdAt, timelineEventId: eventId })
+      }
+    }
   }
 
   function setInitiatorFocus(playerId: string, mode: InitiatorFocusMode) {
@@ -243,78 +1045,109 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     settleSkillInitiatorFocus(focus.playerId, cinematicMode.value ? 420 : 240)
   }
 
-  function resolveFlyingHoldMode(actionType: string): 'timed' | 'until_response' | 'until_next_card_or_draw' {
-    if (actionType !== 'discard') return 'until_response'
-    return 'until_next_card_or_draw'
-  }
+  function addSkillAnnouncement(actorId: string, actorName: string, skillName: string, effectText: string) {
+    const normalizedActorId = String(actorId || '').trim()
+    const normalizedSkillName = String(skillName || '').trim()
+    const normalizedEffectText = String(effectText || '').trim()
+    if (!normalizedActorId || !normalizedSkillName) return
+    const isGenericEffect = (text: string) => text === '技能发动' || text === '技能效果生效'
+    const shouldReplaceEffect = (current: string, next: string) => !!next && (isGenericEffect(current) || next.length > current.length)
 
-  function dropActiveFlyingCards() {
-    if (flyingCards.value.length === 0) return
-    flyingCards.value = []
-    if (flyingCardsTimer) {
-      clearTimeout(flyingCardsTimer)
-      flyingCardsTimer = null
-    }
-  }
-
-  function notifyFlyingCardsEvent(kind: 'card_revealed' | 'draw' | 'combat_response' | 'damage', actionType?: string) {
-    if (kind === 'card_revealed' && (actionType === 'defend' || actionType === 'counter')) {
+    const active = skillAnnouncements.value.find((item) =>
+      item.actorId === normalizedActorId &&
+      item.skillName === normalizedSkillName &&
+      Date.now() - item.startedAt < 3200
+    )
+    if (active) {
+      active.actorName = actorName || normalizedActorId
+      if (shouldReplaceEffect(active.effectText, normalizedEffectText)) {
+        active.effectText = normalizedEffectText
+      }
       return
     }
 
-    if (kind === 'damage' || kind === 'combat_response') {
-      dropActiveFlyingCards()
-      pumpFlyingCards()
+    const queued = skillAnnouncementQueue.value.find((item) =>
+      item.actorId === normalizedActorId &&
+      item.skillName === normalizedSkillName
+    )
+    if (queued) {
+      queued.actorName = actorName || normalizedActorId
+      if (shouldReplaceEffect(queued.effectText, normalizedEffectText)) {
+        queued.effectText = normalizedEffectText
+      }
       return
     }
 
-    if (kind === 'draw' || kind === 'card_revealed') {
-      dropActiveFlyingCards()
-      pumpFlyingCards()
-    }
-  }
-
-  function addFlyingCards(cards: Card[], playerId: string, playerName: string, actionType: string, hidden?: boolean) {
-    if (!cards?.length) return
-    notifyFlyingCardsEvent('card_revealed', actionType)
-    flyingCardsQueue.value.push({
-      cards,
-      playerId,
-      playerName,
-      actionType,
-      holdMode: resolveFlyingHoldMode(actionType),
-      hidden,
+    skillAnnouncementQueue.value.push({
+      actorId: normalizedActorId,
+      actorName: actorName || normalizedActorId,
+      skillName: normalizedSkillName,
+      effectText: normalizedEffectText || '技能效果生效',
     })
-    pumpFlyingCards()
+    pumpSkillAnnouncements()
   }
 
-  function pumpFlyingCards() {
-    if (flyingCards.value.length > 0 || flyingCardsQueue.value.length === 0) return
-    const next = flyingCardsQueue.value.shift()
+  function removeSkillAnnouncement(id: number) {
+    skillAnnouncements.value = skillAnnouncements.value.filter((item) => item.id !== id)
+    const timer = skillAnnouncementRemovalTimers.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      skillAnnouncementRemovalTimers.delete(id)
+    }
+  }
+
+  function pumpSkillAnnouncements() {
+    if (skillAnnouncements.value.some((item) => item.phase === 'featured')) return
+    if (skillAnnouncementQueue.value.length === 0) return
+    const next = skillAnnouncementQueue.value.shift()
     if (!next) return
 
-    flyingCardsId++
-    const id = flyingCardsId
-    if (next.holdMode === 'until_response') {
-      flyingCards.value = [...flyingCards.value, { id, ...next }]
-    } else {
-      flyingCards.value = [{ id, ...next }]
-    }
+    skillAnnouncementId++
+    const id = skillAnnouncementId
+    skillAnnouncements.value = [
+      ...skillAnnouncements.value,
+      {
+        id,
+        actorId: next.actorId,
+        actorName: next.actorName,
+        skillName: next.skillName,
+        effectText: next.effectText,
+        phase: 'featured',
+        startedAt: Date.now(),
+      },
+    ]
 
-    if (next.holdMode === 'timed') {
-      const displayMs = cinematicMode.value ? 2400 : 1600
-      if (flyingCardsTimer) clearTimeout(flyingCardsTimer)
-      flyingCardsTimer = setTimeout(() => {
-        flyingCards.value = flyingCards.value.filter((item) => item.id !== id)
-        flyingCardsTimer = null
-        pumpFlyingCards()
-      }, displayMs)
-    }
+    const featuredMs = cinematicMode.value ? 1650 : 1100
+    clearSkillAnnouncementTimer()
+    skillAnnouncementTimer = setTimeout(() => {
+      const item = skillAnnouncements.value.find((entry) => entry.id === id)
+      if (!item) {
+        skillAnnouncementTimer = null
+        pumpSkillAnnouncements()
+        return
+      }
+      item.phase = 'settled'
+      skillAnnouncementTimer = null
+
+      const removalMs = cinematicMode.value ? 7000 : 5200
+      const removalTimer = setTimeout(() => {
+        removeSkillAnnouncement(id)
+      }, removalMs)
+      skillAnnouncementRemovalTimers.set(id, removalTimer)
+
+      pumpSkillAnnouncements()
+    }, featuredMs)
+  }
+
+  function clearSkillAnnouncements() {
+    skillAnnouncementQueue.value = []
+    skillAnnouncements.value = []
+    clearSkillAnnouncementTimer()
+    clearSkillAnnouncementRemovalTimers()
   }
 
   function addDrawBurst(playerId: string, playerName: string, count: number) {
     if (!playerId || count <= 0) return
-    notifyFlyingCardsEvent('draw')
     drawBurstId++
     const id = drawBurstId
     drawBursts.value.push({
@@ -333,7 +1166,6 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function addDamageEffect(targetId: string, targetName: string, damage: number, damageType: string) {
     if (damage <= 0) return
-    notifyFlyingCardsEvent('damage')
     touchSkillInitiatorFocus()
     damageEffectsId++
     const id = damageEffectsId
@@ -351,8 +1183,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
 
   function addCombatCue(attackerId: string, targetId: string, phase: 'attack' | 'defend' | 'take' | 'counter' | 'shield') {
     if (!attackerId || !targetId) return
+    addNarrativeCombatCue(attackerId, targetId, phase)
     if (phase === 'defend' || phase === 'take' || phase === 'counter' || phase === 'shield') {
-      notifyFlyingCardsEvent('combat_response')
       resolveAttackInitiatorFocus(attackerId)
       startActingPlayerFocus(targetId, 'response')
     } else if (phase === 'attack') {
@@ -429,6 +1261,10 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function clearForGameEnd() {
+    clearActionNarrative({ snapshot: false })
+    clearActionFlows()
+    structuredNarrativeEventIds.clear()
+    clearSkillAnnouncements()
     drawBursts.value = []
     for (const timer of drawBurstTimers.values()) clearTimeout(timer)
     drawBurstTimers.clear()
@@ -442,12 +1278,11 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   function reset() {
-    flyingCards.value = []
-    flyingCardsQueue.value = []
-    if (flyingCardsTimer) {
-      clearTimeout(flyingCardsTimer)
-      flyingCardsTimer = null
-    }
+    clearActionNarrative({ snapshot: false })
+    turnBannerRequest.value = null
+    clearActionFlows()
+    structuredNarrativeEventIds.clear()
+    clearSkillAnnouncements()
     drawBursts.value = []
     for (const timer of drawBurstTimers.values()) clearTimeout(timer)
     drawBurstTimers.clear()
@@ -462,11 +1297,33 @@ export const useBattleFxStore = defineStore('battlefx', () => {
   }
 
   return {
-    flyingCards,
     drawBursts,
     combatCue,
     initiatorFocus,
     damageEffects,
+    skillAnnouncements,
+    actionNarrative,
+    actionFlowsById,
+    activeActionFlowId,
+    latestActionFlow,
+    narrativePlayback,
+    previousActionSnapshot,
+    turnBannerRequest,
+    dismissPreviousAction,
+    showTurnBanner,
+    beginActionNarrative,
+    featureNarrativeActor,
+    settleNarrativeActor,
+    addNarrativeCard,
+    addNarrativeLink,
+    addNarrativeEvent,
+    addNarrativeDamage,
+    addNarrativeSkill,
+    hasStructuredNarrative,
+    applyStructuredTimelineNarrative,
+    clearActionNarrative,
+    clearActionFlows,
+    upsertActionFlows,
     startAttackInitiatorFocus,
     resolveAttackInitiatorFocus,
     startSkillInitiatorFocus,
@@ -475,7 +1332,8 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     settleSkillInitiatorFocus,
     prepareForFlowUpdate,
     syncInitiatorFocusWithState,
-    addFlyingCards,
+    addSkillAnnouncement,
+    clearSkillAnnouncements,
     addDrawBurst,
     addDamageEffect,
     addCombatCue,

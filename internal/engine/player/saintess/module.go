@@ -260,6 +260,6 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"frost_prayer_target": types.ChoiceRouteRole("saintess"),
+		"frost_prayer_target": types.ChoiceRouteRole("saintess").WithSkill("frost_prayer"),
 	}
 }

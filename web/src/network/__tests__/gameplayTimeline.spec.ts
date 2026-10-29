@@ -182,4 +182,93 @@ describe('extractGameplayEventsFromTimeline', () => {
       },
     ])
   })
+
+  it('converts skill, special action and state delta timeline events', () => {
+    const events: TimelineEvent[] = [
+      {
+        event_id: 9,
+        turn_id: 2,
+        chain_id: 'chain_9',
+        type: 'TimelineActionDeclared',
+        outcome: 'TimelineOutcomeSuccess',
+        visibility: 'TimelineVisibilityPublic',
+        actor_user_id: 'p1',
+        actor_name: 'Alice',
+        target_user_ids: ['p2'],
+        skill_id: 'sage_arcane_codex',
+        skill_name: '苍炎法典',
+        effect_text: '造成法术伤害',
+        gameplay_type: 'skill_activated',
+      },
+      {
+        event_id: 10,
+        turn_id: 2,
+        chain_id: 'chain_10',
+        type: 'TimelineActionDeclared',
+        outcome: 'TimelineOutcomeSuccess',
+        visibility: 'TimelineVisibilityPublic',
+        actor_user_id: 'p1',
+        actor_name: 'Alice',
+        action_type: 'Buy',
+        summary: 'Alice 执行特殊行动【购买】',
+        gameplay_type: 'special_action',
+      },
+      {
+        event_id: 11,
+        turn_id: 2,
+        chain_id: 'chain_11',
+        type: 'TimelineEffectResolved',
+        outcome: 'TimelineOutcomeSuccess',
+        visibility: 'TimelineVisibilityPublic',
+        gameplay_type: 'state_delta',
+        reason: 'DamageDealt',
+        deltas: [
+          {
+            type: 'morale',
+            scope: 'team',
+            camp: 'Red',
+            field: 'morale',
+            before: 15,
+            after: 14,
+            value: -1,
+          },
+        ],
+      },
+    ]
+
+    expect(extractGameplayEventsFromTimeline(events)).toEqual([
+      {
+        event_type: 'skill_activated',
+        player_id: 'p1',
+        player_name: 'Alice',
+        skill_id: 'sage_arcane_codex',
+        skill_name: '苍炎法典',
+        effect_text: '造成法术伤害',
+        target_ids: ['p2'],
+      },
+      {
+        event_type: 'special_action',
+        player_id: 'p1',
+        player_name: 'Alice',
+        action_type: 'Buy',
+        target_ids: [],
+        summary: 'Alice 执行特殊行动【购买】',
+      },
+      {
+        event_type: 'state_delta',
+        reason: 'DamageDealt',
+        deltas: [
+          {
+            type: 'morale',
+            scope: 'team',
+            camp: 'Red',
+            field: 'morale',
+            before: 15,
+            after: 14,
+            value: -1,
+          },
+        ],
+      },
+    ])
+  })
 })

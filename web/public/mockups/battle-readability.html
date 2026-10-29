@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>对战可读性改进 · 动画原型</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #05080f; overflow: hidden;
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #e8ecf4; }
+  #viewport { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #board { position: relative; width: 1600px; height: 900px; flex: none; transform-origin: center;
+    background: radial-gradient(ellipse at 50% 42%, rgba(14,22,38,.72), rgba(4,7,14,.97) 70%),
+                url(../assets/bg-arena.webp) center/cover; overflow: hidden; }
+
+  /* 顶栏 */
+  .camp-bar { position: absolute; top: 10px; height: 44px; width: 680px; border-radius: 22px;
+    display: flex; align-items: center; gap: 14px; padding: 0 22px; font-weight: 600; }
+  .camp-bar.blue { left: 40px; background: linear-gradient(90deg, #12355e, #0d2441); border: 1px solid #2b5c94; }
+  .camp-bar.red { right: 40px; background: linear-gradient(90deg, #4a1218, #6a1a22); border: 1px solid #94303b; justify-content: flex-end; }
+  .camp-bar .morale { font-size: 26px; font-family: Georgia, serif; }
+  .res { background: rgba(0,0,0,.35); border-radius: 10px; padding: 2px 10px; font-size: 13px; }
+  .res.bump { animation: bump .7s ease; }
+  .deck { position: absolute; left: 740px; top: 10px; width: 120px; height: 44px; border-radius: 22px;
+    border: 1px solid #3a4a66; background: #0d1626; display: flex; align-items: center; justify-content: center; font-size: 13px; gap: 6px; }
+
+  /* 行动记录条 */
+  #history { position: absolute; top: 64px; left: 260px; right: 260px; height: 30px;
+    display: flex; gap: 8px; justify-content: center; align-items: center; }
+  .hchip { font-size: 12px; padding: 4px 10px; border-radius: 14px; background: rgba(16,24,40,.85);
+    border: 1px solid #33425e; color: #b9c4d8; white-space: nowrap; }
+  .hchip b { color: #fff; font-weight: 600; }
+
+  /* 座位 */
+  .seat { position: absolute; width: 170px; height: 172px; border-radius: 10px; background: #0f1828;
+    border: 1px solid #2a3850; transition: box-shadow .3s, border-color .3s, opacity .3s; }
+  .seat .por { height: 112px; overflow: hidden; border-radius: 10px 10px 0 0; }
+  .seat .por img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+  .seat .info { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; font-size: 15px; }
+  .seat .info small { color: #8d9ab3; font-size: 11px; }
+  .seat .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .seat.blue .dot { background: #3b8cff; } .seat.red .dot { background: #ff3b4e; }
+  .seat .stats { display: flex; justify-content: space-between; padding: 4px 12px; font-size: 13px; color: #c9d2e3; }
+  .seat .stats i { font-style: normal; display: inline-block; }
+  .seat .stats i.roll { animation: roll .6s ease; color: #fff; }
+  .seat .you { position: absolute; top: 6px; right: 6px; background: #1f6fd1; border-radius: 10px; padding: 1px 8px; font-size: 12px; }
+  .seat .turn-badge { position: absolute; top: 6px; left: 6px; background: #c88a1e; color: #1b1205; font-weight: 700;
+    border-radius: 10px; padding: 1px 8px; font-size: 12px; opacity: 0; transition: opacity .3s; }
+  .seat.turn { border-color: #f0b54a; box-shadow: 0 0 0 2px rgba(240,181,74,.6), 0 0 26px rgba(240,181,74,.35); }
+  .seat.turn .turn-badge { opacity: 1; }
+  .seat.actor { animation: actorPulse 1s ease; }
+  .seat.waiting { box-shadow: 0 0 0 2px rgba(255,90,90,.85), 0 0 24px rgba(255,90,90,.5); }
+  .seat .wait-tag { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%);
+    background: #a3262f; border-radius: 10px; font-size: 12px; padding: 2px 10px; white-space: nowrap; display: none; }
+  .seat.waiting .wait-tag { display: block; animation: blink 1s infinite; }
+
+  /* 连线层 */
+  #links { position: absolute; inset: 0; pointer-events: none; }
+  #links path { fill: none; stroke-linecap: round; }
+  .ghost { opacity: .22; transition: opacity .6s; }
+
+  /* 飞行卡 / 标签 */
+  .fly-card { position: absolute; left: 0; top: 0; width: 64px; height: 64px; border-radius: 8px; overflow: hidden;
+    border: 2px solid #e9d3a1; box-shadow: 0 6px 18px rgba(0,0,0,.6); transform: translate(-50%,-50%); }
+  .fly-card img { width: 100%; height: 100%; object-fit: cover; }
+  .link-label { position: absolute; transform: translate(-50%,-50%); font-size: 13px; font-weight: 600;
+    padding: 4px 10px; border-radius: 12px; background: rgba(10,14,24,.92); border: 1px solid currentColor; white-space: nowrap; }
+  .link-label img { width: 22px; height: 22px; border-radius: 4px; vertical-align: middle; margin-right: 6px; }
+  .end-mark { position: absolute; transform: translate(-50%,-50%); font-size: 13px; font-weight: 700; padding: 3px 9px;
+    border-radius: 10px; white-space: nowrap; }
+  .chip { position: absolute; transform: translate(-50%,-50%); font-weight: 700; font-size: 16px; padding: 4px 12px;
+    border-radius: 14px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+
+  /* 技能气泡（贴着施法者） */
+  .skill-bubble { position: absolute; width: 250px; padding: 10px 14px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(28,64,92,.96), rgba(16,30,52,.96)); border: 1px solid #6fc3ff;
+    box-shadow: 0 0 24px rgba(111,195,255,.35); }
+  .skill-bubble .who { font-size: 12px; color: #9fd4ff; }
+  .skill-bubble .name { font-size: 20px; font-weight: 800; letter-spacing: 2px; margin: 2px 0; }
+  .skill-bubble .desc { font-size: 12px; color: #c6d6ea; }
+  .skill-bubble::after { content: ""; position: absolute; right: -9px; top: 24px; border: 9px solid transparent;
+    border-left-color: #6fc3ff; border-right: 0; }
+
+  /* 护盾闪光 */
+  .burst { position: absolute; width: 190px; height: 190px; border-radius: 50%; transform: translate(-50%,-50%);
+    pointer-events: none; }
+
+  /* 行动卡（舞台中央的叙事） */
+  #story { position: absolute; left: 520px; top: 420px; width: 560px; min-height: 60px; border-radius: 14px;
+    background: rgba(9,14,26,.9); border: 1px solid #3b4d6e; padding: 12px 16px 10px; opacity: 0;
+    transition: opacity .5s, filter .5s, border-color .5s; }
+  #story.prev { filter: saturate(.35) brightness(.8); border-style: dashed; }
+  #story .head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #a8b4cc; margin-bottom: 6px; }
+  #story .tag { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 8px; background: #c88a1e; color: #1b1205; }
+  #story.prev .tag { background: #6b7690; color: #fff; }
+  .row { display: flex; align-items: center; gap: 10px; font-size: 15px; padding: 5px 0; border-top: 1px solid rgba(255,255,255,.06); }
+  .row:first-of-type { border-top: 0; }
+  .row img.av { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; object-position: center 15%; border: 1px solid #556; }
+  .row .k { font-size: 11px; padding: 1px 6px; border-radius: 6px; margin-left: auto; }
+  .row img.cd { width: 22px; height: 22px; border-radius: 4px; }
+  .b { color: #6fb2ff; font-weight: 700; } .r { color: #ff7280; font-weight: 700; }
+
+  /* 回合横幅 */
+  #banner { position: absolute; left: 50%; top: 230px; transform: translateX(-50%); padding: 10px 40px;
+    font-size: 24px; font-weight: 800; letter-spacing: 3px; border-radius: 8px; opacity: 0;
+    background: linear-gradient(90deg, transparent, rgba(120,20,30,.9) 20%, rgba(120,20,30,.9) 80%, transparent); }
+
+  /* 底部 */
+  #hand { position: absolute; left: 40px; top: 690px; width: 1260px; height: 196px; border-radius: 12px;
+    background: rgba(10,16,28,.85); border: 1px solid #26354f; padding: 10px 16px; }
+  #hand .title { font-size: 13px; color: #8d9ab3; margin-bottom: 8px; }
+  .hcard { display: inline-block; width: 110px; height: 146px; margin-right: 10px; border-radius: 8px; overflow: hidden;
+    border: 1px solid #4a5670; background: #1a2232; vertical-align: top; transition: transform .3s, opacity .3s; }
+  .hcard img { width: 100%; height: 108px; object-fit: cover; }
+  .hcard span { display: block; text-align: center; font-size: 13px; padding-top: 6px; }
+  #panel { position: absolute; left: 1320px; top: 690px; width: 240px; height: 196px; border-radius: 12px;
+    background: rgba(10,16,28,.85); border: 1px solid #26354f; padding: 12px; font-size: 13px; color: #8d9ab3; }
+  #decision { position: absolute; left: 1320px; top: 690px; width: 240px; height: 196px; border-radius: 12px; padding: 12px;
+    background: rgba(18,24,40,.98); border: 1px solid #ff6b75; box-shadow: 0 0 30px rgba(255,80,90,.35); opacity: 0; }
+  #decision .q { font-size: 15px; font-weight: 700; } #decision .sub { font-size: 12px; color: #ffb3b9; margin: 4px 0 10px; }
+  .opt { border: 1px solid #3c4a66; border-radius: 8px; padding: 6px 10px; margin-top: 5px; font-size: 14px; background: #121b2c; }
+  .opt.hot { border-color: #f0c35a; background: #2b2410; }
+  #cursor { position: absolute; width: 22px; height: 22px; left: 900px; top: 600px; opacity: 0; pointer-events: none; }
+
+  /* 解说 */
+  #caption { position: absolute; left: 50%; top: 640px; transform: translateX(-50%); font-size: 15px; color: #ffe2a3;
+    background: rgba(0,0,0,.55); padding: 6px 18px; border-radius: 16px; white-space: nowrap; transition: opacity .3s; }
+  #controls { position: absolute; right: 340px; top: 698px; display: flex; gap: 6px; z-index: 5; }
+  #controls button { background: #1a2436; color: #cfd8ea; border: 1px solid #3a4a66; border-radius: 6px; font-size: 12px; padding: 3px 8px; cursor: pointer; }
+  #controls button.on { border-color: #f0c35a; color: #f0c35a; }
+
+  @keyframes bump { 40% { transform: scale(1.35); background: #2c6b2c; } }
+  @keyframes roll { 0% { transform: translateY(-8px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+  @keyframes actorPulse { 30% { box-shadow: 0 0 0 4px rgba(255,255,255,.7), 0 0 40px rgba(255,255,255,.4); } }
+  @keyframes blink { 50% { opacity: .55; } }
+</style>
+</head>
+<body>
+<div id="viewport"><div id="board">
+  <div class="camp-bar blue"><span>蓝阵营</span><span class="morale">15</span>
+    <span class="res">🏆 0</span><span class="res" id="blue-gem">♦ 0</span><span class="res">◆ 0</span></div>
+  <div class="deck">公共牌堆 <b id="deck">124</b></div>
+  <div class="camp-bar red"><span class="res">◆ 0</span><span class="res">♦ 0</span><span class="res">🏆 0</span>
+    <span class="morale">15</span><span>红阵营</span></div>
+
+  <div id="history"></div>
+  <svg id="links" width="1600" height="900"><defs>
+    <marker id="ah-red" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff5d5d"/></marker>
+    <marker id="ah-green" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#59e39a"/></marker>
+    <marker id="ah-violet" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b48bff"/></marker>
+    <marker id="ah-grey" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7d8799"/></marker>
+  </defs></svg>
+
+  <div id="story"><div class="head"><span class="tag" id="story-tag">当前行动</span><span id="story-title"></span></div><div id="rows"></div></div>
+  <div id="banner"></div>
+  <div id="caption"></div>
+
+  <div id="hand"><div class="title">你的手牌（圣女 · 测试玩家1）</div><div id="hand-cards"></div></div>
+  <div id="panel">等待 <span id="panel-who">风之剑圣</span> 行动…</div>
+  <div id="decision">
+    <div class="q">风之剑圣 用【暗灭】攻击你</div>
+    <div class="sub">暗系攻击 · 不能应战，可用圣光 / 圣盾抵挡</div>
+    <div class="opt" id="opt-take">承受伤害（摸 2 张）</div>
+    <div class="opt" id="opt-light">打出 圣光 抵挡</div>
+    <div class="opt" id="opt-shield">打出 圣盾 抵挡</div>
+  </div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M3 2 L3 20 L8 15 L11 22 L14 21 L11 14 L18 14 z" fill="#fff" stroke="#000" stroke-width="1.2"/></svg>
+  <div id="controls">
+    <button id="btn-play">⏸ 暂停</button>
+    <button data-speed="0.5">0.5x</button><button data-speed="1" class="on">1x</button><button data-speed="2">2x</button>
+    <button id="btn-replay">↺ 重播</button>
+  </div>
+</div></div>
+
+<script>
+// ---------- 数据 ----------
+const P = {
+  angel:    { name: '天使',     player: '测试玩家2', camp: 'blue', x: 40,   y: 90,  heal: 0, hand: 3 },
+  blade:    { name: '风之剑圣', player: '测试玩家3', camp: 'blue', x: 40,   y: 280, heal: 0, hand: 4 },
+  assassin: { name: '暗杀者',   player: '测试玩家4', camp: 'blue', x: 40,   y: 470, heal: 0, hand: 5 },
+  saintess: { name: '圣女',     player: '测试玩家1', camp: 'red',  x: 1390, y: 90,  heal: 0, hand: 5, you: true },
+  sealer:   { name: '封印师',   player: '测试玩家5', camp: 'red',  x: 1390, y: 280, heal: 0, hand: 4 },
+  elem:     { name: '元素师',   player: '测试玩家6', camp: 'red',  x: 1390, y: 470, heal: 0, hand: 4 },
+}
+const IMG = { angel: 'angel', blade: 'blade_master', assassin: 'assassin', saintess: 'saintess', sealer: 'sealer', elem: 'elementalist' }
+const CARD = { anmie: '../image/anMie.png', shengguang: '../image/shengGuang.png', modan: '../image/moDan.png',
+  shuilian: '../image/shuiLianZhan.png', shengdun: '../image/shengDun.png', dilie: '../image/diLieZhan.png' }
+const HAND = [['shuilian','水涟斩'],['shengguang','圣光'],['shengdun','圣盾'],['dilie','地裂斩'],['modan','魔弹']]
+const board = document.getElementById('board')
+const $ = id => document.getElementById(id)
+
+// ---------- 播放控制（速度 / 暂停对 JS 计时与 WAAPI 动画同时生效） ----------
+let speed = 1, paused = false, runId = 0
+const ticker = (ms, onFrame) => new Promise((resolve, reject) => {
+  const myRun = runId; let elapsed = 0, last = performance.now()
+  const step = t => {
+    if (myRun !== runId) return reject('reset')
+    if (!paused) elapsed += (t - last) * speed
+    last = t
+    const k = Math.min(1, elapsed / ms)
+    onFrame && onFrame(k)
+    k >= 1 ? resolve() : requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+})
+const wait = ms => ticker(ms)
+const anim = (el, frames, ms, opts = {}) => {
+  const a = el.animate(frames, { duration: ms, fill: 'forwards', easing: 'ease', ...opts })
+  a.playbackRate = speed; if (paused) a.pause()
+  return a.finished.catch(() => {})
+}
+const ease = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+
+// ---------- 场景构建 ----------
+function build() {
+  board.querySelectorAll('.seat,.fly-card,.link-label,.end-mark,.chip,.skill-bubble,.burst').forEach(n => n.remove())
+  $('links').querySelectorAll('path:not(marker path)').forEach(n => n.remove())
+  for (const [id, p] of Object.entries(P)) {
+    p.curHeal = p.heal; p.curHand = p.hand
+    const el = document.createElement('div')
+    el.className = `seat ${p.camp}`; el.id = `seat-${id}`
+    el.style.left = p.x + 'px'; el.style.top = p.y + 'px'
+    el.innerHTML = `<div class="por"><img src="../characters/${IMG[id]}.png"></div>
+      <div class="turn-badge">当前行动</div>${p.you ? '<div class="you">你</div>' : ''}
+      <div class="info"><span class="dot"></span><b>${p.name}</b><small>${p.player}</small></div>
+      <div class="stats"><span>❤ 治疗 <i class="heal">${p.heal}</i>/2</span><span>🂠 <i class="hand">${p.hand}</i>/6</span></div>
+      <div class="wait-tag">等待响应…</div>`
+    board.appendChild(el)
+  }
+  $('hand-cards').innerHTML = HAND.map(([k, n]) => `<div class="hcard" id="hc-${k}"><img src="${CARD[k]}"><span>${n}</span></div>`).join('')
+  $('history').innerHTML = '<span class="hchip">回合 3 · 行动记录</span>'
+  $('rows').innerHTML = ''; $('story').style.opacity = 0; $('story').classList.remove('prev')
+  $('decision').style.opacity = 0; $('cursor').style.opacity = 0; $('banner').style.opacity = 0
+  $('blue-gem').textContent = '♦ 0'; $('deck').textContent = '124'; $('panel-who').textContent = '风之剑圣'
+  setTurn('blade')
+}
+const seat = id => $(`seat-${id}`)
+function setTurn(id) { board.querySelectorAll('.seat').forEach(s => s.classList.toggle('turn', s.id === `seat-${id}`)) }
+function anchor(id, side) {   // 座位朝向舞台一侧的中点
+  const p = P[id]
+  return { x: p.camp === 'blue' ? p.x + 170 : p.x, y: p.y + (side === 'top' ? 40 : 86) }
+}
+function curve(a, b) {
+  if (Math.abs(a.x - b.x) < 5) return `M${a.x},${a.y} Q${a.x - 170},${(a.y + b.y) / 2} ${b.x},${b.y}`
+  return `M${a.x},${a.y} Q${(a.x + b.x) / 2},${Math.min(a.y, b.y) - 70} ${b.x},${b.y}`
+}
+const COLORS = { red: '#ff5d5d', green: '#59e39a', violet: '#b48bff', grey: '#7d8799' }
+
+async function drawLink(from, to, color, ms = 600) {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+  path.setAttribute('d', curve(anchor(from), anchor(to)))
+  path.setAttribute('stroke', COLORS[color]); path.setAttribute('stroke-width', 4)
+  path.setAttribute('marker-end', `url(#ah-${color})`)
+  $('links').appendChild(path)
+  const len = path.getTotalLength()
+  path.style.strokeDasharray = len; path.style.strokeDashoffset = len
+  await ticker(ms, k => { path.style.strokeDashoffset = len * (1 - ease(k)) })
+  return path
+}
+function flowDashes(path, on) {      // 等待响应时，连线变为流动虚线
+  if (!on) { path.style.strokeDasharray = 'none'; path.getAnimations().forEach(a => a.cancel()); return }
+  path.style.strokeDasharray = '12 10'
+  const a = path.animate([{ strokeDashoffset: 44 }, { strokeDashoffset: 0 }], { duration: 700, iterations: Infinity })
+  a.playbackRate = speed
+}
+async function travel(path, el, ms) {
+  const len = path.getTotalLength(); board.appendChild(el)
+  await ticker(ms, k => { const pt = path.getPointAtLength(len * ease(k)); el.style.left = pt.x + 'px'; el.style.top = pt.y + 'px' })
+}
+function midLabel(path, html, color, t = .5) {
+  const pt = path.getPointAtLength(path.getTotalLength() * t)
+  const el = document.createElement('div'); el.className = 'link-label'; el.style.color = color
+  el.style.left = pt.x + 'px'; el.style.top = pt.y + 'px'; el.innerHTML = `<span style="color:#fff">${html}</span>`
+  board.appendChild(el); anim(el, [{ opacity: 0, transform: 'translate(-50%,-30%)' }, { opacity: 1, transform: 'translate(-50%,-50%)' }], 300)
+  return el
+}
+function chipAt(x, y, text, bg, fg = '#fff') {
+  const el = document.createElement('div'); el.className = 'chip'; el.textContent = text
+  el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.background = bg; el.style.color = fg
+  board.appendChild(el); return el
+}
+async function burst(id, color) {
+  const p = P[id], el = document.createElement('div'); el.className = 'burst'
+  el.style.left = p.x + 85 + 'px'; el.style.top = p.y + 86 + 'px'
+  el.style.background = `radial-gradient(circle, ${color} 0%, transparent 65%)`
+  board.appendChild(el)
+  await anim(el, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(.4)' }, { opacity: 1, offset: .35 }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1.4)' }], 900)
+  el.remove()
+}
+function setStat(id, key, value) {
+  const i = seat(id).querySelector(`i.${key}`); i.textContent = value
+  i.classList.remove('roll'); void i.offsetWidth; i.classList.add('roll')
+}
+function pulseActor(id) { const s = seat(id); s.classList.remove('actor'); void s.offsetWidth; s.classList.add('actor') }
+const av = id => `<img class="av" src="../characters/${IMG[id]}.png">`
+const nm = id => `<span class="${P[id].camp === 'blue' ? 'b' : 'r'}">${P[id].name}</span>`
+function addRow(html, kind, kindBg) {
+  const r = document.createElement('div'); r.className = 'row'
+  r.innerHTML = html + (kind ? `<span class="k" style="background:${kindBg}">${kind}</span>` : '')
+  $('rows').appendChild(r); anim(r, [{ opacity: 0, transform: 'translateX(-12px)' }, { opacity: 1, transform: 'none' }], 350)
+}
+async function caption(text) {
+  const c = $('caption'); c.style.opacity = 0; await wait(200); c.textContent = text; c.style.opacity = 1
+}
+async function moveCursor(el) {
+  const c = $('cursor'), r = el.getBoundingClientRect(), b = board.getBoundingClientRect(), s = b.width / 1600
+  const tx = (r.left - b.left) / s + 150, ty = (r.top - b.top) / s + 14
+  const sx = parseFloat(c.style.left), sy = parseFloat(c.style.top)
+  c.style.opacity = 1
+  await ticker(700, k => { const e = ease(k); c.style.left = sx + (tx - sx) * e + 'px'; c.style.top = sy + (ty - sy) * e + 'px' })
+}
+
+// ---------- 剧本 ----------
+async function script() {
+  build()
+  await caption('示意原型：改进后的对战演出（素材取自游戏，动画为模拟）')
+  await wait(1800)
+
+  // ① 攻击：直接在座位之间连线
+  await caption('① 行动直接连在座位之间：谁 → 谁、用了什么牌，一眼可见')
+  $('story-title').innerHTML = `${nm('blade')} 的行动`; $('story').style.opacity = 1
+  pulseActor('blade'); await wait(400)
+  const atk = await drawLink('blade', 'saintess', 'red')
+  const card = document.createElement('div'); card.className = 'fly-card'; card.innerHTML = `<img src="${CARD.anmie}">`
+  await travel(atk, card, 800)
+  card.remove()
+  const atkLabel = midLabel(atk, `<img src="${CARD.anmie}">攻击 · 暗灭`, COLORS.red)
+  addRow(`${av('blade')}${nm('blade')} 用 <img class="cd" src="${CARD.anmie}"> 暗灭 攻击 ${nm('saintess')}`, '攻击', '#7a1f27')
+  await wait(900)
+
+  // ② 需要我决策：棋盘不被遮挡
+  await caption('② 轮到你决策时不糊掉棋盘：来袭连线持续闪动，决策面板放在侧边')
+  seat('saintess').classList.add('waiting'); flowDashes(atk, true)
+  $('panel').style.opacity = .3
+  await anim($('decision'), [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], 350)
+  await wait(1600)
+  await moveCursor($('opt-light')); $('opt-light').classList.add('hot'); await wait(500)
+
+  // ③ 抵挡：结果标在连线终点
+  await caption('③ 结果标在连线终点，响应牌从手牌飞到你的座位')
+  anim($('decision'), [{ opacity: 1 }, { opacity: 0 }], 250); $('cursor').style.opacity = 0; $('panel').style.opacity = 1
+  seat('saintess').classList.remove('waiting')
+  const hc = $('hc-shengguang'), hr = hc.getBoundingClientRect(), br = board.getBoundingClientRect(), sc = br.width / 1600
+  const fc = document.createElement('div'); fc.className = 'fly-card'; fc.innerHTML = `<img src="${CARD.shengguang}">`
+  const from = { x: (hr.left - br.left) / sc + 55, y: (hr.top - br.top) / sc + 60 }, to = { x: P.saintess.x + 85, y: P.saintess.y + 60 }
+  board.appendChild(fc); hc.style.opacity = .2
+  await ticker(650, k => { const e = ease(k); fc.style.left = from.x + (to.x - from.x) * e + 'px'; fc.style.top = from.y + (to.y - from.y) * e + 'px' })
+  burst('saintess', 'rgba(255,230,140,.85)'); fc.remove(); hc.remove()
+  setStat('saintess', 'hand', 4)
+  flowDashes(atk, false); atk.setAttribute('stroke', COLORS.grey); atk.setAttribute('marker-end', 'url(#ah-grey)')
+  atkLabel.style.color = COLORS.grey
+  const end = anchor('saintess'); const mark = document.createElement('div'); mark.className = 'end-mark'
+  mark.style.left = end.x - 70 + 'px'; mark.style.top = end.y - 30 + 'px'; mark.style.background = '#f0d27a'; mark.style.color = '#2a1d00'
+  mark.textContent = '✕ 被圣光抵挡'; board.appendChild(mark)
+  anim(mark, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(1.6)' }, { opacity: 1, transform: 'translate(-50%,-50%) scale(1)' }], 350)
+  addRow(`${av('saintess')}${nm('saintess')} 打出 <img class="cd" src="${CARD.shengguang}"> 圣光 抵挡`, '抵挡', '#6b5512')
+  await wait(1300)
+
+  // ④ 技能：从施法者身上发出
+  await caption('④ 技能从施法者身上发出，效果顺着连线落到目标，不再盖住舞台')
+  pulseActor('saintess')
+  const bub = document.createElement('div'); bub.className = 'skill-bubble'
+  bub.style.left = P.saintess.x - 272 + 'px'; bub.style.top = P.saintess.y + 4 + 'px'
+  bub.innerHTML = `<div class="who">圣女 · 测试玩家1 发动技能</div><div class="name">冰霜祷言</div><div class="desc">打出或展示水系牌 / 圣光时：目标角色 +1 治疗</div>`
+  board.appendChild(bub)
+  await anim(bub, [{ opacity: 0, transform: 'translateX(20px) scale(.9)' }, { opacity: 1, transform: 'none' }], 350)
+  await wait(700)
+  const heal = await drawLink('saintess', 'sealer', 'green', 500)
+  const hchip = chipAt(0, 0, '+1 治疗', '#1c7a49')
+  await travel(heal, hchip, 700)
+  burst('sealer', 'rgba(89,227,154,.6)'); setStat('sealer', 'heal', 1)
+  addRow(`${av('saintess')}<span style="color:#9fd4ff;font-weight:700">✦ 冰霜祷言</span> → ${nm('sealer')} <span style="color:#59e39a">+1 治疗</span>`, '技能', '#1d4f73')
+  await wait(600)
+  anim(bub, [{ opacity: 1 }, { opacity: 0 }], 400)
+  await wait(1200)
+
+  // ⑤ 回合切换：上一手保留并标注
+  await caption('⑤ 回合切换后，上一手保留在舞台并标为「上一手」，供当前玩家参考')
+  setTurn('sealer'); $('panel-who').textContent = '封印师'
+  const banner = $('banner'); banner.textContent = '红方 · 封印师 的回合'
+  await anim(banner, [{ opacity: 0, transform: 'translateX(-50%) scaleX(.6)' }, { opacity: 1, transform: 'translateX(-50%)' }], 350)
+  $('story').classList.add('prev'); $('story-tag').textContent = '上一手'
+  ;[...$('links').querySelectorAll('path:not(marker path)'), ...board.querySelectorAll('.link-label,.end-mark,.chip')].forEach(n => n.classList.add('ghost'))
+  await wait(1100)
+  anim(banner, [{ opacity: 1 }, { opacity: 0 }], 400)
+  await wait(2200)
+
+  // ⑥ 新行动：整块替换，旧行动收进记录条
+  await caption('⑥ 新行动开始时整块替换，上一手收进顶部记录条，不与新内容混在一屏')
+  const st = $('story')
+  await anim(st, [{ transform: 'none', opacity: 1 }, { transform: 'translate(0,-360px) scale(.3)', opacity: 0 }], 550, { easing: 'ease-in' })
+  ;[...$('links').querySelectorAll('path:not(marker path)'), ...board.querySelectorAll('.link-label,.end-mark,.chip')].forEach(n => n.remove())
+  const h = document.createElement('span'); h.className = 'hchip'
+  h.innerHTML = `<b>风之剑圣</b> 暗灭→圣女 · 被圣光抵挡 · 冰霜祷言 +1 治疗`
+  $('history').appendChild(h); anim(h, [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], 300)
+  st.getAnimations().forEach(a => a.cancel())
+  st.classList.remove('prev'); $('story-tag').textContent = '当前行动'; $('rows').innerHTML = ''
+  $('story-title').innerHTML = `${nm('sealer')} 的行动`
+  await wait(500)
+  pulseActor('sealer'); await wait(300)
+  const mag = await drawLink('sealer', 'angel', 'violet')
+  const mc = document.createElement('div'); mc.className = 'fly-card'; mc.innerHTML = `<img src="${CARD.modan}">`
+  await travel(mag, mc, 800); mc.remove()
+  midLabel(mag, `<img src="${CARD.modan}">法术 · 魔弹`, COLORS.violet)
+  addRow(`${av('sealer')}${nm('sealer')} 对 ${nm('angel')} 使用 <img class="cd" src="${CARD.modan}"> 魔弹`, '法术', '#4a2f80')
+  seat('angel').classList.add('waiting'); flowDashes(mag, true)
+  await wait(1500)
+  seat('angel').classList.remove('waiting'); flowDashes(mag, false)
+  const a = anchor('angel'); const dmg = chipAt(a.x + 40, a.y - 10, '受到 2 点法术伤害', '#a3262f')
+  anim(dmg, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(1.5)' }, { opacity: 1, transform: 'translate(-50%,-50%) scale(1)' }], 300)
+  burst('angel', 'rgba(255,80,90,.6)')
+  await wait(400); setStat('angel', 'hand', 5)
+  const dc = chipAt(P.angel.x + 140, P.angel.y + 150, '+2 张', '#33425e'); $('deck').textContent = '122'
+  anim(dc, [{ opacity: 0, transform: 'translate(-50%,0)' }, { opacity: 1, transform: 'translate(-50%,-50%)' }], 300)
+  addRow(`${av('angel')}${nm('angel')} 承受 2 点法术伤害 · 摸 2 张（手牌 3 → 5）`, '伤害', '#7a1f27')
+  await wait(2500)
+  await caption('演示结束 · 点 ↺ 重播，可切换 0.5x / 2x 速度')
+}
+
+function start() { runId++; script().catch(e => { if (e !== 'reset') console.error(e) }) }
+
+// ---------- 控件与缩放 ----------
+$('btn-play').onclick = () => {
+  paused = !paused; $('btn-play').textContent = paused ? '▶ 播放' : '⏸ 暂停'
+  document.getAnimations().forEach(a => paused ? a.pause() : a.play())
+}
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed; document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b))
+  document.getAnimations().forEach(a => a.updatePlaybackRate(speed))
+})
+$('btn-replay').onclick = start
+const fit = () => { board.style.transform = `scale(${Math.min(innerWidth / 1600, innerHeight / 900)})` }
+addEventListener('resize', fit); fit()
+if (new URLSearchParams(location.search).has('nocontrols')) $('controls').style.display = 'none'
+start()
+</script>
+</body>
+</html>

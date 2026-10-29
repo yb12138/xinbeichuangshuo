@@ -33,6 +33,17 @@ func (r *Room) sendSyncStateToClient(client *Client) {
 	r.sendToClient(client, CmdSyncState, r.buildSyncStatePayload(client.PlayerID))
 }
 
+func (r *Room) sendTimelineReplayToClient(client *Client) {
+	if client == nil {
+		return
+	}
+	payload := r.buildTimelineReplayNotify()
+	if payload == nil {
+		return
+	}
+	r.sendToClient(client, CmdNotifyTimeline, *payload)
+}
+
 func (r *Room) sendRequireActionToClient(client *Client, prompt *model.Prompt) {
 	if prompt == nil {
 		return

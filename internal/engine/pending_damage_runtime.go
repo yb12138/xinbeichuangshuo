@@ -16,7 +16,9 @@ func (e *GameEngine) prependPendingDamages(pds []model.PendingDamage) {
 	}
 	reversed := make([]model.PendingDamage, 0, len(pds))
 	for i := len(pds) - 1; i >= 0; i-- {
-		reversed = append(reversed, pds[i])
+		pd := pds[i]
+		e.stampPendingDamageCause(&pd)
+		reversed = append(reversed, pd)
 	}
 	e.State.PendingDamageQueue = append(reversed, e.State.PendingDamageQueue...)
 	for _, pd := range reversed {
@@ -87,7 +89,7 @@ func (e *GameEngine) checkAndProcessAttackHolyShield(pd *model.PendingDamage, at
 
 	e.Log(fmt.Sprintf("[Shield] %s 的【圣盾】自动触发，抵消了攻击！", victim.Name))
 	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】触发，抵消了攻击", victim.Name))
-	e.NotifyCombatCue(pd.SourceID, pd.TargetID, "shield")
+	e.NotifyCombatCue(pd.TargetID, pd.SourceID, "shield")
 	e.NotifyActionStep(fmt.Sprintf("%s 的【圣盾】抵消了本次攻击，判定为未命中", victim.Name))
 
 	e.resolveMagicBowPierceMissWithOverride(

@@ -438,6 +438,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 				return true, fmt.Errorf("治疗不足，无法发动分支②")
 			}
 			user.Heal--
+			engineplayer.NotifySkillActivated(rt, user, user.ID, "mg_moon_cycle", user.ID)
 			now := addMoonGoddessNewMoon(user, 1)
 			rt.Log(fmt.Sprintf("%s 发动 [月之轮回] 分支②：移除1治疗，+1新月（当前%d）", user.Name, now))
 			rt.PopInterrupt()
@@ -475,6 +476,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		if target == nil {
 			return true, fmt.Errorf("目标角色不存在")
 		}
+		engineplayer.NotifySkillActivated(rt, user, user.ID, "mg_moon_cycle", target.ID)
 		RemoveDarkMoonAny(rt, user, 1)
 		rt.Heal(target.ID, 1)
 		rt.Log(fmt.Sprintf("%s 发动 [月之轮回] 分支①：移除1闇月并令 %s +1治疗", user.Name, target.Name))
@@ -531,6 +533,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			user.TurnState.UsedSkillCounts = map[string]int{}
 		}
 		user.TurnState.UsedSkillCounts["mg_blasphemy"] = 1
+		engineplayer.NotifySkillActivated(rt, user, user.ID, "mg_blasphemy", target.ID)
 		rt.AddPendingDamage(model.PendingDamage{
 			SourceID:   user.ID,
 			TargetID:   target.ID,

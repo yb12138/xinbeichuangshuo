@@ -323,24 +323,43 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 		return driveStop
 	}
 
-	shieldFallbackReady := e.HasUsableShieldForCombat(target, *combatReq)
-	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
-	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets)
-	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
 	if e.dispatchAttackRulebookTiming(model.TimingAttackResponse, attacker, target, combatReq.Card, attackInfoFromCombatRequest(combatReq, false), attackKind) {
 		return driveStop
 	}
+
+	if prompt := e.buildCombatInteractionPrompt(); prompt != nil {
+		e.NotifyPrompt(prompt)
+	}
+	return driveStop
+}
+
+func (e *GameEngine) buildCombatInteractionPrompt() *model.Prompt {
+	if !e.IsCombatInteractionWindow() {
+		return nil
+	}
+	combatReq, target, attacker, ok := e.peekCombatInteractionRequest()
+	if !ok || combatReq == nil || target == nil || combatReq.Card == nil {
+		return nil
+	}
+
+	shieldFallbackReady := e.HasUsableShieldForCombat(target, *combatReq)
+	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
+	eligibility := e.combatResponseEligibility(target, combatReq, counterTargets)
+	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets, eligibility)
+	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
 
 	attackerRole := combatReq.AttackerID
 	if attacker != nil {
 		attackerRole = attacker.Name
 	}
-	prompt := &model.Prompt{
+	return &model.Prompt{
 		Type:             model.PromptConfirm,
 		PlayerID:         combatReq.TargetID,
 		AttackerID:       combatReq.AttackerID,
 		CounterTargetIDs: counterTargets,
 		AttackElement:    e.promptAttackElementForCombatResponse(combatReq, attacker), // 应战须同系或暗灭
+		DefendCardIDs:    eligibility.DefendCardIDs,
+		CounterCardIDs:   eligibility.CounterCardIDs,
 		EffectHints:      hints,
 		Message: fmt.Sprintf("%s 需要响应来自 %s 的攻击 (%s)",
 			target.Name,
@@ -349,8 +368,6 @@ func (e *GameEngine) driveCombatInteractionPhase(currentPid string, player *mode
 		Options:      options,
 		Presentation: &model.PromptPresentation{Kind: model.PresentationResponse, Layout: "inline"},
 	}
-	e.NotifyPrompt(prompt)
-	return driveStop
 }
 
 func (e *GameEngine) peekCombatInteractionRequest() (*model.CombatRequest, *model.Player, *model.Player, bool) {
@@ -428,16 +445,18 @@ func (e *GameEngine) buildCombatCounterTargets(attackerID string) []string {
 	return counterTargets
 }
 
-func (e *GameEngine) buildCombatResponseOptions(combatReq *model.CombatRequest, shieldFallbackReady bool, counterTargets []string) []model.PromptOption {
+// buildCombatResponseOptions 只给出防御方此刻真正能用的响应方式：
+// 防御/应战需至少有一张通过提交校验的牌（见 combatResponseEligibility），否则不出现该选项。
+func (e *GameEngine) buildCombatResponseOptions(combatReq *model.CombatRequest, shieldFallbackReady bool, counterTargets []string, eligibility CombatResponseEligibility) []model.PromptOption {
 	takeLabel := "承受伤害"
 	if shieldFallbackReady {
 		takeLabel = "承受（将触发圣盾）"
 	}
 	options := []model.PromptOption{{ID: "take", Label: takeLabel}}
-	if e.canUseHolyDefend(combatReq) {
+	if e.canUseHolyDefend(combatReq) && len(eligibility.DefendCardIDs) > 0 {
 		options = append(options, model.PromptOption{ID: "defend", Label: "防御"})
 	}
-	if e.canUseCounter(combatReq) && len(counterTargets) > 0 {
+	if e.canUseCounter(combatReq) && len(counterTargets) > 0 && len(eligibility.CounterCardIDs) > 0 {
 		options = append(options, model.PromptOption{ID: "counter", Label: "应战"})
 	}
 	return options
@@ -547,6 +566,8 @@ func (e *GameEngine) driveExtraActionStage(currentPid string, player *model.Play
 	} else {
 		// 队列为空，进入回合结束
 		e.Log("[Debug] ExtraAction 队列为空，进入 TurnEnd")
+		player.TurnState.CurrentExtraAction = ""
+		player.TurnState.CurrentExtraElement = nil
 		e.enterTurnEndStage()
 	}
 

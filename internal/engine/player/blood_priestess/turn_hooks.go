@@ -44,6 +44,7 @@ func postActionEndBleedExitHook(rt engineplayer.HookRuntime, ctx engineplayer.Ti
 		}
 		defer rt.PoseChangeGuard()
 		LeaveBleedingForm(player)
+		engineplayer.NotifySkillActivated(rt, player, player.ID, "bp_bleeding", player.ID)
 		rt.Log(fmt.Sprintf("%s 的 [流血·手牌不足脱离] 生效：行动结束时手牌<3，脱离流血形态", player.Name))
 	}
 	return engineplayer.TimingHookResult{}

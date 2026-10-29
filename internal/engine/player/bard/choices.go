@@ -396,9 +396,11 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		}
 	}
 	if hasMagic {
+		// 含法术牌：等追加伤害目标选定后再发 skill_activated（带目标）。
 		ctxData["target_ids"] = campEnemyIDs(rt, user)
 		return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, descentFlowRuntime, flow, descentStepTarget)
 	}
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "bd_descent_concerto")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
@@ -431,6 +433,7 @@ func handleDescentTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 	})
 	rt.AddPendingDamage(model.PendingDamage{SourceID: user.ID, TargetID: target.ID, Damage: 1, DamageType: model.MagicAttack})
 	rt.Log(fmt.Sprintf("%s 的 [沉沦协奏曲] 追加效果：对 %s 造成1点法术伤害", user.Name, target.Name))
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "bd_descent_concerto", target.ID)
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.EnterDamageResolution(nil)
@@ -749,6 +752,7 @@ func handleRousingTargets(rt engineplayer.ChoiceRuntime, ctxData map[string]inte
 		rt.AddPendingDamage(model.PendingDamage{SourceID: bard.ID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]（%s 触发）：对2名目标各造成1点法术伤害", bard.Name, holder.Name))
+	engineplayer.NotifySkillActivated(rt, bard, holder.ID, "bd_rousing_rhapsody", holder.ID, bard.ID)
 	resolveBardForbiddenVerseAfterSong(rt, bard, "激昂狂想曲")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
@@ -805,6 +809,7 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 	rt.NotifyCardRevealed(holder.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
 	rt.Log(fmt.Sprintf("%s 发动 [激昂狂想曲]（%s 触发）：选择弃2张牌", bard.Name, holder.Name))
+	engineplayer.NotifySkillActivated(rt, bard, holder.ID, "bd_rousing_rhapsody", holder.ID, bard.ID)
 	resolveBardForbiddenVerseAfterSong(rt, bard, "激昂狂想曲")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
@@ -881,6 +886,7 @@ func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		addCampResource(rt, camp, "gem")
 		rt.Heal(holder.ID, 1)
 		rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]（%s 触发）：我方战绩区+1宝石，%s+1治疗", bard.Name, holder.Name, holder.Name))
+		engineplayer.NotifySkillActivated(rt, bard, holder.ID, "bd_victory_symphony", holder.ID, bard.ID)
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -935,6 +941,7 @@ func handleVictoryExtractStone(rt engineplayer.ChoiceRuntime, ctxData map[string
 		addCrystal = engineplayer.AddPlayerCrystalCapped(holder, addCrystal, maxEnergy)
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [胜利交响诗]（%s 触发）：提炼1个星石为个人能量（+%d宝石 +%d水晶）", bard.Name, holder.Name, addGem, addCrystal))
+	engineplayer.NotifySkillActivated(rt, bard, holder.ID, "bd_victory_symphony", holder.ID, bard.ID)
 	resolveBardForbiddenVerseAfterSong(rt, bard, "胜利交响诗")
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
@@ -1212,6 +1219,7 @@ func resolveBardForbiddenVerseAfterSong(rt engineplayer.ChoiceRuntime, bard *mod
 		return
 	}
 	engineplayer.EnsurePlayerTokensMap(bard)
+	engineplayer.NotifySkillActivated(rt, bard, bard.ID, "bd_forbidden_verse", bard.ID)
 	if bardInspiration(bard) < bardInspirationCap {
 		now := addBardInspiration(bard, 1)
 		removed := RemoveEternalMovement(rt, bard)

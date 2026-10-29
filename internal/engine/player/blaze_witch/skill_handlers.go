@@ -105,7 +105,9 @@ func (h *BlazeWitchWitchWrathHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("魔女之怒上下文无效")
 	}
 	engineplayer.SetForm(ctx.User, model.FormBlazeWitchFlame)
-	engineplayer.SetSkillFlowState(ctx.User, "bw_flame_release_pending", 1)
+	// 烈焰形态持续到“下个行动阶段开始前”：释放标记必须跨过回合开始时的 TurnState 重置，
+	// 所以记在 Tokens（不随回合清空）而不是 SkillFlowState。
+	engineplayer.SetToken(ctx.User, "bw_flame_release_pending", 1)
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,

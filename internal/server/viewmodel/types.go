@@ -70,6 +70,10 @@ type AvailableSkill struct {
 	RequireExclusive bool   `json:"require_exclusive,omitempty"` // 是否必须使用独有牌（卡牌下标了技能名）
 	PlaceCard        bool   `json:"place_card,omitempty"`        // 是否放置场上牌
 	PlaceEffect      string `json:"place_effect,omitempty"`      // 放置的效果类型（如 Shield/Poison/Weak）
+	// Disabled 该技能当前不可发动：仍下发给前端置灰展示，原因写在 DisabledReason。
+	// 可用性完全由服务端判定，前端不再自行复刻规则。
+	Disabled       bool   `json:"disabled,omitempty"`
+	DisabledReason string `json:"disabled_reason,omitempty"`
 }
 
 // GameStateUpdate represents a filtered game state for a specific player.

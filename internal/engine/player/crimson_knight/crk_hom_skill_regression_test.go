@@ -51,7 +51,7 @@ func makeHandCards(n int, element model.Element) []model.Card {
 	return out
 }
 
-func TestCrimsonKnightCalmMind_AutoGrantsEndedActionType(t *testing.T) {
+func TestCrimsonKnightCalmMind_GrantsFlexibleExtraAction(t *testing.T) {
 	g := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := g.AddPlayer("p1", "Crimson", "crimson_knight", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -90,8 +90,8 @@ func TestCrimsonKnightCalmMind_AutoGrantsEndedActionType(t *testing.T) {
 		t.Fatalf("expected one pending action from calm mind")
 	}
 	last := p1.TurnState.PendingActions[len(p1.TurnState.PendingActions)-1]
-	if last.MustType != string(model.ActionMagic) {
-		t.Fatalf("expected calm mind to grant extra magic action, got %+v", last)
+	if last.MustType != "" {
+		t.Fatalf("expected calm mind to grant flexible extra action, got %+v", last)
 	}
 }
 

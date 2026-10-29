@@ -11,8 +11,11 @@ type Host interface {
 
 	SnapshotPlayerPoses() any
 	DispatchOrientationChanges(before any)
+	SnapshotPendingActions(player *model.Player) any
+	PublishPendingActionDiff(player *model.Player, before any, source string)
 	SyncPendingDamageFromContext(ctx *model.Context)
 	RecordSkillUsage(playerID, title string, skillType model.SkillType)
+	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)
 
 	ApplyHitCheckAugment(skillIDs []string, ctx *model.Context) []string
 	ApplyHitCheckNormalize(skillIDs []string, ctx *model.Context) []string
@@ -35,4 +38,7 @@ type Host interface {
 	RestoreConfirmedResponseAfterPop(state any)
 
 	ConsumeSkillEnergyCost(playerID string, gemCost, crystalCost int) bool
+
+	// RunInSkillCause 在技能因果下执行 fn（场上牌技能以放置时的因果为 Origin）。
+	RunInSkillCause(skill model.SkillDefinition, ctx *model.Context, fn func())
 }

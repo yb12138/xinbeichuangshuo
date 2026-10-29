@@ -15,6 +15,7 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 	attacker := e.State.Players[attackerID]
 	target := e.State.Players[targetID]
 	if attacker != nil && target != nil && card != nil {
+		e.beginNarrativeCombat(attackerID, len(isCounter) > 0 && isCounter[0])
 		e.NotifyActionStep(fmt.Sprintf("%s出%s攻击%s", model.GetPlayerDisplayName(attacker), card.Name, model.GetPlayerDisplayName(target)))
 		e.NotifyCombatCue(attackerID, targetID, "attack")
 	}
@@ -39,6 +40,7 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 		combatReq.SetInterceptTag(model.CombatInterceptUnrespondable)
 	}
 
+	combatReq.Cause = model.CloneCause(e.CurrentCause())
 	// 推入战斗栈
 	e.State.CombatStack = append(e.State.CombatStack, combatReq)
 }
@@ -88,6 +90,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 			currentTotal := e.State.RedCrystals + e.State.RedGems
 			if currentTotal < maxTotalResources {
 				e.State.RedGems++
+				e.recordActionResourceDelta()
 				fmt.Printf("[Combat] 攻击命中！红方阵营获得 1 宝石\n")
 				return true
 			}
@@ -96,6 +99,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 			currentTotal := e.State.RedCrystals + e.State.RedGems
 			if currentTotal < maxTotalResources {
 				e.State.RedCrystals++
+				e.recordActionResourceDelta()
 				fmt.Printf("[Combat] 红方阵营获得 1 水晶\n")
 				return true
 			}
@@ -107,6 +111,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 			currentTotal := e.State.BlueCrystals + e.State.BlueGems
 			if currentTotal < maxTotalResources {
 				e.State.BlueGems++
+				e.recordActionResourceDelta()
 				fmt.Printf("[Combat] 攻击命中！蓝方阵营获得 1 宝石\n")
 				return true
 			}
@@ -115,6 +120,7 @@ func (e *GameEngine) addCampResource(camp model.Camp, resourceType string) bool 
 			currentTotal := e.State.BlueCrystals + e.State.BlueGems
 			if currentTotal < maxTotalResources {
 				e.State.BlueCrystals++
+				e.recordActionResourceDelta()
 				fmt.Printf("[Combat] 蓝方阵营获得 1 水晶\n")
 				return true
 			}

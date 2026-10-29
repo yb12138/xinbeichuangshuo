@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, useAttrs, watch } from 'vue'
 import type { Card } from '../types/game'
+import ElementGlyph from './card/ElementGlyph.vue'
+import { cardArtSrc as resolveCardArtSrc } from '../constants/cardArt'
+
 
 defineOptions({
   inheritAttrs: false
@@ -15,6 +18,7 @@ const props = defineProps<{
   faceDown?: boolean
   small?: boolean
   medium?: boolean
+  battleMini?: boolean
   effectiveElement?: string
   effectiveElementHint?: string
 }>()
@@ -31,20 +35,6 @@ const ELEMENT_LABEL_MAP: Record<string, string> = {
   Thunder: '雷',
   Light: '光',
   Dark: '暗'
-}
-
-const CARD_IMAGE_PINYIN_MAP: Record<string, string> = {
-  火焰斩: 'huoYanZhan',
-  水涟斩: 'shuiLianZhan',
-  地裂斩: 'diLieZhan',
-  风神斩: 'fengShenZhan',
-  雷光斩: 'leiGuangZhan',
-  暗灭: 'anMie',
-  魔弹: 'moDan',
-  圣光: 'shengGuang',
-  圣盾: 'shengDun',
-  虚弱: 'xuRuo',
-  中毒: 'zhongDu'
 }
 
 const imageLoadFailed = ref(false)
@@ -68,6 +58,19 @@ const effectiveElementLabel = computed(() => {
 })
 
 const hasEffectiveElementHint = computed(() => !!effectiveElementLabel.value)
+
+// 徽章显示"实际生效"的元素；与印刷元素不同时另加小标记
+const badgeElement = computed(() => (hasEffectiveElementHint.value ? props.effectiveElement! : props.card.element))
+
+const badgeElementClass = computed(() => `badge-${badgeElement.value.toLowerCase()}`)
+
+const badgeTitle = computed(() => {
+  const label = ELEMENT_LABEL_MAP[badgeElement.value] ?? badgeElement.value
+  if (!hasEffectiveElementHint.value) return `${label}系`
+  return props.effectiveElementHint || `印刷为${elementLabel.value}系，视为${label}系`
+})
+
+const cardTypeLabel = computed(() => (props.card.type === 'Attack' ? '攻击' : '法术'))
 
 const detailRibbonText = computed(() => {
   const base = `${elementLabel.value}系${props.card.type === 'Attack' ? '攻击' : '法术'}`
@@ -94,6 +97,10 @@ const exclusiveSkillText = computed(() => {
   return names.join(' / ')
 })
 
+const exclusiveSkills = computed(() =>
+  [props.card.exclusive_skill1, props.card.exclusive_skill2].filter((name): name is string => !!name)
+)
+
 const displayDescription = computed(() => {
   if (props.card.type === 'Attack') {
     return '主动攻击或应战其他攻击时打出，命中时造成两点攻击伤害。'
@@ -116,36 +123,7 @@ const displayDescription = computed(() => {
   return props.card.description
 })
 
-function fallbackPinyinByCard(card: Card): string {
-  if (card.type === 'Attack') {
-    if (card.name.includes('暗')) return 'anMie'
-    if (card.name.includes('火')) return 'huoYanZhan'
-    if (card.name.includes('水')) return 'shuiLianZhan'
-    if (card.name.includes('地')) return 'diLieZhan'
-    if (card.name.includes('风')) return 'fengShenZhan'
-    if (card.name.includes('雷')) return 'leiGuangZhan'
-    if (card.element === 'Fire') return 'huoYanZhan'
-    if (card.element === 'Water') return 'shuiLianZhan'
-    if (card.element === 'Earth') return 'diLieZhan'
-    if (card.element === 'Wind') return 'fengShenZhan'
-    if (card.element === 'Thunder') return 'leiGuangZhan'
-    if (card.element === 'Dark') return 'anMie'
-    return 'moRen'
-  }
-  if (card.name.includes('圣盾')) return 'shengDun'
-  if (card.name.includes('圣光')) return 'shengGuang'
-  if (card.name.includes('魔弹')) return 'moDan'
-  if (card.name.includes('中毒')) return 'zhongDu'
-  if (card.name.includes('虚弱')) return 'xuRuo'
-  return 'shiShuCard'
-}
-
-const cardArtFile = computed(() => {
-  if (imageLoadFailed.value) return props.card.type === 'Attack' ? 'moRen' : 'shiShuCard'
-  return CARD_IMAGE_PINYIN_MAP[props.card.name] ?? fallbackPinyinByCard(props.card)
-})
-
-const cardArtSrc = computed(() => `/image/${cardArtFile.value}.png`)
+const cardArtSrc = computed(() => resolveCardArtSrc(props.card, imageLoadFailed.value))
 const showDescModal = ref(false)
 const attrs = useAttrs()
 
@@ -175,7 +153,9 @@ function handleClick() {
     :data-testid="testId || (index !== undefined ? `hand-card-${index}` : undefined)"
     :class="[
       elementClass,
-      small
+      battleMini
+        ? 'w-[74px] h-[111px] text-xs card-size-battle-mini card-battle-mini'
+        : small
         ? 'w-[92px] h-[138px] text-sm card-size-small'
         : medium
           ? 'w-[112px] h-[168px] text-sm card-size-medium'
@@ -196,25 +176,7 @@ function handleClick() {
     </template>
 
     <template v-else>
-      <div class="layer card-base"></div>
-      <div class="layer card-vignette"></div>
-
-      <div class="layer card-title-banner">
-        <span class="card-title-text">{{ card.name }}</span>
-      </div>
-
-      <div class="layer card-element-medal">
-        <span>{{ elementLabel }}</span>
-      </div>
-
-      <div
-        v-if="hasEffectiveElementHint"
-        class="layer card-effective-element-badge"
-        :title="effectiveElementHint || `视为${effectiveElementLabel}系`"
-      >
-        视为{{ effectiveElementLabel }}系
-      </div>
-
+      <!-- 满版插画：统一 cover 裁切 + 暗角，让横版/方图观感一致 -->
       <div class="layer card-art-frame">
         <img
           class="card-art-image"
@@ -226,29 +188,56 @@ function handleClick() {
         >
         <div class="card-art-overlay"></div>
       </div>
+      <div class="layer card-vignette"></div>
 
-      <div class="layer card-info-ribbon">
-        <span class="card-ribbon-text">{{ detailRibbonText }}</span>
+      <div class="layer card-title-banner">
+        <span class="card-title-text">{{ card.name }}</span>
+      </div>
+
+      <div
+        class="layer card-element-medal"
+        :class="[badgeElementClass, hasEffectiveElementHint ? 'is-transformed' : '']"
+        :title="badgeTitle"
+      >
+        <span>
+          <ElementGlyph :element="badgeElement" />
+        </span>
+      </div>
+
+      <div
+        v-if="hasEffectiveElementHint"
+        class="layer card-effective-element-badge"
+        :title="effectiveElementHint || `视为${effectiveElementLabel}系`"
+        :aria-label="`视为${effectiveElementLabel}系`"
+      >
+        {{ effectiveElementLabel }}
       </div>
 
       <div class="card-text-panel">
-        <button class="card-desc-btn" type="button" @click.stop="openDescriptionModal">
-          查看描述
-        </button>
-        <div class="card-text-empty"></div>
-        <div v-if="exclusiveSkillText" class="card-exclusive-corner" :title="exclusiveSkillText">
-          {{ exclusiveSkillText }}
+        <div class="card-footer-row">
+          <div class="card-info-ribbon" :title="detailRibbonText">
+            <span class="card-ribbon-text">
+              {{ cardTypeLabel }}<span class="card-ribbon-sep">·</span>{{ elementLabel }}<template v-if="hasEffectiveElementHint"><span class="card-ribbon-arrow">→</span>{{ effectiveElementLabel }}</template><template v-if="fateText"><span class="card-ribbon-sep">·</span>{{ fateText }}</template>
+            </span>
+          </div>
+          <button class="card-desc-btn" type="button" @click.stop="openDescriptionModal">
+            查看描述
+          </button>
+        </div>
+        <div v-if="exclusiveSkills.length" class="card-exclusive-row" :title="exclusiveSkillText">
+          <span v-for="skill in exclusiveSkills" :key="skill" class="card-exclusive-corner">
+            {{ skill }}
+          </span>
         </div>
       </div>
 
       <div class="layer card-gloss"></div>
-      <div class="layer card-noise"></div>
     </template>
   </div>
 
   <Teleport to="body">
     <div v-if="showDescModal" class="card-desc-modal-overlay" @click="closeDescriptionModal">
-      <div class="card-desc-modal" @click.stop>
+      <div class="card-desc-modal" role="dialog" aria-modal="true" :aria-label="`${card.name} 卡面描述`" @click.stop>
         <div class="card-desc-modal-title">{{ card.name }} · 卡面描述</div>
         <div class="card-desc-modal-content">{{ displayDescription }}</div>
         <button class="card-desc-modal-close" type="button" @click="closeDescriptionModal">关闭</button>
@@ -258,54 +247,68 @@ function handleClick() {
 </template>
 
 <style scoped>
+/* 黑漆卡面 + 银色镀铬细边框；只引用 --bt-* 变量，元素色仅用于徽章外环 */
 .card-shell {
-  --edge-glow: rgba(250, 206, 120, 0.42);
-  --edge-color: rgba(197, 165, 112, 0.72);
-  --base-top: #2f2520;
-  --base-bottom: #17120f;
-  --ribbon-start: #a82d2d;
-  --ribbon-end: #7f1717;
-  border: 2px solid var(--edge-color);
-  border-radius: 10px;
-  background: linear-gradient(180deg, var(--base-top), var(--base-bottom));
+  --el-ring: var(--bt-chrome-mid);
+  border-radius: var(--bt-radius);
+  background: var(--bt-bg-0);
   box-shadow:
-    0 10px 18px rgba(0, 0, 0, 0.7),
-    0 0 12px var(--edge-glow),
-    inset 0 0 14px rgba(255, 255, 255, 0.08),
-    inset 0 0 0 1px rgba(255, 245, 224, 0.2);
+    0 0 0 1px var(--bt-chrome-mid),
+    0 0 0 2px rgba(0, 0, 0, 0.7),
+    0 8px 16px rgba(0, 0, 0, 0.6);
+  isolation: isolate;
+}
+
+/* 镀铬内框：细亮线 + 内侧暗线 */
+.card-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 40;
+  box-shadow:
+    inset 0 0 0 1px var(--bt-chrome),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 2px rgba(233, 237, 243, 0.18);
 }
 
 .card-shell.selectable {
-  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, filter 180ms ease;
+  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease, opacity 180ms ease;
 }
 
 .card-shell.selectable:hover {
   transform: translateY(-4px);
-  border-color: rgba(255, 226, 163, 0.95);
   box-shadow:
-    0 16px 24px rgba(0, 0, 0, 0.75),
-    0 0 18px rgba(255, 213, 138, 0.4),
-    inset 0 0 0 1px rgba(255, 244, 214, 0.4);
+    0 0 0 1px var(--bt-chrome-hi),
+    0 0 0 2px rgba(0, 0, 0, 0.7),
+    0 12px 20px rgba(0, 0, 0, 0.65);
 }
 
-.card-shell.selected {
-  transform: translateY(-12px);
-  box-shadow:
-    0 20px 30px rgba(0, 0, 0, 0.78),
-    inset 0 0 0 1px rgba(255, 245, 224, 0.22);
-}
-
+.card-shell.selected,
 .card-shell.selected:hover {
   transform: translateY(-12px);
-  border-color: var(--edge-color);
   box-shadow:
-    0 20px 30px rgba(0, 0, 0, 0.78),
-    inset 0 0 0 1px rgba(255, 245, 224, 0.22);
+    0 0 0 1px var(--bt-select),
+    0 0 0 2px rgba(0, 0, 0, 0.6),
+    0 0 16px 2px var(--bt-select-glow),
+    0 16px 26px rgba(0, 0, 0, 0.7);
+}
+
+.card-shell.selected::after {
+  box-shadow:
+    inset 0 0 0 1px var(--bt-select),
+    inset 0 0 10px var(--bt-select-glow);
 }
 
 .card-shell:not(.selectable):not(.selected) {
   opacity: 0.62;
-  filter: saturate(0.76);
+  filter: saturate(0.7) brightness(0.9);
+}
+
+.card-shell.card-battle-mini:not(.selectable):not(.selected) {
+  opacity: 1;
+  filter: none;
 }
 
 .layer {
@@ -313,238 +316,245 @@ function handleClick() {
   pointer-events: none;
 }
 
-.card-base {
-  inset: 0;
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 24%),
-    linear-gradient(180deg, rgba(19, 14, 12, 0), rgba(19, 14, 12, 0.65));
-}
-
-.card-vignette {
-  inset: 0;
-  border-radius: 8px;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.62);
-}
-
-.card-title-banner {
-  left: 18%;
-  right: 4%;
-  top: 3%;
-  height: 12%;
-  border-radius: 4px 6px 6px 4px;
-  border: 1px solid rgba(198, 181, 147, 0.9);
-  background:
-    linear-gradient(180deg, rgba(251, 249, 243, 0.96), rgba(221, 213, 194, 0.95)),
-    url('/image/cardtempname_bg.png') center/cover no-repeat;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 8px;
-  z-index: 20;
-}
-
-.card-title-text {
-  color: #2d231d;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0.2px;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
-}
-
-.card-element-medal {
-  left: 2.8%;
-  top: 2%;
-  width: 17%;
-  height: 17%;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(200, 191, 175, 0.8) 42%, rgba(61, 53, 47, 0.88));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 24;
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.55),
-    0 0 8px rgba(255, 244, 189, 0.44);
-}
-
-.card-element-medal > span {
-  width: 70%;
-  height: 70%;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--medal-bg);
-  color: var(--medal-fg);
-  font-weight: 900;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
-}
-
-.card-effective-element-badge {
-  right: 5%;
-  top: 17%;
-  z-index: 26;
-  border: 1px solid rgba(255, 215, 138, 0.72);
-  border-radius: 4px;
-  background: linear-gradient(180deg, rgba(119, 42, 22, 0.94), rgba(64, 24, 17, 0.92));
-  color: #ffe9bd;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-  padding: 4px 5px;
-  box-shadow:
-    0 1px 5px rgba(0, 0, 0, 0.45),
-    0 0 8px rgba(255, 112, 60, 0.36);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
-  pointer-events: none;
-}
-
+/* 插画 */
 .card-art-frame {
-  left: 5%;
-  right: 5%;
-  top: 16%;
-  height: 44%;
-  border-radius: 4px;
-  border: 1px solid rgba(174, 160, 130, 0.76);
+  inset: 0;
+  border-radius: inherit;
   overflow: hidden;
-  z-index: 12;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 236, 196, 0.3),
-    inset 0 0 16px rgba(0, 0, 0, 0.3);
+  z-index: 1;
+  background: var(--bt-bg-1);
 }
 
 .card-art-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
+  object-position: center 30%;
   display: block;
-  filter: saturate(1.06) contrast(1.04);
+  filter: saturate(0.95) contrast(1.05);
 }
 
 .card-art-overlay {
   position: absolute;
   inset: 0;
+  background: radial-gradient(130% 95% at 50% 42%, transparent 52%, rgba(11, 15, 22, 0.55) 100%);
+}
+
+.card-vignette {
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
   background:
-    linear-gradient(180deg, rgba(255, 250, 235, 0.12), rgba(0, 0, 0, 0.2)),
-    radial-gradient(120% 100% at 50% 0%, rgba(255, 255, 255, 0.13), transparent 54%);
-}
-
-.card-info-ribbon {
-  left: 4%;
-  right: 4%;
-  top: 60%;
-  height: 9%;
-  border-radius: 4px;
-  border: 1px solid rgba(122, 20, 20, 0.72);
-  background: linear-gradient(90deg, var(--ribbon-start), var(--ribbon-end));
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  z-index: 18;
-}
-
-.card-ribbon-text {
-  color: #fdf2e6;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-  line-height: 1.08;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  white-space: normal;
-  word-break: keep-all;
-  overflow: hidden;
-}
-
-.card-text-panel {
-  position: absolute;
-  left: 4%;
-  right: 4%;
-  top: 70%;
-  bottom: 4%;
-  border-radius: 3px;
-  border: 1px solid rgba(198, 193, 183, 0.98);
-  background: #ffffff;
-  padding: 4px;
-  z-index: 44;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  pointer-events: auto;
-}
-
-.card-desc-btn {
-  width: 100%;
-  border: 1px solid rgba(116, 100, 80, 0.8);
-  border-radius: 3px;
-  background: linear-gradient(180deg, rgba(241, 237, 227, 0.98), rgba(220, 210, 191, 0.96));
-  color: #342b23;
-  font-weight: 700;
-  line-height: 1.1;
-  padding: 2px 4px;
-  text-align: center;
-  cursor: pointer;
-  transition: filter 140ms ease, transform 140ms ease;
-}
-
-.card-desc-btn:hover {
-  filter: brightness(1.04);
-  transform: translateY(-1px);
-}
-
-.card-text-empty {
-  flex: 1;
-}
-
-.card-exclusive-corner {
-  align-self: flex-end;
-  max-width: 100%;
-  color: #4b3d31;
-  background: linear-gradient(180deg, rgba(244, 240, 231, 0.98), rgba(226, 218, 202, 0.96));
-  border: 1px solid rgba(167, 150, 125, 0.88);
-  border-radius: 3px;
-  padding: 1px 3px;
-  line-height: 1.15;
-  font-weight: 700;
-  white-space: normal;
-  word-break: break-word;
-  overflow: hidden;
+    linear-gradient(180deg, rgba(11, 15, 22, 0.72) 0%, rgba(11, 15, 22, 0) 22%),
+    linear-gradient(0deg, rgba(11, 15, 22, 0.94) 0%, rgba(11, 15, 22, 0.6) 22%, rgba(11, 15, 22, 0) 40%);
 }
 
 .card-gloss {
   inset: 0;
-  border-radius: 8px;
   z-index: 30;
-  background: linear-gradient(120deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.07) 24%, transparent 52%);
+  border-radius: inherit;
+  background: linear-gradient(125deg, rgba(233, 237, 243, 0.12) 0%, rgba(233, 237, 243, 0.03) 22%, transparent 45%);
   mix-blend-mode: screen;
 }
 
-.card-noise {
-  inset: 0;
-  border-radius: 8px;
-  z-index: 32;
-  opacity: 0.15;
-  background:
-    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.4) 0 0.6px, transparent 0.7px),
-    radial-gradient(circle at 77% 64%, rgba(255, 255, 255, 0.32) 0 0.5px, transparent 0.6px),
-    radial-gradient(circle at 44% 91%, rgba(255, 255, 255, 0.26) 0 0.7px, transparent 0.8px);
+/* 顶部：元素徽章 + 名称条 */
+.card-element-medal {
+  left: 5%;
+  top: 3.5%;
+  width: 21%;
+  aspect-ratio: 1;
+  z-index: 24;
+  border-radius: 999px;
+  background: var(--bt-bg-0);
+  box-shadow:
+    0 0 0 1px var(--bt-chrome-mid),
+    inset 0 0 0 1.5px var(--el-ring),
+    inset 0 0 6px rgba(0, 0, 0, 0.8),
+    0 2px 5px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+.card-element-medal > span {
+  width: 54%;
+  height: 54%;
+  display: block;
+  color: var(--el-ring);
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+}
+
+.card-element-medal.is-transformed {
+  box-shadow:
+    0 0 0 1px var(--bt-chrome-hi),
+    inset 0 0 0 1.5px var(--el-ring),
+    inset 0 0 6px rgba(0, 0, 0, 0.8),
+    0 0 6px var(--el-ring);
+}
+
+.card-title-banner {
+  left: 21%;
+  right: 5%;
+  top: 6.5%;
+  height: 10.5%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 calc(9% + 4px);
+  border-radius: 0 var(--bt-radius-sm) var(--bt-radius-sm) 0;
+  background: linear-gradient(90deg, var(--bt-panel-raised), var(--bt-panel) 70%, rgba(13, 18, 27, 0.6));
+  box-shadow:
+    inset 0 1px 0 var(--bt-hairline-soft),
+    inset 0 -1px 0 var(--bt-hairline-soft);
+  overflow: hidden;
+}
+
+.card-title-text {
+  color: var(--bt-text);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* 生效元素与印刷不同：徽章右下角小标记（显示生效元素文字） */
+.card-effective-element-badge {
+  left: 18%;
+  top: 13%;
+  z-index: 26;
+  min-width: 1.35em;
+  height: 1.35em;
+  padding: 0 2px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bt-panel-raised);
+  color: var(--bt-text);
+  font-size: 7px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow:
+    0 0 0 1px var(--bt-select),
+    0 0 5px var(--bt-select-glow);
+}
+
+/* 底部信息条 */
+.card-text-panel {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 3.5%;
+  z-index: 34;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 4px;
+  border-radius: var(--bt-radius-sm);
+  background: var(--bt-panel);
+  box-shadow:
+    0 0 0 1px var(--bt-hairline-soft),
+    inset 0 1px 0 rgba(233, 237, 243, 0.06);
+  pointer-events: auto;
+}
+
+.card-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.card-info-ribbon {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.card-ribbon-text {
+  display: block;
+  color: var(--bt-text-sub);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-ribbon-sep {
+  margin: 0 0.2em;
+  color: var(--bt-text-dim);
+}
+
+.card-ribbon-arrow {
+  margin: 0 0.15em;
+  color: var(--bt-select);
+}
+
+.card-desc-btn {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--bt-panel-raised);
+  box-shadow: inset 0 0 0 1px var(--bt-hairline);
+  color: var(--bt-chrome-hi);
+  font-weight: 600;
+  line-height: 1.15;
+  padding: 1px 4px;
+  cursor: pointer;
+  transition: box-shadow 140ms ease, color 140ms ease;
+}
+
+.card-desc-btn:hover {
+  color: var(--bt-select);
+  box-shadow: inset 0 0 0 1px var(--bt-select);
+}
+
+.card-desc-btn:focus-visible {
+  outline: 1px solid var(--bt-select);
+  outline-offset: 1px;
+}
+
+.card-exclusive-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+}
+
+.card-exclusive-corner {
+  max-width: 100%;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--bt-bg-1);
+  box-shadow: inset 0 0 0 1px var(--bt-hairline);
+  color: var(--bt-chrome);
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 卡背：黑漆 + 镀铬徽记 */
 .card-back-art {
   inset: 0;
-  border-radius: 8px;
-  background:
-    linear-gradient(145deg, rgba(8, 22, 40, 0.96), rgba(15, 44, 71, 0.9)),
-    url('/image/moRen.png') center/cover no-repeat;
+  border-radius: inherit;
+  background: radial-gradient(120% 80% at 50% 0%, var(--bt-bg-1), var(--bt-bg-0) 70%);
 }
 
 .card-back-fx {
-  inset: 0;
-  border-radius: 8px;
-  background:
-    radial-gradient(60% 55% at 50% 44%, rgba(124, 190, 255, 0.34), transparent),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.15), transparent 48%);
+  inset: 7%;
+  border-radius: var(--bt-radius-sm);
+  box-shadow:
+    inset 0 0 0 1px var(--bt-hairline),
+    inset 0 0 0 3px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 4px var(--bt-hairline-soft);
+  background: linear-gradient(125deg, rgba(233, 237, 243, 0.08), transparent 40%);
 }
 
 .card-back-symbol-wrap {
@@ -554,88 +564,66 @@ function handleClick() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .card-back-symbol {
-  color: #e6f3ff;
-  text-shadow: 0 0 12px rgba(130, 196, 255, 0.62), 0 2px 2px rgba(0, 0, 0, 0.6);
-  font-size: 1.35em;
-  font-weight: 800;
+  width: 2.2em;
+  height: 2.2em;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bt-bg-0);
+  box-shadow:
+    0 0 0 1px var(--bt-chrome),
+    0 0 0 3px var(--bt-bg-0),
+    0 0 0 4px var(--bt-chrome-lo);
+  color: var(--bt-chrome-hi);
+  font-size: 1.1em;
+  line-height: 1;
 }
 
 .card-back-text {
-  color: #d8e7f3;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  color: var(--bt-chrome);
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  font-size: 0.8em;
 }
 
-.card-size-small .card-title-text {
-  font-size: 9px;
-}
+/* 尺寸 */
+.card-size-battle-mini .card-title-text { font-size: 7.5px; }
+.card-size-small .card-title-text { font-size: 9px; }
+.card-size-medium .card-title-text { font-size: 10px; }
+.card-size-default .card-title-text { font-size: 11px; }
 
-.card-size-medium .card-title-text {
-  font-size: 10px;
-}
+.card-size-battle-mini .card-ribbon-text { font-size: 5.5px; }
+.card-size-small .card-ribbon-text { font-size: 6.5px; }
+.card-size-medium .card-ribbon-text { font-size: 7px; }
+.card-size-default .card-ribbon-text { font-size: 8px; }
 
-.card-size-default .card-title-text {
-  font-size: 11px;
-}
+.card-size-battle-mini .card-desc-btn { font-size: 5.5px; padding: 0 2px; }
+.card-size-small .card-desc-btn { font-size: 6.5px; }
+.card-size-medium .card-desc-btn { font-size: 7px; }
+.card-size-default .card-desc-btn { font-size: 8px; }
 
-.card-size-small .card-element-medal > span {
-  font-size: 8px;
-}
+.card-size-battle-mini .card-exclusive-corner { font-size: 5.5px; }
+.card-size-small .card-exclusive-corner { font-size: 6.5px; }
+.card-size-medium .card-exclusive-corner { font-size: 7px; }
+.card-size-default .card-exclusive-corner { font-size: 8px; }
 
-.card-size-medium .card-element-medal > span {
-  font-size: 9px;
-}
+.card-size-battle-mini .card-effective-element-badge { font-size: 5.5px; }
+.card-size-default .card-effective-element-badge { font-size: 8px; }
 
-.card-size-default .card-element-medal > span {
-  font-size: 10px;
-}
+.card-size-battle-mini .card-text-panel { padding: 2px 3px; gap: 1px; }
 
-.card-size-small .card-ribbon-text {
-  font-size: 6.5px;
-}
-
-.card-size-medium .card-ribbon-text {
-  font-size: 7px;
-}
-
-.card-size-default .card-ribbon-text {
-  font-size: 8px;
-}
-
-.card-size-small .card-desc-btn {
-  font-size: 7px;
-}
-
-.card-size-medium .card-desc-btn {
-  font-size: 7.5px;
-}
-
-.card-size-default .card-desc-btn {
-  font-size: 8.5px;
-}
-
-.card-size-small .card-exclusive-corner {
-  font-size: 6.5px;
-}
-
-.card-size-medium .card-exclusive-corner {
-  font-size: 9px;
-}
-
-.card-size-default .card-exclusive-corner {
-  font-size: 14px;
-}
-
+/* 描述弹窗 */
 .card-desc-modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(6, 8, 14, 0.72);
+  background: rgba(11, 15, 22, 0.72);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
@@ -647,27 +635,26 @@ function handleClick() {
   width: min(560px, calc(100vw - 32px));
   max-height: min(82vh, 760px);
   overflow: hidden;
-  border-radius: 10px;
-  border: 1px solid rgba(176, 157, 124, 0.72);
-  background: linear-gradient(180deg, rgba(249, 246, 239, 0.98), rgba(235, 228, 216, 0.97));
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.52);
+  border-radius: var(--bt-radius);
+  background: var(--bt-panel-raised);
+  box-shadow: var(--bt-frame-shadow);
   display: flex;
   flex-direction: column;
 }
 
 .card-desc-modal-title {
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(170, 151, 120, 0.55);
-  color: #2f261e;
+  border-bottom: 1px solid var(--bt-hairline-soft);
+  color: var(--bt-text);
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .card-desc-modal-content {
   padding: 12px;
-  color: #2c241c;
+  color: var(--bt-text-sub);
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
   overflow: auto;
@@ -677,101 +664,42 @@ function handleClick() {
   align-self: flex-end;
   margin: 0 12px 12px;
   min-width: 84px;
-  border-radius: 6px;
-  border: 1px solid rgba(122, 101, 76, 0.8);
-  background: linear-gradient(180deg, rgba(241, 232, 215, 0.98), rgba(219, 203, 176, 0.96));
-  color: #32271d;
-  font-weight: 700;
+  border: 0;
+  border-radius: var(--bt-radius-sm);
+  background: var(--bt-panel);
+  box-shadow: inset 0 0 0 1px var(--bt-hairline);
+  color: var(--bt-chrome-hi);
+  font-weight: 600;
   font-size: 13px;
   padding: 6px 10px;
   cursor: pointer;
 }
 
-.element-fire {
-  --edge-color: rgba(205, 123, 82, 0.78);
-  --edge-glow: rgba(255, 140, 98, 0.4);
-  --base-top: #3c1f18;
-  --base-bottom: #1c120f;
-  --ribbon-start: #c6352f;
-  --ribbon-end: #8e1b17;
-  --medal-bg: radial-gradient(circle at 32% 28%, #ffca7f, #f36d33 58%, #9b2e1a);
-  --medal-fg: #fff8eb;
+.card-desc-modal-close:hover,
+.card-desc-modal-close:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--bt-select);
+  color: var(--bt-select);
+  outline: none;
 }
 
-.element-water {
-  --edge-color: rgba(102, 152, 196, 0.78);
-  --edge-glow: rgba(124, 196, 255, 0.38);
-  --base-top: #1a2a3e;
-  --base-bottom: #0f1826;
-  --ribbon-start: #25689f;
-  --ribbon-end: #1b446c;
-  --medal-bg: radial-gradient(circle at 32% 28%, #ccf3ff, #4ea1d6 58%, #195580);
-  --medal-fg: #effbff;
-}
+/* 徽章外环：每个元素一个克制的色相（唯一允许的非 --bt-* 色值） */
+.badge-fire { --el-ring: #d9694a; }
+.badge-water { --el-ring: #4f9fd8; }
+.badge-wind { --el-ring: #4fb58a; }
+.badge-earth { --el-ring: #c49a5a; }
+.badge-thunder { --el-ring: #9a7fe0; }
+.badge-light { --el-ring: #e3c46a; }
+.badge-dark { --el-ring: #8c79c2; }
 
-.element-earth {
-  --edge-color: rgba(174, 138, 93, 0.8);
-  --edge-glow: rgba(225, 186, 113, 0.34);
-  --base-top: #32261a;
-  --base-bottom: #1a1410;
-  --ribbon-start: #8a5d2f;
-  --ribbon-end: #60401f;
-  --medal-bg: radial-gradient(circle at 32% 28%, #f1d79b, #c6924f 58%, #784d1d);
-  --medal-fg: #fff6e4;
-}
+@media (prefers-reduced-motion: reduce) {
+  .card-shell.selectable,
+  .card-desc-btn {
+    transition: none;
+  }
 
-.element-wind {
-  --edge-color: rgba(96, 169, 145, 0.78);
-  --edge-glow: rgba(116, 223, 181, 0.34);
-  --base-top: #183329;
-  --base-bottom: #101f1b;
-  --ribbon-start: #237258;
-  --ribbon-end: #194e3d;
-  --medal-bg: radial-gradient(circle at 32% 28%, #c8f9e6, #55b68d 58%, #216f54);
-  --medal-fg: #edfff6;
-}
-
-.element-thunder {
-  --edge-color: rgba(140, 124, 200, 0.8);
-  --edge-glow: rgba(183, 148, 255, 0.36);
-  --base-top: #24213d;
-  --base-bottom: #171427;
-  --ribbon-start: #5f4a99;
-  --ribbon-end: #40306f;
-  --medal-bg: radial-gradient(circle at 32% 28%, #efe2ff, #9c79dc 58%, #4e3385);
-  --medal-fg: #faf3ff;
-}
-
-.element-light {
-  --edge-color: rgba(205, 176, 103, 0.8);
-  --edge-glow: rgba(255, 217, 123, 0.4);
-  --base-top: #4a3a1a;
-  --base-bottom: #231a0c;
-  --ribbon-start: #b9892e;
-  --ribbon-end: #7f5f21;
-  --medal-bg: radial-gradient(circle at 32% 28%, #fff7cc, #e7c05c 58%, #9f7826);
-  --medal-fg: #fff9ec;
-}
-
-.element-dark {
-  --edge-color: rgba(128, 132, 160, 0.82);
-  --edge-glow: rgba(149, 155, 214, 0.4);
-  --base-top: #26293a;
-  --base-bottom: #151925;
-  --ribbon-start: #444a79;
-  --ribbon-end: #2b3156;
-  --medal-bg: radial-gradient(circle at 32% 28%, #dfe6ff, #7a86c7 58%, #3e497c);
-  --medal-fg: #f1f4ff;
-}
-
-.card-face-down {
-  --edge-color: rgba(118, 159, 191, 0.82);
-  --edge-glow: rgba(147, 206, 255, 0.35);
-  --base-top: #11213a;
-  --base-bottom: #0b1627;
-  --ribbon-start: #245a80;
-  --ribbon-end: #193e59;
-  --medal-bg: radial-gradient(circle at 32% 28%, #d6f5ff, #67b0d7 58%, #2b678e);
-  --medal-fg: #f2fbff;
+  .card-shell.selectable:hover:not(.selected) {
+    transform: none;
+  }
 }
 </style>
+

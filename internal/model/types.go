@@ -137,6 +137,9 @@ type CombatRequest struct {
 
 	// 阴阳师”式神咒束”交互标记：用于避免同一条战斗请求在拒绝后重复弹出代应战确认。
 	OnmyojiBindingChecked bool `json:"onmyoji_binding_checked,omitempty"`
+
+	// Cause 压栈时的当前因果；代为应战 / 改向等由比较栈顶生成语义事件（引擎自动维护）。
+	Cause *Cause `json:"-"`
 }
 
 // GameState 游戏状态
@@ -146,6 +149,7 @@ type Interrupt struct {
 	PlayerID string        // Player who needs to respond
 	SkillIDs []string      // Available skill IDs (for response skills)
 	Context  interface{}   // Additional context data
+	Cause    *Cause        // 推入中断时的当前因果；恢复执行时取回（引擎自动维护）
 }
 
 // InterruptType defines the type of game interruption
@@ -281,6 +285,8 @@ type PendingDamage struct {
 	AttackHitResourceGranted  bool                           `json:"attack_hit_resource_granted,omitempty"`  // 是否已成功发放命中战绩资源
 	AttackPostHitEffectsDone  bool                           `json:"attack_post_hit_effects_done,omitempty"` // 命中后、承伤前的一次性后效是否已处理
 	Checks                    map[PendingDamageCheckKey]bool `json:"checks,omitempty"`                       // 伤害实例运行时检查位（按 key 标记一次性检查/来源属性）
+	Seq                       int64                          `json:"-"`                                      // 入队序号（引擎内部，比较“是否同一笔伤害”）
+	Cause                     *Cause                         `json:"-"`                                      // 入队时的当前因果；承伤 hook 以它为父因果（引擎自动维护）
 }
 
 type PendingDamageCheckKey string
@@ -603,6 +609,7 @@ type FieldCard struct {
 	Locked   bool              `json:"locked"`         // 是否锁定
 	Duration int               `json:"duration"`       // 持续回合数 (-1为永久)
 	Meta     map[string]string `json:"meta,omitempty"` // 状态运行时元数据（如绑定元素）
+	Cause    *Cause            `json:"-"`              // 放置时的因果；延迟触发（如封印引爆）以它为 Origin（引擎内部，不下发）
 }
 
 func IsBasicEffect(name string) bool {

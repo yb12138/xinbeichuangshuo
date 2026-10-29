@@ -818,6 +818,21 @@ describe('PromptDialog', () => {
     expect(submitSelectMock).toHaveBeenCalledWith([1, 2])
   })
 
+  it('shows attacker and attack element context in the response prompt header', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    const state = buildState()
+    state.players.p3 = buildPlayer({ id: 'p3', name: 'P3', camp: 'Red', role: '' })
+    useSnapshotStore().updateGameState(state)
+    useInterruptStore().setPrompt({ ...responsePrompt(), attacker_id: 'p3' })
+
+    render(PromptDialog, { global: { plugins: [pinia] } })
+
+    expect(screen.getByTestId('prompt-context')).toHaveTextContent('P3 以火系攻击 → 你')
+  })
+
   it('renders response prompt through the response renderer and keeps take submit behavior', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

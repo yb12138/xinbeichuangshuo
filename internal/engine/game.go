@@ -48,6 +48,10 @@ type GameEngine struct {
 	skillResume *skillResumeState
 	// postActionEndResume 当前待补执行的行动后效果。
 	postActionEndResume *postActionEndResumeState
+	// narrativeTrace 为 NotifyTimeline 结构化事件链提供运行时上下文。
+	narrativeTrace *narrativeTraceState
+	// causeRuntime 当前效果因果（见 cause_runtime.go）；为公开事件与状态变化提供技能归属。
+	causeRuntime *causeState
 }
 
 type skillResumeState struct {
@@ -55,6 +59,7 @@ type skillResumeState struct {
 	skillID        string
 	targetIDs      []string
 	discardedCards []model.Card
+	cause          *model.Cause
 }
 
 type postActionEndResumeState struct {

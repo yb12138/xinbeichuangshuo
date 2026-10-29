@@ -12,7 +12,11 @@ import (
 // 技能发动流程（执行阶段）：
 // 在校验通过后，按“消耗输入 -> 扣资源 -> 执行 handler -> 收尾阶段推进”顺序处理。
 func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
-	e.NotifyCardRevealed(use.player.ID, use.discardedCards, "discard")
+	placedInputCard, discardPileCards := splitPlacedSkillInputCards(use)
+	if placedInputCard != nil {
+		e.NotifyCardRevealed(use.player.ID, []model.Card{*placedInputCard}, "field_effect")
+	}
+	e.NotifyCardRevealed(use.player.ID, discardPileCards, "discard")
 	sort.Sort(sort.Reverse(sort.IntSlice(use.discardIndices)))
 	for _, idx := range use.discardIndices {
 		use.player.Hand = append(use.player.Hand[:idx], use.player.Hand[idx+1:]...)
@@ -21,7 +25,7 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 	if use.policy.ResolveDiscardPile != nil {
 		e.State.DiscardPile = append(e.State.DiscardPile, use.policy.ResolveDiscardPile(use.policyContext())...)
 	} else {
-		e.State.DiscardPile = append(e.State.DiscardPile, use.discardedCards...)
+		e.State.DiscardPile = append(e.State.DiscardPile, discardPileCards...)
 	}
 
 	if err := e.consumeExclusiveSkillCard(use); err != nil {
@@ -35,7 +39,22 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 	if use.consumedExclusiveCard != nil && !use.skillDef.PlaceCard {
 		e.State.DiscardPile = append(e.State.DiscardPile, *use.consumedExclusiveCard)
 	}
+	if use.player != nil {
+		e.addActionDiscard(use.player.ID, len(discardPileCards))
+		if use.consumedExclusiveCard != nil && !use.skillDef.PlaceCard {
+			e.addActionDiscard(use.player.ID, 1)
+		}
+	}
 	return nil
+}
+
+func splitPlacedSkillInputCards(use *skillUseRequest) (*model.Card, []model.Card) {
+	if use == nil || use.skillDef == nil || !use.skillDef.PlaceCard || len(use.discardedCards) == 0 {
+		return nil, append([]model.Card{}, use.discardedCards...)
+	}
+	placed := use.discardedCards[0]
+	remaining := append([]model.Card{}, use.discardedCards[1:]...)
+	return &placed, remaining
 }
 
 func (e *GameEngine) consumeExclusiveSkillCard(use *skillUseRequest) error {
@@ -85,6 +104,7 @@ func (e *GameEngine) placeSkillFieldCard(use *skillUseRequest) error {
 		Hook:     use.skillDef.PlaceHook,
 		Meta:     buildFieldCardMeta(use, placedCard), // 【关键】封印会在这里记录绑定元素
 	}
+	e.stampFieldCardCause(fc)
 	fieldTarget.AddFieldCard(fc)
 	e.Log(fmt.Sprintf(
 		"[Skill] %s 在 %s 面前放置了场上牌: %s (效果: %s, 触发: %s)",
@@ -117,6 +137,7 @@ func buildFieldCardMeta(use *skillUseRequest, placedCard model.Card) map[string]
 
 func (e *GameEngine) consumeSkillEnergyCost(use *skillUseRequest) error {
 	if consumeSkillEnergyCost(use.player, use.skillDef.CostGem, use.skillDef.CostCrystal) {
+		e.recordActionResourceDelta()
 		return nil
 	}
 	return fmt.Errorf(
@@ -149,10 +170,13 @@ func (e *GameEngine) executeSkillFlow(use *skillUseRequest) error {
 	ctx.Selections["discardedCards"] = use.discardedCards
 
 	beforePoses := e.SnapshotPlayerPoses()
+	beforePendingActions := snapshotPendingActions(use.player)
 	if err := handler.Execute(ctx); err != nil {
 		return fmt.Errorf("skill execution failed: %v", err)
 	}
+	e.recordActionResourceDelta()
 	e.DispatchOrientationChanges(beforePoses)
+	e.publishPendingActionDiff(use.player, beforePendingActions, use.skillDef.Title)
 	if use.policy.AfterExecute != nil {
 		if err := use.policy.AfterExecute(enginePolicyHost{e: e}, use.policyContext()); err != nil {
 			return err
@@ -167,6 +191,7 @@ func (e *GameEngine) finishSkillUse(use *skillUseRequest) error {
 	}
 	e.runTimingActionEndSkillPost(use)
 	e.recordSkillUsage(use.player.ID, use.skillDef.Title, use.skillDef.Type)
+	e.NotifySkillActivated(use.player.ID, use.skillDef.ID, use.skillDef.Title, use.skillDef.Description, use.resolvedTargetIDs())
 	e.Log(fmt.Sprintf("[Skill] %s 使用了技能: %s (%s)", use.player.Name, use.skillDef.Title, use.skillDef.Description))
 
 	if use.skillDef.Type == model.SkillTypeAction && !use.policy.SkipAutoPhaseEnd {

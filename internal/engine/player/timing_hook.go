@@ -87,6 +87,9 @@ type TimingHookSpec struct {
 	//   nil（默认）= 按 SourceID 玩家的 Character.ID == RoleID 过滤
 	//   "none"     = 不按角色过滤，全局执行（跨角色 hook 使用）
 	RoleFilter *string
+	// SkillID 声明该 hook 所实现的技能：分发器以它开技能因果，hook 内产生的事件 / 状态变化
+	// 自动归属此技能。一个 hook 负责多个技能时留空，在 hook 内调用 rt.WithSkillCause。
+	SkillID string
 }
 
 // HookRoleNone 标记 hook 不按角色过滤（跨角色场景）。
@@ -212,6 +215,10 @@ type HookRuntime interface {
 	HasPendingDiscardFor(playerID string) bool
 	RecordMagicDamageTarget(sourceID, targetID string)
 	MagicDamageTargetCount(sourceID string) int
+	// WithSkillCause 在技能因果下执行 fn：fn 内的事件与状态变化归属该技能（ownerID 为技能持有者）。
+	WithSkillCause(skillID, ownerID string, fn func())
+	// NotifySkillActivated 为 hook 内直接生效的被动技能发出 skill_activated 事件。
+	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)
 	BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context
 	IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool
 	IsMagicDamageType(damageType model.DamageType) bool

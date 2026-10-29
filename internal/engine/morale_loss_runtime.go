@@ -30,6 +30,9 @@ func (e *GameEngine) ApplyMoraleLossAfterTimingWindow(victim *model.Player, mora
 	}
 
 	finalLoss = e.ApplyCampMoraleLoss(victim.Camp, finalLoss)
+	if fromDamageDraw && finalLoss > 0 {
+		e.addActionMoraleLoss(victim.Camp, finalLoss)
+	}
 	e.dispatchSettlementRulebookTiming(model.TimingMoraleLossApplied, victim, nil, &model.EventContext{
 		Type:      model.EventDamage,
 		SourceID:  moraleLossSourceID(lossCtx),

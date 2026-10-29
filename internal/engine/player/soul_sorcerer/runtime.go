@@ -40,6 +40,9 @@ func ApplySoulDevour(rt model.IGameEngine, victim *model.Player, finalLoss int, 
 		before := YellowSoul(player)
 		after := AddYellowSoul(player, finalLoss)
 		rt.Log(fmt.Sprintf("%s 的 [灵魂吞噬] 触发：黄色灵魂 +%d（%d→%d）", player.Name, finalLoss, before, after))
+		if after != before {
+			engineplayer.NotifySkillActivated(rt, player, player.ID, "ss_soul_devour", victim.ID)
+		}
 	}
 }
 

@@ -19,7 +19,7 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
-			{Timing: player.TimingTurnEndFinal, Priority: 900, Hook: turnEndHook},
+			{Timing: player.TimingTurnEndFinal, Priority: 900, Hook: turnEndHook, SkillID: "holy_lancer_earth_spear"},
 			{Timing: player.TimingResponseSkillSkip, Priority: 100, Hook: responseSkillSkipHook},
 			{Timing: player.TimingPlayerSetup, Priority: 100, Hook: playerSetupHook},
 			{Timing: player.TimingCampCupChanged, Priority: 100, Hook: campCupChangedHook},
@@ -68,7 +68,7 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"holy_lancer_earth_spear_x":   types.ChoiceRouteRole("holy_lancer"),
-		"holy_lancer_revelation_pick": types.ChoiceRouteRole("holy_lancer"),
+		"holy_lancer_earth_spear_x":   types.ChoiceRouteRole("holy_lancer").WithSkill("holy_lancer_earth_spear"),
+		"holy_lancer_revelation_pick": types.ChoiceRouteRole("holy_lancer").WithSkill("holy_lancer_revelation"),
 	}
 }

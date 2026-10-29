@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { inject } from 'vue'
+import { DECISION_DOCKED } from '../dockContext'
 type FraudElementOption = {
   id: string
   title: string
@@ -15,14 +17,16 @@ defineProps<{
 const emit = defineEmits<{
   select: [optionId: string]
 }>()
+
+const docked = inject(DECISION_DOCKED, false)
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="docked">
     <Transition name="prompt-fraud-side-pop">
       <div
         v-if="visible && options.length > 0"
-        class="prompt-fraud-global-layer"
+        class="prompt-fraud-global-layer" :class="{ 'prompt-fraud-global-layer--docked': docked }"
         data-testid="decision-overlay"
       >
         <div class="prompt-fraud-global-panel">
@@ -66,9 +70,7 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(7, 14, 24, 0.38);
-  backdrop-filter: blur(7px) saturate(0.98);
-  -webkit-backdrop-filter: blur(7px) saturate(0.98);
+  background: rgba(5, 8, 15, 0.85);
   padding:
     max(16px, calc(var(--safe-top, 0px) + 8px))
     max(16px, calc(var(--safe-right, 0px) + 8px))
@@ -369,5 +371,23 @@ const emit = defineEmits<{
   .prompt-fraud-card-glyph {
     font-size: 32px;
   }
+}
+
+/* 停靠在决策面板内：原地渲染，去掉全屏遮罩与自身外框，由 DecisionDock 提供外壳 */
+.prompt-fraud-global-layer.prompt-fraud-global-layer--docked {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  padding: 0;
+  background: none;
+  pointer-events: auto;
+}
+.prompt-fraud-global-layer.prompt-fraud-global-layer--docked .prompt-fraud-title {
+  display: none;
+}
+.prompt-fraud-global-layer.prompt-fraud-global-layer--docked .prompt-fraud-global-panel {
+  width: 100%;
+  max-width: none;
 }
 </style>

@@ -288,6 +288,7 @@ func (r *Room) reconnectIntoSeatLocked(client *Client, existing *Client, success
 		r.engineMu.Unlock()
 
 		r.sendSyncStateToClient(client)
+		r.sendTimelineReplayToClient(client)
 		if prompt != nil {
 			r.sendRequireActionToClient(client, prompt)
 		}
