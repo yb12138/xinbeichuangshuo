@@ -358,6 +358,7 @@ func (e *GameEngine) buildCombatInteractionPrompt() *model.Prompt {
 		AttackerID:       combatReq.AttackerID,
 		CounterTargetIDs: counterTargets,
 		AttackElement:    e.promptAttackElementForCombatResponse(combatReq, attacker), // 应战须同系或暗灭
+		AttackFaction:    e.promptAttackFactionForCombatResponse(target, combatReq),
 		DefendCardIDs:    eligibility.DefendCardIDs,
 		CounterCardIDs:   eligibility.CounterCardIDs,
 		EffectHints:      hints,
@@ -425,6 +426,26 @@ func (e *GameEngine) promptAttackElementForCombatResponse(combatReq *model.Comba
 		return combatReq.ElementOverride
 	}
 	return string(combatReq.Card.Element)
+}
+
+// promptAttackFactionForCombatResponse 响应方能否按命格应战：用一张"异系同命格"的探针牌走一遍应战元素策略，
+// 由角色策略（阴阳师【阴阳转换】）自己决定，避免在提示层写死角色。
+func (e *GameEngine) promptAttackFactionForCombatResponse(target *model.Player, combatReq *model.CombatRequest) string {
+	if target == nil || combatReq == nil || combatReq.Card == nil || combatReq.Card.Faction == "" {
+		return ""
+	}
+	if !e.canUseCounter(combatReq) || combatReq.Card.Element == model.ElementDark {
+		return ""
+	}
+	probeElement := model.ElementWater
+	if combatReq.Card.Element == model.ElementWater {
+		probeElement = model.ElementFire
+	}
+	probe := model.Card{Type: model.CardTypeAttack, Element: probeElement, Faction: combatReq.Card.Faction}
+	if allowed, useFaction := e.applyAttackResponseCounterElementPolicy(target, combatReq, probe); allowed && useFaction {
+		return combatReq.Card.Faction
+	}
+	return ""
 }
 
 func (e *GameEngine) buildCombatCounterTargets(attackerID string) []string {

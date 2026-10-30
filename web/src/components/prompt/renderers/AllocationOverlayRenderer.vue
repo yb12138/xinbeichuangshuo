@@ -57,28 +57,28 @@ const docked = inject(DECISION_DOCKED, false)
           </div>
           <!-- 停靠模板 7：总量条 + 每行 −/＋ 步进器 + 底部确认 -->
           <div v-if="docked" class="overlay-panel-body alloc-docked">
-            <div class="alloc-docked__total" data-testid="allocation-summary">
+            <div class="dc-alloc-total alloc-docked__total" data-testid="allocation-summary">
               <span>已分配 {{ total - remaining }}/{{ total }}</span>
-              <span class="alloc-docked__bar" aria-hidden="true">
+              <span class="dc-alloc-bar alloc-docked__bar" aria-hidden="true">
                 <i :style="{ width: total > 0 ? `${((total - remaining) / total) * 100}%` : '0%' }" />
               </span>
             </div>
             <div class="alloc-docked__rows">
               <div v-for="(row, index) in rows" :key="row.id" class="alloc-docked__row">
                 <span class="alloc-docked__label">{{ row.label }}</span>
-                <span class="alloc-docked__stepper">
+                <span class="dc-stepper alloc-docked__stepper" :class="{ 'dc-stepper--active': currentValue(index) > 0 }">
                   <button
                     type="button"
-                    class="alloc-docked__step"
+                    class="dc-step alloc-docked__step"
                     :data-testid="`allocation-dec-${index}`"
                     :disabled="currentValue(index) <= 0"
                     :aria-label="`${row.label} 减少`"
                     @click="emit('change', index, currentValue(index) - 1)"
                   >−</button>
-                  <span class="alloc-docked__value" :data-testid="`allocation-value-${index}`">{{ currentValue(index) }}</span>
+                  <span class="dc-step-value alloc-docked__value" :data-testid="`allocation-value-${index}`">{{ currentValue(index) }}</span>
                   <button
                     type="button"
-                    class="alloc-docked__step"
+                    class="dc-step alloc-docked__step"
                     :data-testid="`allocation-inc-${index}`"
                     :disabled="remaining <= 0"
                     :aria-label="`${row.label} 增加`"
@@ -87,9 +87,8 @@ const docked = inject(DECISION_DOCKED, false)
                 </span>
               </div>
             </div>
-            <div class="alloc-docked__actions">
-              <span />
-              <button type="button" class="alloc-docked__gold" data-testid="allocation-submit" :disabled="!canSubmit" @click="emit('submit')">
+            <div class="dc-actions dc-actions--end alloc-docked__actions">
+              <button type="button" class="dc-pill dc-pill--gold alloc-docked__gold" data-testid="allocation-submit" :disabled="!canSubmit" @click="emit('submit')">
                 确认
               </button>
             </div>
@@ -109,18 +108,20 @@ const docked = inject(DECISION_DOCKED, false)
                 <button
                   v-for="value in selectableValues"
                   :key="value"
-                  class="overlay-numeric-tile overlay-saint-heal-tile"
-                  :class="{ 'overlay-saint-heal-tile--active': currentValue(index) === value }"
+                  type="button"
+                  class="dc-num overlay-saint-heal-tile"
+                  :class="{ 'dc-num--picked overlay-saint-heal-tile--active': currentValue(index) === value }"
                   :data-testid="`allocation-option-${index}-${value}`"
                   :disabled="isValueDisabled(index, value)"
                   @click="emit('change', index, value)"
                 >
-                  <span class="overlay-numeric-value">{{ value }}</span>
+                  <span>{{ value }}</span>
                 </button>
               </div>
             </div>
             <button
-              class="overlay-confirm-btn"
+              type="button"
+              class="dc-pill dc-pill--gold overlay-confirm-btn"
               data-testid="allocation-submit"
               :disabled="!canSubmit"
               @click="emit('submit')"
@@ -202,67 +203,6 @@ const docked = inject(DECISION_DOCKED, false)
   background: rgba(6, 14, 24, 0.4);
 }
 
-.overlay-numeric-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  min-height: 56px;
-  border-radius: 12px;
-  border: 1px solid rgba(180, 150, 90, 0.36);
-  background: rgba(20, 32, 48, 0.7);
-  cursor: pointer;
-  transition: all 0.18s ease;
-  padding: 8px 4px;
-  font-family: inherit;
-}
-
-.overlay-numeric-tile:hover:not(:disabled) {
-  border-color: rgba(255, 210, 120, 0.7);
-  background: rgba(30, 44, 60, 0.85);
-  box-shadow: 0 0 14px rgba(255, 210, 120, 0.18);
-}
-
-.overlay-numeric-tile:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.overlay-numeric-tile:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.overlay-numeric-value {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #ffd98a;
-  line-height: 1;
-}
-
-.overlay-confirm-btn {
-  padding: 10px 36px;
-  border-radius: 10px;
-  border: 1px solid rgba(180, 150, 90, 0.5);
-  background: linear-gradient(180deg, rgba(120, 90, 30, 0.7), rgba(80, 60, 20, 0.8));
-  color: #ffe2ad;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.overlay-confirm-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, rgba(140, 105, 35, 0.85), rgba(100, 75, 25, 0.9));
-  border-color: rgba(255, 210, 120, 0.7);
-}
-
-.overlay-confirm-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
 .overlay-saint-heal {
   display: flex;
   flex-direction: column;
@@ -295,16 +235,6 @@ const docked = inject(DECISION_DOCKED, false)
 .overlay-saint-heal-row-grid {
   display: flex;
   gap: 8px;
-}
-
-.overlay-saint-heal-tile {
-  flex: 1;
-}
-
-.overlay-saint-heal-tile--active {
-  border-color: rgba(255, 210, 120, 0.85);
-  background: linear-gradient(180deg, rgba(140, 100, 35, 0.7), rgba(90, 65, 20, 0.85));
-  color: #ffe9b8;
 }
 
 /* 停靠在决策面板内：原地渲染，去掉全屏遮罩与自身外框，由 DecisionDock 提供外壳 */
@@ -341,29 +271,6 @@ const docked = inject(DECISION_DOCKED, false)
   gap: 10px;
   padding: 2px 0 0;
 }
-.alloc-docked__total {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--bt-text, #e8ecf4);
-}
-.alloc-docked__bar {
-  flex: 1;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(9, 14, 26, 0.9);
-  box-shadow: inset 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
-  overflow: hidden;
-}
-.alloc-docked__bar i {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #7fb6ff, var(--bt-select, #9fd4ff));
-  transition: width 0.2s ease;
-}
 .alloc-docked__rows {
   display: flex;
   flex-direction: column;
@@ -383,56 +290,5 @@ const docked = inject(DECISION_DOCKED, false)
   min-width: 0;
   font-size: 13px;
   color: var(--bt-text, #e8ecf4);
-}
-.alloc-docked__stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.alloc-docked__step {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 6px;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--bt-chrome-hi, #e9edf3);
-  background: var(--bt-bg-0, #070b14);
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-  cursor: pointer;
-}
-.alloc-docked__step:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.alloc-docked__value {
-  min-width: 18px;
-  text-align: center;
-  font-family: var(--bt-font-num, Georgia, serif);
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--bt-select, #9fd4ff);
-}
-.alloc-docked__actions {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 4px;
-}
-.alloc-docked__gold {
-  min-width: 88px;
-  padding: 7px 22px;
-  border: none;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #2a1d00;
-  background: linear-gradient(180deg, #ffe39a, #e0a93c);
-  box-shadow: 0 0 0 1px #fff3c4, 0 0 14px var(--bt-active-glow, rgba(240, 195, 90, 0.45));
-  cursor: pointer;
-}
-.alloc-docked__gold:disabled {
-  opacity: 0.45;
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-  cursor: not-allowed;
 }
 </style>

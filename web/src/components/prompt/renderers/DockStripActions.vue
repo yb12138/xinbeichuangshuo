@@ -38,7 +38,7 @@ const emit = defineEmits<{
       <button
         v-if="showCancel"
         type="button"
-        class="dock-strip__ghost"
+        class="dc-pill dock-strip__ghost"
         data-testid="prompt-cancel-btn"
         @click="emit('cancel')"
       >
@@ -47,7 +47,7 @@ const emit = defineEmits<{
       <button
         v-if="showConfirm"
         type="button"
-        class="dock-strip__gold"
+        class="dc-pill dc-pill--gold dock-strip__gold"
         data-testid="prompt-confirm-btn"
         :disabled="!canConfirm"
         @click="emit('confirm')"
@@ -102,30 +102,5 @@ const emit = defineEmits<{
   display: flex;
   gap: 8px;
   flex: none;
-}
-.dock-strip__ghost,
-.dock-strip__gold {
-  min-width: 72px;
-  padding: 6px 16px;
-  border: none;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.dock-strip__ghost {
-  color: var(--bt-chrome, #b9c1cd);
-  background: var(--bt-bg-0, #070b14);
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-}
-.dock-strip__gold {
-  color: #2a1d00;
-  background: linear-gradient(180deg, #ffe39a, #e0a93c);
-  box-shadow: 0 0 0 1px #fff3c4, 0 0 14px var(--bt-active-glow, rgba(240, 195, 90, 0.45));
-}
-.dock-strip__gold:disabled {
-  opacity: 0.45;
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-  cursor: not-allowed;
 }
 </style>

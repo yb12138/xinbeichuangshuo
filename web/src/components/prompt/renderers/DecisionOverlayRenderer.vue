@@ -104,9 +104,9 @@ const pickedNumericHint = computed(() => {
               <div class="decision-effect-card">{{ activationHint }}</div>
             </div>
             <div class="decision-actions">
-              <button v-if="canCancel" type="button" class="decision-actions__ghost" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">{{ cancelLabel || '放弃' }}</button>
+              <button v-if="canCancel" type="button" class="dc-pill decision-actions__ghost" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">{{ cancelLabel || '放弃' }}</button>
               <span v-else />
-              <button type="button" class="decision-actions__gold" data-testid="prompt-option-confirm" :disabled="!!activationDisabled" @click="emit('select', activationOptionId || '')">发动</button>
+              <button type="button" class="dc-pill dc-pill--gold decision-actions__gold" data-testid="prompt-option-confirm" :disabled="!!activationDisabled" @click="emit('select', activationOptionId || '')">发动</button>
             </div>
           </template>
 
@@ -117,7 +117,7 @@ const pickedNumericHint = computed(() => {
                 v-for="option in options"
                 :key="option.id"
                 type="button"
-                :class="option.id === '0' || option.id === 'yes' || /发动/.test(option.label) ? 'decision-actions__gold' : 'decision-actions__ghost'"
+                :class="option.id === '0' || option.id === 'yes' || /发动/.test(option.label) ? 'dc-pill dc-pill--gold decision-actions__gold' : 'dc-pill decision-actions__ghost'"
                 :data-testid="`prompt-option-${option.id}`"
                 :disabled="!!option.disabled"
                 @click="emit('select', option.id)"
@@ -130,26 +130,29 @@ const pickedNumericHint = computed(() => {
           <!-- ══════ DOCKED: numeric → tiles + consequence line ══════ -->
           <template v-else-if="docked && mode === 'numeric'">
             <div class="overlay-panel-body decision-numeric">
-              <div class="decision-numeric__grid">
+              <div class="dc-nums decision-numeric__grid">
                 <button
                   v-for="option in options"
                   :key="option.id"
                   type="button"
-                  class="decision-numeric__tile"
-                  :class="{ 'decision-numeric__tile--picked': picked === option.id }"
+                  class="dc-num decision-numeric__tile"
+                  :class="{ 'dc-num--picked decision-numeric__tile--picked': picked === option.id }"
                   :data-testid="`numeric-option-${option.buttonLabel}`"
+                  :aria-pressed="picked === option.id"
                   :disabled="!!option.disabled"
                   @click="pick(option.id)"
                 >
-                  {{ option.buttonLabel }}
+                  <span>{{ option.buttonLabel }}</span>
                 </button>
               </div>
-              <div v-if="pickedNumericHint" class="decision-numeric__hint">{{ pickedNumericHint }}</div>
+              <div v-if="pickedNumericHint" class="dc-note decision-numeric__hint">
+                <span class="dc-note__label">代价</span>{{ pickedNumericHint }}
+              </div>
             </div>
             <div class="decision-actions">
-              <button v-if="canCancel" type="button" class="decision-actions__ghost" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">{{ cancelLabel || '放弃' }}</button>
+              <button v-if="canCancel" type="button" class="dc-pill decision-actions__ghost" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">{{ cancelLabel || '放弃' }}</button>
               <span v-else />
-              <button type="button" class="decision-actions__gold" data-testid="decision-confirm-btn" :disabled="!picked" @click="confirmPicked">确认</button>
+              <button type="button" class="dc-pill dc-pill--gold decision-actions__gold" data-testid="decision-confirm-btn" :disabled="!picked" @click="confirmPicked">确认</button>
             </div>
           </template>
 
@@ -158,7 +161,7 @@ const pickedNumericHint = computed(() => {
               <span class="overlay-cost-text">{{ activationHint }}</span>
             </div>
             <button
-              class="overlay-confirm-btn"
+              class="dc-pill dc-pill--gold overlay-confirm-btn"
               :disabled="!!activationDisabled"
               @click="emit('select', activationOptionId || '')"
             >
@@ -167,11 +170,11 @@ const pickedNumericHint = computed(() => {
           </div>
 
           <div v-else-if="mode === 'numeric'" class="overlay-panel-body overlay-panel-body--numeric">
-            <div class="overlay-numeric-grid">
+            <div class="dc-nums overlay-numeric-grid">
               <button
                 v-for="option in options"
                 :key="option.id"
-                class="overlay-numeric-tile"
+                class="dc-num overlay-numeric-tile"
                 :data-testid="`numeric-option-${option.buttonLabel}`"
                 :disabled="!!option.disabled"
                 @click="emit('select', option.id)"
@@ -186,8 +189,8 @@ const pickedNumericHint = computed(() => {
               <button
                 v-for="option in options"
                 :key="option.id"
-                class="overlay-yesno-btn"
-                :class="option.id === '0' || option.id === 'yes' ? 'overlay-yesno-btn--yes' : 'overlay-yesno-btn--no'"
+                class="dc-pill overlay-yesno-btn"
+                :class="option.id === '0' || option.id === 'yes' ? 'dc-pill--gold overlay-yesno-btn--yes' : 'overlay-yesno-btn--no'"
                 :data-testid="`prompt-option-${option.id}`"
                 :disabled="!!option.disabled"
                 @click="emit('select', option.id)"
@@ -197,29 +200,31 @@ const pickedNumericHint = computed(() => {
             </div>
           </div>
 
-          <div v-else-if="dockedCards" class="overlay-panel-body decision-cards" :class="{ 'decision-cards--many': cards.length > 2 }">
-            <button
-              v-for="(card, idx) in cards"
-              :key="card.option.id"
-              type="button"
-              class="decision-card"
-              :class="[`decision-card--${card.tone}`, { 'decision-card--picked': picked === card.option.id }]"
-              :data-testid="`branch-option-${idx}`"
-              :disabled="!!card.option.disabled"
-              :aria-pressed="picked === card.option.id"
-              @click="pick(card.option.id)"
-            >
-              <span class="decision-card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><path :d="card.path" /></svg>
-              </span>
-              <span class="decision-card__title" :data-testid="`prompt-option-${card.option.id}`">{{ card.title }}</span>
-              <span v-if="card.desc" class="decision-card__desc">{{ card.desc }}</span>
-              <span
-                v-if="card.option.disabled && card.option.disabledReason"
-                class="decision-card__reason"
-                :data-testid="`decision-card-reason-${idx}`"
-              >{{ card.option.disabledReason }}</span>
-            </button>
+          <div v-else-if="dockedCards" class="overlay-panel-body">
+            <div class="dc-tiles decision-cards" :class="{ 'dc-tiles--list decision-cards--many': cards.length > 2 }">
+              <button
+                v-for="(card, idx) in cards"
+                :key="card.option.id"
+                type="button"
+                class="dc-tile decision-card"
+                :class="[`dc-tile--${card.tone} decision-card--${card.tone}`, { 'dc-tile--wide': cards.length <= 2, 'dc-tile--picked decision-card--picked': picked === card.option.id }]"
+                :data-testid="`branch-option-${idx}`"
+                :disabled="!!card.option.disabled"
+                :aria-pressed="picked === card.option.id"
+                @click="pick(card.option.id)"
+              >
+                <span class="dc-tile__icon decision-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path :d="card.path" /></svg>
+                </span>
+                <span class="dc-tile__title decision-card__title" :data-testid="`prompt-option-${card.option.id}`">{{ card.title }}</span>
+                <span
+                  v-if="card.option.disabled && card.option.disabledReason"
+                  class="dc-tile__desc dc-tile__reason decision-card__reason"
+                  :data-testid="`decision-card-reason-${idx}`"
+                >{{ card.option.disabledReason }}</span>
+                <span v-else-if="card.desc" class="dc-tile__desc decision-card__desc">{{ card.desc }}</span>
+              </button>
+            </div>
           </div>
 
           <div v-else class="overlay-panel-body overlay-panel-body--text">
@@ -244,7 +249,7 @@ const pickedNumericHint = computed(() => {
             <button
               v-if="canCancel"
               type="button"
-              class="decision-actions__ghost"
+              class="dc-pill decision-actions__ghost"
               data-testid="prompt-cancel-btn"
               @click="emit('cancel', cancelOptionId)"
             >
@@ -253,7 +258,7 @@ const pickedNumericHint = computed(() => {
             <span v-else />
             <button
               type="button"
-              class="decision-actions__gold"
+              class="dc-pill dc-pill--gold decision-actions__gold"
               data-testid="decision-confirm-btn"
               :disabled="!picked"
               @click="confirmPicked"
@@ -262,7 +267,7 @@ const pickedNumericHint = computed(() => {
             </button>
           </div>
           <div v-else-if="canCancel && mode !== 'yes-no' && !docked" class="overlay-panel-footer">
-            <button class="overlay-panel-cancel" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">
+            <button class="dc-pill overlay-panel-cancel" data-testid="prompt-cancel-btn" @click="emit('cancel', cancelOptionId)">
               {{ cancelLabel || '取消' }}
             </button>
           </div>
@@ -382,24 +387,6 @@ const pickedNumericHint = computed(() => {
   border-top: 1px solid rgba(150, 130, 80, 0.2);
 }
 
-.overlay-panel-cancel {
-  padding: 8px 32px;
-  border-radius: 8px;
-  border: 1px solid rgba(156, 166, 184, 0.3);
-  background: rgba(59, 67, 84, 0.6);
-  color: rgba(199, 219, 237, 0.7);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.overlay-panel-cancel:hover {
-  background: rgba(59, 67, 84, 0.9);
-  color: rgba(199, 219, 237, 0.95);
-  border-color: rgba(156, 166, 184, 0.5);
-}
-
 .overlay-panel-body--numeric {
   padding: 20px 16px;
 }
@@ -409,44 +396,6 @@ const pickedNumericHint = computed(() => {
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
-}
-
-.overlay-numeric-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  min-height: 56px;
-  padding: 8px 4px;
-  border-radius: 12px;
-  border: 1px solid rgba(180, 150, 90, 0.36);
-  background: rgba(20, 32, 48, 0.7);
-  cursor: pointer;
-  transition: all 0.18s ease;
-  font-family: inherit;
-}
-
-.overlay-numeric-tile:hover:not(:disabled) {
-  border-color: rgba(255, 210, 120, 0.7);
-  background: rgba(30, 44, 60, 0.85);
-  box-shadow: 0 0 14px rgba(255, 210, 120, 0.18);
-}
-
-.overlay-numeric-tile:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.overlay-numeric-tile:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.overlay-numeric-value {
-  color: #ffd98a;
-  font-size: 1.4rem;
-  font-weight: 700;
-  line-height: 1;
 }
 
 .overlay-panel-body--yesno {
@@ -460,59 +409,6 @@ const pickedNumericHint = computed(() => {
   gap: 16px;
   width: 100%;
   max-width: 320px;
-}
-
-.overlay-yesno-btn {
-  padding: 14px 24px;
-  border-radius: 10px;
-  border: 1px solid rgba(150, 130, 80, 0.36);
-  background: rgba(14, 28, 44, 0.56);
-  color: #ffd98a;
-  font-size: 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  font-family: inherit;
-  text-align: center;
-}
-
-.overlay-yesno-btn:hover:not(:disabled) {
-  border-color: rgba(255, 210, 120, 0.7);
-  background: rgba(22, 38, 56, 0.72);
-  box-shadow: 0 0 12px rgba(255, 210, 120, 0.12);
-}
-
-.overlay-yesno-btn:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-.overlay-yesno-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.overlay-yesno-btn--yes {
-  border-color: rgba(180, 150, 90, 0.5);
-  background: linear-gradient(180deg, rgba(100, 75, 30, 0.7), rgba(70, 52, 20, 0.8));
-  color: #ffe2ad;
-}
-
-.overlay-yesno-btn--yes:hover:not(:disabled) {
-  border-color: rgba(255, 210, 120, 0.7);
-  background: linear-gradient(180deg, rgba(120, 90, 35, 0.85), rgba(85, 62, 25, 0.9));
-  box-shadow: 0 0 12px rgba(255, 210, 120, 0.15);
-}
-
-.overlay-yesno-btn--no {
-  border-color: rgba(180, 130, 90, 0.4);
-  background: linear-gradient(180deg, rgba(80, 55, 25, 0.6), rgba(55, 38, 18, 0.7));
-  color: #ffd98a;
-}
-
-.overlay-yesno-btn--no:hover:not(:disabled) {
-  border-color: rgba(255, 200, 120, 0.6);
-  background: linear-gradient(180deg, rgba(95, 65, 30, 0.75), rgba(65, 45, 22, 0.85));
-  box-shadow: 0 0 12px rgba(255, 200, 120, 0.12);
 }
 
 .overlay-panel-body--cost {
@@ -533,29 +429,6 @@ const pickedNumericHint = computed(() => {
   color: rgba(225, 238, 249, 0.92);
   font-size: 0.9rem;
   line-height: 1.5;
-}
-
-.overlay-confirm-btn {
-  padding: 10px 36px;
-  border-radius: 10px;
-  border: 1px solid rgba(180, 150, 90, 0.5);
-  background: linear-gradient(180deg, rgba(120, 90, 30, 0.7), rgba(80, 60, 20, 0.8));
-  color: #ffe2ad;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.overlay-confirm-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, rgba(140, 105, 35, 0.85), rgba(100, 75, 25, 0.9));
-  border-color: rgba(255, 210, 120, 0.7);
-}
-
-.overlay-confirm-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .modal-enter-active,
@@ -588,10 +461,6 @@ const pickedNumericHint = computed(() => {
     padding: 14px 16px;
   }
 
-  .overlay-numeric-tile {
-    width: 52px;
-    min-height: 52px;
-  }
 }
 
 /* 停靠面板：紧凑尺寸，金色强调当前待决策 */
@@ -671,127 +540,13 @@ const pickedNumericHint = computed(() => {
 }
 
 /* —— 停靠模板 1：文字分支 → 横排选项卡 + 底部操作条 —— */
-.decision-cards {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 4px 0 0;
-}
-.decision-cards--many {
-  grid-template-columns: 1fr;
-}
-.decision-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 10px 12px;
-  border: none;
-  border-radius: 10px;
-  color: var(--bt-text, #e8ecf4);
-  background: rgba(9, 14, 26, 0.85);
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-  cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
-  --card-accent: var(--bt-select, #9fd4ff);
-}
-.decision-card--gain {
-  --card-accent: #7fb6ff;
-}
-.decision-card--loss {
-  --card-accent: #b48bff;
-}
-.decision-cards--many .decision-card {
-  flex-direction: row;
-  justify-content: flex-start;
-  gap: 12px;
-  padding: 10px 14px;
-  text-align: left;
-}
-.decision-card:hover:not(:disabled) {
-  box-shadow: 0 0 0 1px var(--card-accent);
-}
-.decision-card--picked {
-  background: color-mix(in srgb, var(--card-accent) 14%, rgba(9, 14, 26, 0.85));
-  box-shadow: 0 0 0 2px var(--card-accent), 0 0 18px color-mix(in srgb, var(--card-accent) 45%, transparent);
-}
-.decision-card:disabled {
-  opacity: 0.5;
-  filter: saturate(0.2);
-  cursor: not-allowed;
-}
-.decision-card__reason {
-  margin-top: 2px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: var(--bt-text, #e8ecf4);
-  background: rgba(226, 82, 94, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(226, 82, 94, 0.5);
-}
-.decision-card__icon {
-  width: 38px;
-  height: 38px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--card-accent) 22%, transparent), transparent 70%);
-  box-shadow: 0 0 0 1px var(--card-accent);
-}
-.decision-cards--many .decision-card__icon {
-  width: 34px;
-  height: 34px;
-}
-.decision-card__icon svg {
-  width: 22px;
-  height: 22px;
-  fill: var(--card-accent);
-}
-.decision-card__title {
-  font-size: 15px;
-  font-weight: 800;
-}
-.decision-card__desc {
-  font-size: 12px;
-  color: var(--bt-text-sub, #9aa4b5);
-}
-.decision-cards--many .decision-card__desc {
-  margin-left: auto;
-}
 .decision-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0 0;
+  gap: 12px;
+  padding: 12px 0 0;
 }
-.decision-actions__ghost,
-.decision-actions__gold {
-  min-width: 88px;
-  padding: 7px 22px;
-  border: none;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.decision-actions__ghost {
-  color: var(--bt-chrome, #b9c1cd);
-  background: var(--bt-bg-0, #070b14);
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-}
-.decision-actions__gold {
-  color: #2a1d00;
-  background: linear-gradient(180deg, #ffe39a, #e0a93c);
-  box-shadow: 0 0 0 1px #fff3c4, 0 0 14px var(--bt-active-glow, rgba(240, 195, 90, 0.45));
-}
-.decision-actions__gold:disabled {
-  opacity: 0.45;
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-  cursor: not-allowed;
-}
-
 .decision-shared {
   margin-top: 10px;
   padding: 8px 12px;
@@ -821,51 +576,5 @@ const pickedNumericHint = computed(() => {
 /* —— 停靠模板 6：选数字 —— */
 .decision-numeric {
   padding: 4px 0 0;
-}
-.decision-numeric__grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-}
-.decision-numeric__tile {
-  width: 52px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 10px;
-  font-size: 22px;
-  font-weight: 800;
-  font-family: var(--bt-font-num, Georgia, serif);
-  color: var(--bt-text, #e8ecf4);
-  background: rgba(9, 14, 26, 0.85);
-  box-shadow: 0 0 0 1px var(--bt-chrome-mid, #7d8796);
-  cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
-}
-.decision-numeric__tile:hover:not(:disabled) {
-  box-shadow: 0 0 0 1px var(--bt-select, #9fd4ff);
-}
-.decision-numeric__tile--picked {
-  background: color-mix(in srgb, var(--bt-select, #9fd4ff) 18%, rgba(9, 14, 26, 0.85));
-  box-shadow: 0 0 0 2px var(--bt-select, #9fd4ff), 0 0 14px var(--bt-select-glow, rgba(159, 212, 255, 0.45));
-  transform: scale(1.08);
-}
-.decision-numeric__tile:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.decision-numeric__hint {
-  margin-top: 10px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  background: rgba(9, 14, 26, 0.7);
-  box-shadow: 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--bt-text-sub, #9aa4b5);
-  text-align: center;
 }
 </style>

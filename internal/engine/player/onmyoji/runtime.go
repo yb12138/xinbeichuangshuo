@@ -2,6 +2,7 @@ package onmyoji
 
 import (
 	"fmt"
+	"strings"
 
 	promptfmt "starcup-engine/internal/engine/hook/promptfmt"
 	engineplayer "starcup-engine/internal/engine/player"
@@ -108,7 +109,7 @@ func CollectCounterOptions(p *model.Player, incoming *model.Card) []map[string]i
 		return nil
 	}
 	var options []map[string]interface{}
-	for i, c := range p.Hand {
+	for _, c := range p.Hand {
 		if c.Type != model.CardTypeAttack {
 			continue
 		}
@@ -124,10 +125,7 @@ func CollectCounterOptions(p *model.Player, incoming *model.Card) []map[string]i
 		if !canCounter {
 			continue
 		}
-		label := fmt.Sprintf("%d: %s", i+1, promptfmt.FormatCardInfo(c))
-		if useFaction {
-			label += "（阴阳转换）"
-		}
+		label := counterOptionLabel(c, useFaction)
 		options = append(options, map[string]interface{}{
 			"card_id":     c.ID,
 			"use_faction": useFaction,
@@ -135,4 +133,21 @@ func CollectCounterOptions(p *model.Player, incoming *model.Card) []map[string]i
 		})
 	}
 	return options
+}
+
+// counterOptionLabel 应战选牌的短标签："水涟斩 · 水系 · 咏命格"；按命格应战时注明攻击会转系。
+// 不用 promptfmt.FormatCardInfo：那是带类型 / 伤害 / 独有技的调试格式，放进选牌面板太长。
+func counterOptionLabel(c model.Card, useFaction bool) string {
+	parts := []string{c.Name}
+	if element := promptfmt.ElementName(string(c.Element)); element != "" {
+		parts = append(parts, element+"系")
+	}
+	if c.Faction != "" {
+		parts = append(parts, c.Faction+"命格")
+	}
+	label := strings.Join(parts, " · ")
+	if useFaction {
+		label += "（阴阳转换：转为" + promptfmt.ElementName(string(c.Element)) + "系）"
+	}
+	return label
 }

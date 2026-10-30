@@ -833,6 +833,53 @@ describe('PromptDialog', () => {
     expect(screen.getByTestId('prompt-context')).toHaveTextContent('P3 以火系攻击 → 你')
   })
 
+  it('says "no usable card" rather than "无法应战" when only the cards are missing', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'butterfly_dancer')
+    useSnapshotStore().updateGameState(buildState())
+    const base = responsePrompt()
+    useInterruptStore().setPrompt({ ...base, options: base.options.filter((o) => o.id !== 'counter') })
+
+    render(PromptDialog, { global: { plugins: [pinia] } })
+
+    expect(screen.getByText('此次攻击系别：火系（没有可应战的同系或暗灭牌）')).toBeInTheDocument()
+    expect(screen.queryByText(/本次攻击无法应战/)).toBeNull()
+  })
+
+  it('says 无法应战 only when the engine marks the attack unrespondable', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'butterfly_dancer')
+    useSnapshotStore().updateGameState(buildState())
+    const base = responsePrompt()
+    useInterruptStore().setPrompt({
+      ...base,
+      options: base.options.filter((o) => o.id !== 'counter'),
+      effect_hints: ['本次攻击无法应战。'],
+    })
+
+    render(PromptDialog, { global: { plugins: [pinia] } })
+
+    expect(screen.getByText('此次攻击系别：火系（本次攻击无法应战）')).toBeInTheDocument()
+  })
+
+  it('mentions the faction when the responder can counter by 命格 (阴阳师)', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'onmyoji')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt({ ...responsePrompt(), attack_faction: '咏' })
+
+    render(PromptDialog, { global: { plugins: [pinia] } })
+
+    expect(screen.getByText('此次攻击：火系 · 咏命格（应战需同系、咏命格或暗灭）')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-option-counter')).toHaveTextContent('打出火系、咏命格攻击或暗灭')
+  })
+
   it('renders response prompt through the response renderer and keeps take submit behavior', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

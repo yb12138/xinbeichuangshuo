@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { campPersistentEffects } from '../constants/persistentEffects'
+import { campPersistentEffects, seatPersistentEffects } from '../constants/persistentEffects'
+import { FORM_DISPLAY } from '../constants/forms'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBattleFxStore } from '../stores/battlefx.store'
@@ -595,6 +596,29 @@ const myStatusRoleName = computed(() => {
 })
 
 const myStatusPortraitSrc = computed(() => characterArtSrc(myAreaPlayer.value?.role || sessionStore.myCharRole))
+
+/** 自己的形态 / 持续效果 / 指示物：与座位卡同源，放在自己的立绘区里（盖牌由旁边的扩展区展示）。 */
+const myStatusForm = computed(() => {
+  const form = myAreaPlayer.value?.form
+  if (!form) return null
+  const cfg = FORM_DISPLAY[form]
+  return { label: cfg?.label || '形态', accent: cfg?.accent || '#ffb15c' }
+})
+const myStatusPersistentEffects = computed(() => (myAreaPlayer.value ? seatPersistentEffects(myAreaPlayer.value) : []))
+const myStatusTokens = computed(() => (myAreaPlayer.value ? seatTokenMarks(myAreaPlayer.value) : []))
+const myStatusRoleId = computed(() => String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim())
+const myStatusHasSkills = computed(() => !!characters.value[myStatusRoleId.value]?.skills?.length)
+
+function openMySkillModal(event: MouseEvent) {
+  const roleId = myStatusRoleId.value
+  if (!roleId) return
+  if (skillModalCharacterId.value === roleId) {
+    uiStore.openSkillModal(null)
+    return
+  }
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  uiStore.openSkillModal(roleId, { x: rect.left, y: rect.top, width: rect.width, height: rect.height })
+}
 
 function portraitSrcForPlayer(player: PlayerView): string {
   const roleId = String(player.role || '').trim()
@@ -2843,8 +2867,10 @@ const fighterHundredDragonByPlayer = computed(() => {
               class="my-status-strip"
               :class="{
                 'my-status-strip--empty': !myAreaPlayer,
-                'my-status-strip--active': isMyTurn || isPromptForMe
+                'my-status-strip--active': isMyTurn || isPromptForMe,
+                'my-status-strip--in-form': !!myStatusForm
               }"
+              :style="myStatusForm ? { '--form-accent': myStatusForm.accent } : undefined"
               data-testid="my-status-strip"
             >
               <template v-if="myAreaPlayer">
@@ -2876,9 +2902,48 @@ const fighterHundredDragonByPlayer = computed(() => {
                   aria-hidden="true"
                 />
                 <div class="player-overlay my-status-overlay">
+                  <!-- 形态 / 持续效果 / 指示物 -->
+                  <div
+                    v-if="myStatusForm || myStatusPersistentEffects.length || myStatusTokens.length"
+                    class="my-status-chips"
+                    data-testid="my-status-chips"
+                  >
+                    <span v-if="myStatusForm" class="my-status-chip my-status-chip--form" :title="myStatusForm.label">
+                      {{ myStatusForm.label }}
+                    </span>
+                    <span
+                      v-for="effect in myStatusPersistentEffects"
+                      :key="effect.key"
+                      class="my-status-chip my-status-chip--effect"
+                      :title="effect.hint"
+                    >
+                      {{ effect.label }}<span v-if="effect.valueText" class="my-status-chip__value">{{ effect.valueText }}</span>
+                    </span>
+                    <span
+                      v-for="token in myStatusTokens"
+                      :key="token.key"
+                      class="my-status-chip"
+                      :title="token.hint ? `${token.label}: ${token.value}（${token.hint}）` : `${token.label}: ${token.value}`"
+                      :data-mark-key="token.key"
+                    >
+                      <span v-if="token.mark" class="my-status-chip__icon"><BattleMarkIcon kind="token" :mark-key="token.key" /></span>
+                      <span v-else>{{ token.label }}</span>
+                      <span class="my-status-chip__value">{{ token.cap ? `${token.value}/${token.cap}` : token.value }}</span>
+                    </span>
+                  </div>
+
                   <div class="player-overlay-title-row">
                     <span class="text-sm" aria-hidden="true">{{ myAreaPlayer.camp === 'Red' ? '🔴' : '🔵' }}</span>
                     <span class="player-overlay-role" :title="myStatusRoleName">{{ myStatusRoleName }}</span>
+                    <button
+                      v-if="myStatusHasSkills"
+                      type="button"
+                      class="my-status-skill-btn"
+                      data-testid="my-status-skill-btn"
+                      @click.stop="openMySkillModal($event)"
+                    >
+                      技能
+                    </button>
                   </div>
 
                   <div class="player-overlay-player" :title="`玩家：${myAreaPlayer.name || myAreaPlayer.id}`">
@@ -5275,6 +5340,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .my-status-overlay .player-overlay-role {
+  min-width: 0;
   max-width: calc(100% - 22px);
   overflow: hidden;
   color: rgba(241, 247, 255, 0.96);
@@ -5332,6 +5398,83 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .my-status-resource--crystal {
   color: #b7ddf4;
+}
+
+.my-status-strip--in-form {
+  border-color: var(--form-accent);
+  box-shadow:
+    inset 0 0 0 1px var(--bt-bg-0),
+    inset 0 0 14px color-mix(in srgb, var(--form-accent) 50%, transparent),
+    0 0 0 1px var(--bt-bg-0),
+    0 0 0 2px var(--form-accent),
+    0 0 14px color-mix(in srgb, var(--form-accent) 45%, transparent);
+}
+
+.my-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  margin-bottom: 2px;
+}
+
+.my-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--bt-hairline);
+  background: rgba(8, 16, 27, 0.88);
+  color: var(--bt-text-sub);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.my-status-chip__icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+}
+
+.my-status-chip__value {
+  color: var(--bt-text);
+  font-family: var(--bt-font-num);
+}
+
+.my-status-chip--form {
+  border-color: var(--form-accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--form-accent) 45%, #120c06), rgba(16, 10, 6, 0.92));
+  color: #fff;
+  text-shadow: 0 0 4px var(--form-accent);
+}
+
+.my-status-chip--effect {
+  color: #fff3d0;
+  border-color: rgba(227, 196, 106, 0.7);
+  background: linear-gradient(180deg, rgba(92, 70, 24, 0.85), rgba(40, 30, 10, 0.9));
+}
+
+.my-status-skill-btn {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--bt-panel-raised);
+  box-shadow: inset 0 0 0 1px var(--bt-chrome-mid);
+  color: var(--bt-chrome-hi);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.my-status-skill-btn:hover,
+.my-status-skill-btn:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--bt-chrome-hi);
+  color: var(--bt-text);
 }
 
 .my-status-overlay .player-overlay-effects {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
+	"starcup-engine/internal/engine/hook/promptfmt"
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
@@ -117,10 +118,17 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【生命结界·分支②】请选择弃1张手牌的队友：", data, false)
 
 	case "onmyoji_yinyang_confirm":
+		faction, _ := data["attack_faction"].(string)
+		message := "【阴阳转换】你可使用同命格攻击牌应战，是否发动？"
+		if faction != "" {
+			element, _ := data["attack_element"].(string)
+			message = fmt.Sprintf("【阴阳转换】此次攻击为%s系·%s命格，你可打出%s命格攻击牌应战（攻击转为该牌系别），是否发动？",
+				promptfmt.ElementName(element), faction, faction)
+		}
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
-			Message:  "【阴阳转换】你可使用同命格攻击牌应战，是否发动？",
+			Message:  message,
 			Options: []model.PromptOption{
 				{ID: "0", Label: "是"},
 				{ID: "1", Label: "否"},

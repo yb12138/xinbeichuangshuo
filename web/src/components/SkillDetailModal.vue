@@ -1,6 +1,17 @@
 <script setup lang="ts">
+/**
+ * 角色技能详情面板（所有角色通用）：头部（头像 / 名字 / 命格）、资源行（在座时）、技能列表。
+ * 技能条目：左侧类型色带 + 类型图标；名字 + 类型 / 标签胶囊；消耗靠右；描述中数字高亮、①② 分支分行；
+ * 当前回合我自己不可发动的主动技降亮并显示服务端给出的原因。
+ */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { CharacterView } from '../types/game'
+import type { CharacterView, PlayerView, SkillView } from '../types/game'
+import { characterArtSrc } from '../constants/characterArt'
+import { seatTokenMarks } from '../constants/seatMarks'
+import { MARK_GLYPHS } from './marks/markGlyphs'
+import BattleMarkIcon from './marks/BattleMarkIcon.vue'
+import { useSnapshotStore } from '../stores/snapshot.store'
+import { useSessionStore } from '../stores/session.store'
 
 interface SkillModalAnchor {
   x: number
@@ -19,10 +30,8 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const charDisplayName = computed(() => {
-  if (!props.character) return ''
-  return `${props.character.name} - ${props.character.title}`
-})
+const snapshotStore = useSnapshotStore()
+const sessionStore = useSessionStore()
 
 const viewport = ref({
   width: typeof window !== 'undefined' ? window.innerWidth : 1280,
@@ -49,25 +58,119 @@ onBeforeUnmount(() => {
 
 const isAnchored = computed(() => !!props.anchor)
 
-function skillTypeLabel(type?: number): string {
-  switch (type) {
-    case 0: return '被动'
-    case 1: return '启动'
-    case 2: return '法术'
-    case 3: return '响应'
-    default: return '法术'
+/** 对局中扮演该角色的座位（选角大厅里没有）。 */
+const seat = computed<PlayerView | null>(() => {
+  const id = props.character?.id
+  if (!id) return null
+  return Object.values(snapshotStore.players).find((p) => p.role === id) ?? null
+})
+
+const campClass = computed(() => (seat.value?.camp === 'Red' ? 'skill-card--red' : seat.value?.camp === 'Blue' ? 'skill-card--blue' : ''))
+const portrait = computed(() => characterArtSrc(props.character?.id))
+const portraitFailed = ref(false)
+
+/** 资源行：治疗、专属指示物、能量。只在对局中显示。 */
+const resources = computed(() => {
+  const p = seat.value
+  if (!p) return null
+  return {
+    heal: p.heal ?? 0,
+    maxHeal: p.max_heal ?? 0,
+    tokens: seatTokenMarks(p),
+    gem: p.gem ?? 0,
+    crystal: p.crystal ?? 0,
   }
+})
+
+/** 我自己的角色才有可发动判定（服务端 available_skills）。 */
+const isMine = computed(() => !!seat.value && seat.value.id === sessionStore.myPlayerId)
+
+function disabledReason(skill: SkillView): string {
+  if (!isMine.value) return ''
+  const server = snapshotStore.availableSkills.find((s) => s.id === skill.id)
+  return server?.disabled ? server.disabled_reason || '当前不可发动' : ''
 }
 
-function skillTypeClass(type?: number): string {
-  switch (type) {
-    case 0: return 'bg-gray-600/60 text-gray-300'
-    case 1: return 'bg-cyan-700/50 text-cyan-300'
-    case 2: return 'bg-amber-700/50 text-amber-300'
-    case 3: return 'bg-purple-700/50 text-purple-300'
-    default: return 'bg-amber-700/50 text-amber-300'
-  }
+const TYPE_META: Record<number, { label: string; cls: string; glyph: string }> = {
+  0: { label: '被动', cls: 'passive', glyph: 'laurel' },
+  1: { label: '启动', cls: 'startup', glyph: 'sun' },
+  2: { label: '法术', cls: 'action', glyph: 'prism' },
+  3: { label: '响应', cls: 'response', glyph: 'eye' },
 }
+
+function typeMeta(type?: number) {
+  return TYPE_META[type ?? 2] ?? TYPE_META[2]!
+}
+
+const TAG_LABELS: Record<string, string> = {
+  Ultimate: '大招',
+  TurnLimit: '回合限定',
+  Force: '强制',
+  Unique: '独有',
+  Exclusive: '专属',
+}
+
+function skillTags(skill: SkillView): string[] {
+  const tags: string[] = []
+  for (const tag of skill.tags ?? []) {
+    const label = TAG_LABELS[tag]
+    if (label && !tags.includes(label)) tags.push(label)
+  }
+  if (skill.require_exclusive && !tags.includes('独有')) tags.push('独有')
+  if (!tags.includes('回合限定') && /［回合限定］|\[回合限定\]/.test(skill.description)) tags.push('回合限定')
+  // "仅圣煌形态可发动" → 形态限制胶囊
+  const form = skill.description.match(/仅([^，,：:；;。\s]{1,8}?形态)/)
+  if (form) tags.push(`仅${form[1]}`)
+  return tags
+}
+
+const ELEMENT_LABELS: Record<string, string> = {
+  Earth: '地', Water: '水', Fire: '火', Wind: '风', Thunder: '雷', Light: '光', Dark: '暗',
+}
+
+function discardText(skill: SkillView): string {
+  if (!skill.cost_discards) return ''
+  const ele = skill.discard_element ? ELEMENT_LABELS[skill.discard_element] || skill.discard_element : ''
+  return `弃${skill.cost_discards}${ele ? ` ${ele}系` : ''}`
+}
+
+type Segment = { text: string; hi: boolean }
+type DescLine = { marker: string; segments: Segment[] }
+
+/** 数字（含 +1 / -1）高亮；①② 等分支各占一行。 */
+function highlight(text: string): Segment[] {
+  return text
+    .split(/([+\-＋－]?\d+)/)
+    .filter(Boolean)
+    .map((part) => ({ text: part, hi: /^[+\-＋－]?\d+$/.test(part) }))
+}
+
+function descLines(description: string): DescLine[] {
+  const parts = String(description || '').split(/(?=[①②③④⑤])/)
+  return parts
+    .map((part) => {
+      const m = part.match(/^([①②③④⑤])\s*/)
+      const marker = m ? m[1]! : ''
+      const body = (m ? part.slice(m[0].length) : part).trim()
+      return { marker, segments: highlight(marker ? body.replace(/[；;]$/, '') : body) }
+    })
+    .filter((line) => line.segments.length)
+}
+
+const skillRows = computed(() =>
+  (props.character?.skills ?? []).map((skill) => {
+    const meta = typeMeta(skill.type)
+    return {
+      skill,
+      meta,
+      glyph: MARK_GLYPHS[meta.glyph] || '',
+      tags: skillTags(skill),
+      discard: discardText(skill),
+      lines: descLines(skill.description),
+      reason: disabledReason(skill),
+    }
+  }),
+)
 
 const panelStyle = computed(() => {
   if (!props.anchor) return {}
@@ -98,6 +201,8 @@ const panelStyle = computed(() => {
     width: `${Math.round(width)}px`,
     left: `${Math.round(left)}px`,
     top: `${Math.round(top)}px`,
+    // 面板比预估高时不越出视口底部，列表区自己滚动
+    maxHeight: `${Math.round(Math.min(720, viewport.value.height - top - margin))}px`,
   }
 })
 </script>
@@ -112,65 +217,93 @@ const panelStyle = computed(() => {
         @click.self="!isAnchored && emit('close')"
       >
         <div
-          class="skill-card relative z-[13051] rounded-2xl shadow-2xl max-h-[85vh] overflow-hidden flex flex-col"
-          :class="isAnchored ? 'skill-card--anchored' : 'skill-card--centered'"
+          class="skill-card"
+          :class="[isAnchored ? 'skill-card--anchored' : 'skill-card--centered', campClass]"
           :style="isAnchored ? panelStyle : undefined"
+          role="dialog"
+          :aria-label="`${character.name} 技能详情`"
+          data-testid="skill-detail"
           @click.stop
         >
-          <!-- 标题栏 -->
-          <div class="skill-header flex-shrink-0 px-6 py-4 flex justify-between items-center">
-            <h2 class="text-xl font-bold text-white">{{ charDisplayName }}</h2>
-            <button
-              type="button"
-              class="p-2 rounded-lg hover:bg-white/20 text-white transition-colors"
-              aria-label="关闭"
-              @click="emit('close')"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+          <i class="skill-corner skill-corner--tl" aria-hidden="true" />
+          <i class="skill-corner skill-corner--tr" aria-hidden="true" />
+          <i class="skill-corner skill-corner--bl" aria-hidden="true" />
+          <i class="skill-corner skill-corner--br" aria-hidden="true" />
 
-          <!-- 技能列表 - 可滚动，不截断 -->
-          <div class="skill-body flex-1 overflow-y-auto p-6 space-y-4">
-            <div
-              v-for="skill in character.skills"
-              :key="skill.id"
-              class="skill-item rounded-xl p-4"
-            >
-              <div class="flex flex-wrap items-center gap-2 mb-2">
-                <span class="font-semibold text-amber-400 text-base">{{ skill.title }}</span>
-                <span
-                  class="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight"
-                  :class="skillTypeClass(skill.type)"
-                >{{ skillTypeLabel(skill.type) }}</span>
-                <span
-                  v-if="skill.require_exclusive"
-                  class="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight bg-rose-700/50 text-rose-200"
-                >独有</span>
-              </div>
-              <div class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
-                {{ skill.description }}
-              </div>
-              <div v-if="skill.cost_gem || skill.cost_crystal || skill.cost_discards" class="mt-2 text-xs text-gray-400">
-                <span v-if="skill.cost_gem">消耗♦{{ skill.cost_gem }} </span>
-                <span v-if="skill.cost_crystal">消耗🔷{{ skill.cost_crystal }} </span>
-                <span v-if="skill.cost_discards">弃{{ skill.cost_discards }}张牌</span>
-                <span v-if="skill.discard_element">({{ skill.discard_element }})</span>
-              </div>
+          <!-- 头部 -->
+          <header class="skill-head">
+            <span class="skill-head__avatar">
+              <img v-if="portrait && !portraitFailed" :src="portrait" alt="" @error="portraitFailed = true" />
+              <span v-else class="skill-head__avatar-fallback">{{ character.name.slice(0, 1) }}</span>
+            </span>
+            <div class="skill-head__titles">
+              <h2 class="skill-head__name">{{ character.name }}</h2>
+              <div v-if="character.faction || character.title" class="skill-head__sub">命格：{{ character.faction || character.title }}</div>
             </div>
+            <button type="button" class="skill-head__close" aria-label="关闭" @click="emit('close')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </header>
+
+          <!-- 资源行（对局中） -->
+          <div v-if="resources" class="skill-res" data-testid="skill-detail-resources">
+            <span class="skill-res__item" title="治疗">
+              <svg class="skill-res__ico skill-res__ico--heal" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" /><path d="M8 4.2v7.6M4.2 8h7.6" /></svg>
+              治疗<b>{{ resources.heal }}/{{ resources.maxHeal }}</b>
+            </span>
+            <span v-for="token in resources.tokens" :key="token.key" class="skill-res__item" :title="token.hint || token.label">
+              <span v-if="token.mark" class="skill-res__mark"><BattleMarkIcon kind="token" :mark-key="token.key" /></span>
+              {{ token.label }}<b>{{ token.cap ? `${token.value}/${token.cap}` : token.value }}</b>
+            </span>
+            <span class="skill-res__item skill-res__item--stone" title="红宝石">
+              <svg class="skill-res__ico" viewBox="0 0 16 16" aria-hidden="true"><polygon class="stone-gem" points="8,1 13.4,5.6 8,15 2.6,5.6" /></svg>
+              <b>{{ resources.gem }}</b>
+            </span>
+            <span class="skill-res__item skill-res__item--stone" title="蓝水晶">
+              <svg class="skill-res__ico" viewBox="0 0 16 16" aria-hidden="true"><polygon class="stone-crystal" points="8,0.8 12.6,4.6 12.6,10.8 8,15.2 3.4,10.8 3.4,4.6" /></svg>
+              <b>{{ resources.crystal }}</b>
+            </span>
           </div>
 
-          <!-- 底部 -->
-          <div class="skill-footer flex-shrink-0 px-6 py-4">
-            <button
-              type="button"
-              class="w-full py-2.5 rounded-lg font-medium btn-skill text-white"
-              @click="emit('close')"
+          <!-- 技能列表 -->
+          <div class="skill-list">
+            <article
+              v-for="row in skillRows"
+              :key="row.skill.id"
+              class="skill-row"
+              :class="[`skill-row--${row.meta.cls}`, { 'skill-row--disabled': !!row.reason }]"
+              :data-testid="`skill-detail-${row.skill.id}`"
             >
-              关闭
-            </button>
+              <span class="skill-row__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path :d="row.glyph" /></svg>
+              </span>
+              <div class="skill-row__main">
+                <div class="skill-row__head">
+                  <span class="skill-row__name">{{ row.skill.title }}</span>
+                  <span class="skill-pill skill-pill--type">{{ row.meta.label }}</span>
+                  <span v-for="tag in row.tags" :key="tag" class="skill-pill skill-pill--tag">{{ tag }}</span>
+                  <span v-if="row.skill.cost_gem || row.skill.cost_crystal || row.discard" class="skill-row__cost">
+                    <span v-if="row.skill.cost_gem" class="skill-cost" :title="`消耗${row.skill.cost_gem}红宝石`">
+                      <svg viewBox="0 0 16 16" aria-hidden="true"><polygon class="stone-gem" points="8,1 13.4,5.6 8,15 2.6,5.6" /></svg>{{ row.skill.cost_gem }}
+                    </span>
+                    <span v-if="row.skill.cost_crystal" class="skill-cost" :title="`消耗${row.skill.cost_crystal}蓝水晶`">
+                      <svg viewBox="0 0 16 16" aria-hidden="true"><polygon class="stone-crystal" points="8,0.8 12.6,4.6 12.6,10.8 8,15.2 3.4,10.8 3.4,4.6" /></svg>{{ row.skill.cost_crystal }}
+                    </span>
+                    <span v-if="row.discard" class="skill-cost skill-cost--discard">{{ row.discard }}</span>
+                  </span>
+                </div>
+                <p
+                  v-for="(line, li) in row.lines"
+                  :key="li"
+                  class="skill-row__line"
+                  :class="{ 'skill-row__line--branch': !!line.marker }"
+                >
+                  <span v-if="line.marker" class="skill-row__marker">{{ line.marker }}</span>
+                  <span><template v-for="(seg, si) in line.segments" :key="si"><em v-if="seg.hi">{{ seg.text }}</em><template v-else>{{ seg.text }}</template></template></span>
+                </p>
+                <p v-if="row.reason" class="skill-row__reason" :data-testid="`skill-detail-reason-${row.skill.id}`">不可发动：{{ row.reason }}</p>
+              </div>
+            </article>
           </div>
         </div>
       </div>
@@ -188,9 +321,7 @@ const panelStyle = computed(() => {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background:
-    radial-gradient(420px 220px at 50% 44%, rgba(136, 188, 195, 0.18), transparent 70%),
-    rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(3px);
 }
 
@@ -199,42 +330,371 @@ const panelStyle = computed(() => {
   padding: 0;
 }
 
+/* —— 面板外框：黑漆底 + 金色细边 + 四角装饰 —— */
 .skill-card {
+  --skill-gold: #c9a45c;
+  --skill-gold-hi: #ffd98a;
+  --skill-camp: rgba(59, 111, 216, 0.38);
+  position: relative;
   z-index: 13051 !important;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  overflow: hidden;
+  border-radius: 6px;
   background:
-    linear-gradient(180deg, rgba(8, 20, 34, 0.92), rgba(6, 15, 28, 0.95)),
-    url('/assets/ui/modal-aura.svg') center/cover no-repeat;
-  border: 1px solid rgba(132, 167, 186, 0.36);
+    radial-gradient(120% 60% at 50% 0%, rgba(255, 220, 150, 0.05), transparent 60%),
+    linear-gradient(180deg, rgba(13, 18, 27, 0.96), rgba(9, 13, 20, 0.98));
+  box-shadow:
+    0 0 0 1px rgba(201, 164, 92, 0.55),
+    0 0 0 3px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 240, 200, 0.08),
+    0 18px 40px rgba(0, 0, 0, 0.6);
+  color: var(--bt-text, #e8ecf4);
 }
-
+.skill-card--red {
+  --skill-camp: rgba(192, 48, 60, 0.42);
+}
 .skill-card--centered {
-  width: min(680px, calc(100vw - 2rem));
+  width: min(480px, calc(100vw - 2rem));
 }
-
 .skill-card--anchored {
   position: fixed;
   pointer-events: auto;
-  max-height: min(84vh, 720px);
+  max-height: min(85vh, 720px);
 }
 
-.skill-header {
-  background: linear-gradient(110deg, rgba(34, 74, 97, 0.88), rgba(94, 72, 43, 0.88));
-  border-bottom: 1px solid rgba(149, 186, 204, 0.26);
+.skill-corner {
+  position: absolute;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  border-color: var(--skill-gold);
+  border-style: solid;
+  border-width: 0;
+}
+.skill-corner::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: var(--skill-gold-hi);
+  transform: rotate(45deg);
+}
+.skill-corner--tl { top: 4px; left: 4px; border-top-width: 2px; border-left-width: 2px; }
+.skill-corner--tr { top: 4px; right: 4px; border-top-width: 2px; border-right-width: 2px; }
+.skill-corner--bl { bottom: 4px; left: 4px; border-bottom-width: 2px; border-left-width: 2px; }
+.skill-corner--br { bottom: 4px; right: 4px; border-bottom-width: 2px; border-right-width: 2px; }
+.skill-corner--tl::after { top: -3px; left: -3px; }
+.skill-corner--tr::after { top: -3px; right: -3px; }
+.skill-corner--bl::after { bottom: -3px; left: -3px; }
+.skill-corner--br::after { bottom: -3px; right: -3px; }
+
+/* —— 头部 —— */
+.skill-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 14px 18px;
+  background:
+    linear-gradient(110deg, var(--skill-camp), rgba(80, 60, 30, 0.22) 70%, transparent),
+    rgba(10, 14, 22, 0.6);
+  border-bottom: 1px solid rgba(201, 164, 92, 0.28);
+}
+.skill-head__avatar {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 2px var(--skill-gold),
+    0 0 0 4px rgba(0, 0, 0, 0.55),
+    0 0 14px rgba(255, 217, 138, 0.35);
+  background: var(--bt-bg-1, #111722);
+}
+.skill-head__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+}
+.skill-head__avatar-fallback {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--skill-gold-hi);
+}
+.skill-head__titles {
+  flex: 1;
+  min-width: 0;
+}
+.skill-head__name {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  line-height: 1.2;
+  color: #f4ecd8;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.skill-head__sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+.skill-head__close {
+  flex: none;
+  align-self: flex-start;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bt-chrome, #b9c1cd);
+  cursor: pointer;
+}
+.skill-head__close:hover,
+.skill-head__close:focus-visible {
+  color: var(--skill-gold-hi);
+  background: rgba(255, 255, 255, 0.06);
+}
+.skill-head__close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
-.skill-body {
-  background: rgba(6, 17, 29, 0.42);
+/* —— 资源行 —— */
+.skill-res {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 10px 14px 4px;
+  padding: 7px 12px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(201, 164, 92, 0.3);
+  font-size: 13px;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+.skill-res__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.skill-res__item b {
+  margin-left: 2px;
+  font-weight: 600;
+  color: var(--bt-text, #e8ecf4);
+}
+.skill-res__ico,
+.skill-res__mark {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.skill-res__ico--heal circle {
+  fill: #2f9e5b;
+}
+.skill-res__ico--heal path {
+  stroke: #eafff0;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
-.skill-item {
-  border: 1px solid rgba(118, 152, 173, 0.34);
-  background: rgba(14, 32, 48, 0.56);
-  box-shadow: inset 0 1px 0 rgba(237, 247, 254, 0.06);
+.stone-gem {
+  fill: var(--bt-red, #c0303c);
+  stroke: var(--bt-chrome-hi, #e9edf3);
+  stroke-opacity: 0.7;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+.stone-crystal {
+  fill: var(--bt-blue, #3b6fd8);
+  stroke: var(--bt-chrome-hi, #e9edf3);
+  stroke-opacity: 0.7;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
 }
 
-.skill-footer {
-  background: rgba(6, 16, 28, 0.66);
-  border-top: 1px solid rgba(118, 153, 173, 0.24);
+/* —— 技能列表 —— */
+.skill-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 10px 14px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 164, 92, 0.55) transparent;
+}
+.skill-list::-webkit-scrollbar {
+  width: 4px;
+}
+.skill-list::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: rgba(201, 164, 92, 0.55);
+}
+
+.skill-row {
+  --row-accent: #c9a45c;
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 10px 6px 10px 14px;
+  border-bottom: 1px solid var(--bt-hairline-soft, rgba(185, 193, 205, 0.16));
+}
+.skill-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--row-accent);
+  box-shadow: 0 0 6px var(--row-accent);
+  opacity: 0.85;
+}
+.skill-row:last-child {
+  border-bottom: none;
+}
+.skill-row--passive { --row-accent: #9aa4b5; }
+.skill-row--startup { --row-accent: #3fb6c8; }
+.skill-row--action { --row-accent: #e0a64a; }
+.skill-row--response { --row-accent: #9b7be0; }
+
+.skill-row__icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--row-accent) 35%, transparent), transparent 70%),
+    linear-gradient(180deg, #1a2231, #0d121b);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--row-accent) 70%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.skill-row__icon svg {
+  width: 26px;
+  height: 26px;
+  fill: color-mix(in srgb, var(--row-accent) 65%, #fff);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--row-accent) 60%, transparent));
+}
+
+.skill-row__main {
+  flex: 1;
+  min-width: 0;
+}
+.skill-row__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.skill-row__name {
+  margin-right: 2px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--skill-gold-hi, #ffd98a);
+}
+.skill-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 18px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.skill-pill--type {
+  color: color-mix(in srgb, var(--row-accent) 55%, #fff);
+  background: color-mix(in srgb, var(--row-accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--row-accent) 60%, transparent);
+}
+.skill-pill--tag {
+  color: #f0d9a8;
+  background: rgba(120, 84, 30, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(201, 164, 92, 0.6);
+}
+.skill-row__cost {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--bt-text, #e8ecf4);
+}
+.skill-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.skill-cost svg {
+  width: 14px;
+  height: 14px;
+}
+.skill-cost--discard {
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  box-shadow: inset 0 0 0 1px var(--bt-hairline, rgba(185, 193, 205, 0.4));
+}
+
+.skill-row__line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #cfd5df;
+  word-break: break-word;
+}
+.skill-row__line--branch {
+  display: flex;
+  gap: 6px;
+}
+.skill-row__marker {
+  flex: none;
+  color: var(--skill-gold, #c9a45c);
+}
+.skill-row__line em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--skill-gold-hi, #ffd98a);
+}
+.skill-row__reason {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #f07c72;
+}
+.skill-row--disabled .skill-row__icon,
+.skill-row--disabled .skill-row__name,
+.skill-row--disabled .skill-row__line {
+  opacity: 0.55;
+}
+.skill-row--disabled .skill-row__icon {
+  filter: grayscale(0.6);
 }
 
 .modal-enter-active,
@@ -252,5 +712,14 @@ const panelStyle = computed(() => {
 .modal-enter-from .skill-card,
 .modal-leave-to .skill-card {
   transform: scale(0.95) translateY(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-enter-active,
+  .modal-leave-active,
+  .modal-enter-active .skill-card,
+  .modal-leave-active .skill-card {
+    transition: none;
+  }
 }
 </style>

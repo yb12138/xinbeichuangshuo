@@ -284,6 +284,8 @@ type Prompt struct {
 	AttackerID       string   `json:"attacker_id,omitempty"`
 	CounterTargetIDs []string `json:"counter_target_ids,omitempty"`
 	AttackElement    string   `json:"attack_element,omitempty"` // Earth/Water/Fire/Wind/Thunder/Dark
+	// 响应方可按命格应战时（阴阳师【阴阳转换】）为攻击牌的命格（"咏"），否则为空
+	AttackFaction string `json:"attack_faction,omitempty"`
 	// 应战/防御可用的卡牌 ID（与提交校验同源），前端据此高亮可选手牌
 	DefendCardIDs  []string `json:"defend_card_ids,omitempty"`
 	CounterCardIDs []string `json:"counter_card_ids,omitempty"`

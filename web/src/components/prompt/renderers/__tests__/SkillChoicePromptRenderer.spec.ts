@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/vue'
+import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import SkillChoicePromptRenderer from '../SkillChoicePromptRenderer.vue'
@@ -10,18 +10,12 @@ function baseButtons() {
       label: '发动',
       disabled: false,
       cancel: false,
-      imageSrc: '/assets/ui/action_confirm.png',
-      imageReady: true,
-      fallbackText: '确',
     },
     {
       id: 'cancel',
       label: '取消',
       disabled: false,
       cancel: true,
-      imageSrc: '/assets/ui/action_cancel_btn.png',
-      imageReady: true,
-      fallbackText: '消',
     },
   ]
 }
@@ -91,8 +85,9 @@ describe('SkillChoicePromptRenderer', () => {
     expect(emitted('select')).toBeUndefined()
   })
 
-  it('emits imageError with option id when inline image fails', async () => {
-    const { container, emitted } = render(SkillChoicePromptRenderer, {
+
+  it('renders inline buttons as 发动 / 放弃 pills', () => {
+    render(SkillChoicePromptRenderer, {
       props: {
         inlineVisible: true,
         overlayVisible: false,
@@ -102,30 +97,9 @@ describe('SkillChoicePromptRenderer', () => {
       },
     })
 
-    const image = container.querySelector('img')
-    expect(image).not.toBeNull()
-    await fireEvent.error(image!)
-
-    expect(emitted('imageError')).toEqual([['confirm']])
-  })
-
-  it('renders inline fallback text when image is not ready', () => {
-    render(SkillChoicePromptRenderer, {
-      props: {
-        inlineVisible: true,
-        overlayVisible: false,
-        title: '是否发动【风怒】',
-        buttons: [
-          {
-            ...baseButtons()[0]!,
-            imageReady: false,
-          },
-        ],
-        branches: [],
-      },
-    })
-
-    expect(screen.getByText('确')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-option-confirm')).toHaveTextContent('发动')
+    expect(screen.getByTestId('prompt-option-confirm')).toHaveClass('dc-pill--gold')
+    expect(screen.getByTestId('prompt-option-cancel')).toHaveTextContent('放弃')
   })
 
   it('renders overlay branches and emits branch / skip selections', async () => {

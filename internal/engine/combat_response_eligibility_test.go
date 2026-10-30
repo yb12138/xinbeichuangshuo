@@ -154,3 +154,29 @@ func TestCombatResponsePrompt_ListedCounterCardIsAccepted(t *testing.T) {
 		t.Fatalf("listed counter card should be accepted, got %v", err)
 	}
 }
+
+// 阴阳师可用同命格攻击牌应战：提示带上攻击牌命格，前端才能写"同系、同命格或暗灭"。
+func TestCombatResponsePrompt_OnmyojiExposesFactionCounter(t *testing.T) {
+	fire := model.Card{ID: "atk", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2, Faction: "咏"}
+	game := newCombatEligibilityGame(t, "onmyoji", fire, []model.Card{
+		{ID: "water", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2, Faction: "咏"},
+	})
+	prompt := game.GetCurrentPrompt()
+	if prompt.AttackFaction != "咏" {
+		t.Fatalf("onmyoji should see the attack faction, got %q", prompt.AttackFaction)
+	}
+	if !promptOptionSet(prompt)["counter"] || len(prompt.CounterCardIDs) != 1 {
+		t.Fatalf("same-faction off-element card should be a counter card, got options=%v cards=%v", prompt.Options, prompt.CounterCardIDs)
+	}
+}
+
+// 其他角色没有命格应战规则：不带命格，避免误导。
+func TestCombatResponsePrompt_NonOnmyojiHasNoFaction(t *testing.T) {
+	fire := model.Card{ID: "atk", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2, Faction: "咏"}
+	game := newCombatEligibilityGame(t, "butterfly_dancer", fire, []model.Card{
+		{ID: "fire2", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+	})
+	if got := game.GetCurrentPrompt().AttackFaction; got != "" {
+		t.Fatalf("non-onmyoji should not get a faction hint, got %q", got)
+	}
+}

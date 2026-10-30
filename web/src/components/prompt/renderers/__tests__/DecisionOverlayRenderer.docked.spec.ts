@@ -119,3 +119,17 @@ describe('DecisionOverlayRenderer (docked)', () => {
   })
 })
 
+
+describe('DecisionOverlayRenderer (docked) layout', () => {
+  // .overlay-panel-body 是纵向 flex；选项卡容器若与它共用同一元素，两张卡会被上下堆叠而不是并排。
+  it('keeps the option-card row in its own container, not on the column-flex panel body', () => {
+    const { container } = render(DecisionOverlayRenderer, {
+      props: baseProps,
+      global: { provide: { [DECISION_DOCKED as symbol]: true } },
+    })
+    const tiles = container.querySelector('.dc-tiles')
+    expect(tiles).not.toBeNull()
+    expect(tiles!.classList.contains('overlay-panel-body')).toBe(false)
+    expect(tiles!.parentElement?.classList.contains('overlay-panel-body')).toBe(true)
+  })
+})

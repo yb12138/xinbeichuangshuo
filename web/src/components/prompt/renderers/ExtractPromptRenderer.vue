@@ -12,15 +12,11 @@ const props = defineProps<{
   selectedIndexes: number[]
   min: number
   max: number
-  confirmImageSrc: string
-  confirmImageReady: boolean
-  confirmFallbackText?: string
 }>()
 
 const emit = defineEmits<{
   toggle: [index: number]
   confirm: []
-  confirmImageError: []
 }>()
 
 const selectedCount = computed(() => props.selectedIndexes.length)
@@ -49,8 +45,10 @@ function onConfirmClick() {
       <button
         v-for="(option, idx) in options"
         :key="option.id"
-        class="extract-option-btn"
-        :class="{ 'extract-option-btn--selected': isSelected(idx) }"
+        type="button"
+        class="dc-tile extract-option-btn"
+        :class="[isSelected(idx) ? 'dc-tile--picked extract-option-btn--selected' : '', /宝石/.test(option.label) ? 'dc-tile--take' : 'dc-tile--gain']"
+        :aria-pressed="isSelected(idx)"
         :data-testid="`extract-option-${idx}`"
         @click="emit('toggle', idx)"
       >
@@ -58,24 +56,16 @@ function onConfirmClick() {
       </button>
     </div>
 
-    <div class="extract-confirm-row">
+    <div class="dc-actions dc-actions--end extract-confirm-row">
       <button
-        class="extract-confirm-btn action-image-btn"
-        :class="{ 'extract-confirm-btn--disabled': confirmDisabled }"
+        type="button"
+        class="dc-pill dc-pill--gold extract-confirm-btn"
         :disabled="confirmDisabled"
         data-testid="prompt-confirm-btn"
-        :title="confirmAriaTitle"
         :aria-label="confirmAriaTitle"
         @click="onConfirmClick"
       >
-        <img
-          v-if="confirmImageReady"
-          class="action-image-btn-fill"
-          :src="confirmImageSrc"
-          alt=""
-          @error="emit('confirmImageError')"
-        />
-        <span v-else class="action-image-fallback-text">{{ confirmFallbackText || '确' }}</span>
+        确认 {{ selectedCount }}/{{ max }}
       </button>
     </div>
   </div>
@@ -95,102 +85,11 @@ function onConfirmClick() {
 }
 
 .extract-option-btn {
-  min-height: 40px;
-  width: 100%;
-  max-width: 100%;
-  border-radius: 10px;
-  border: 1px solid rgba(183, 154, 105, 0.56);
-  background: linear-gradient(180deg, rgba(91, 69, 38, 0.9), rgba(68, 50, 28, 0.92));
-  color: #e3eef8;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  transition: transform 0.16s ease, border-color 0.16s ease, filter 0.16s ease;
-}
-
-.extract-option-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  border-color: rgba(180, 210, 227, 0.66);
-  filter: brightness(1.05);
-}
-
-.extract-option-btn--selected {
-  box-shadow:
-    0 0 0 2px rgba(241, 211, 150, 0.74),
-    0 0 18px rgba(189, 152, 90, 0.38);
-}
-
-.extract-confirm-row {
-  display: flex;
-  justify-content: center;
-  margin-top: 2px;
-}
-
-.extract-confirm-btn {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 72px;
-  height: 72px;
-  min-height: 0;
-  max-width: 72px;
-  aspect-ratio: 1 / 1;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  overflow: hidden;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.extract-confirm-btn:focus,
-.extract-confirm-btn:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-.extract-confirm-btn--disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-  filter: none;
-}
-
-.action-image-btn {
-  -webkit-appearance: none;
-  appearance: none;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-}
-
-.action-image-btn-fill {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  pointer-events: none;
-  user-select: none;
-}
-
-.action-image-fallback-text {
-  position: relative;
-  z-index: 1;
+  max-width: none;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px;
   font-size: 14px;
   font-weight: 700;
-  color: #f2f8ff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
-}
-
-@media (max-width: 560px) {
-  .extract-option-grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
