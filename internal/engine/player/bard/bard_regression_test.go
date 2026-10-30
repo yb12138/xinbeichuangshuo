@@ -398,10 +398,21 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 		t.Fatalf("use hope fugue failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_hope_draw_confirm")
+	// 第一步的选项直接写动作（而不是"是/否"），并标出这是多步流程的第 1 步
+	drawPrompt := game.GetCurrentPrompt()
+	if len(drawPrompt.Options) != 2 || drawPrompt.Options[0].Label != "摸1张牌" || drawPrompt.Options[1].Label != "不摸牌" {
+		t.Fatalf("draw step should name the action, got %+v", drawPrompt.Options)
+	}
+	if pres := drawPrompt.Presentation; pres == nil || pres.StepIndex != 1 || pres.TotalSteps < 3 {
+		t.Fatalf("draw step should be step 1 of a multi-step flow, got %+v", pres)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 不摸牌
 		t.Fatalf("choose draw confirm failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_hope_mode")
+	if pres := game.GetCurrentPrompt().Presentation; pres == nil || pres.StepIndex != 2 {
+		t.Fatalf("mode step should be step 2, got %+v", pres)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil { // 转移并+1灵感
 		t.Fatalf("choose hope mode failed: %v", err)
 	}
