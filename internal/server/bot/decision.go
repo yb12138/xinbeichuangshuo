@@ -174,15 +174,15 @@ func decideActionSelection(playerID string, state StateSnapshot, prompt *model.P
 	if hasPromptOption(prompt, "buy") && handPressure <= 0.6 {
 		return model.PlayerAction{PlayerID: playerID, Type: model.CmdBuy}, true
 	}
-	if hasPromptOption(prompt, "cannot_act") {
-		return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
-	}
-
 	if canAttack {
 		return bestAttack, true
 	}
 	if canMagic {
 		return bestMagic, true
+	}
+	// 额外行动现在总能"跳过"；只有真的没有可打的牌时才放弃，避免白白丢掉额外行动。
+	if hasPromptOption(prompt, "cannot_act") {
+		return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 	}
 
 	// 特殊兜底：无牌可打但有可发动技能
