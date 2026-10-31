@@ -494,3 +494,50 @@ func TestAngelBlessing_ReceiverCanConfirmGiveCardsByCardIDs(t *testing.T) {
 		t.Fatalf("expected receiver to gain cards after card_id confirm, got %d", got)
 	}
 }
+
+// 魔弹来源身上的圣盾不能替别人挡伤害：只有承伤者自己的圣盾生效。
+func TestHolyShield_OnlyProtectsItsHolder(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Caster", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Victim", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1, p2 := game.State.Players["p1"], game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementFire, Damage: 2}}
+	p2.Hand = nil
+	game.State.Deck = []model.Card{
+		{ID: "d1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+		{ID: "d2", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "d3", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+	}
+	p1.AddFieldCard(&model.FieldCard{
+		Card:    model.Card{ID: "sh", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementEarth},
+		OwnerID: p1.ID, SourceID: p1.ID, Mode: model.FieldEffect, Effect: model.EffectShield,
+	})
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
+		t.Fatalf("cast magic bullet failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}}); err != nil {
+		t.Fatalf("take magic bullet failed: %v", err)
+	}
+	for i := 0; i < 6 && len(game.State.PendingDamageQueue) > 0; i++ {
+		if intr := game.State.PendingInterrupt; intr != nil {
+			break
+		}
+		game.Drive()
+	}
+	if !p1.HasFieldEffect(model.EffectShield) {
+		t.Fatalf("caster's 圣盾 must not be consumed by damage dealt to someone else")
+	}
+	if len(p2.Hand) != 2 {
+		t.Fatalf("expected victim to take 2 magic damage (draw 2), got hand=%d", len(p2.Hand))
+	}
+}

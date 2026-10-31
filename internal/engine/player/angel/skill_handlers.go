@@ -100,6 +100,11 @@ func (h *HolyShieldHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx == nil || ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}
+	// 承伤时机会同时检查攻击方与承伤方：圣盾只保护承伤者本人，
+	// 否则魔弹来源身上的圣盾会被错误消耗并抵消别人受到的伤害。
+	if ctx.User == nil || ctx.EventCtx.TargetID != ctx.User.ID {
+		return false
+	}
 	if ctx.Flags["IsMagicDamage"] {
 		if ctx.EventCtx.Card == nil || strings.TrimSpace(ctx.EventCtx.Card.Name) != "魔弹" {
 			return false
