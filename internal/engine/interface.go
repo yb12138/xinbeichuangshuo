@@ -77,6 +77,25 @@ func (e *GameEngine) GetPlayerForm(playerID string) string {
 	return effectivePlayerForm(player)
 }
 
+// CanCastMagicInAction 该玩家此刻能否在行动阶段打出法术牌（部分形态禁止）。
+func (e *GameEngine) CanCastMagicInAction(playerID string) bool {
+	return e.canCastMagicInAction(e.State.Players[playerID])
+}
+
+// CanBeActiveAttackTarget 该玩家此刻能否成为主动攻击目标（如潜行时不能）。
+func (e *GameEngine) CanBeActiveAttackTarget(playerID string) bool {
+	target := e.State.Players[playerID]
+	if target == nil {
+		return false
+	}
+	if target.Character != nil {
+		if entry := roleRegistry.Entry(target.Character.ID); entry.TargetFilter != nil && entry.TargetFilter.CannotBeActiveAttackTarget(target) {
+			return false
+		}
+	}
+	return true
+}
+
 func (e *GameEngine) RefreshPlayerDerivedState(playerID string) {
 	if e == nil || e.State == nil {
 		return
