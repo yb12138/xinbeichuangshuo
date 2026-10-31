@@ -53,12 +53,18 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "sage_magic_rebound_confirm":
+		// 触发时满足 ≥2 同系，但提示挂起期间手牌可能变化：每次构建都重新判定，不满足时"是"置灰。
+		confirm := model.PromptOption{ID: "0", Label: "是"}
+		if engineplayer.MaxSameElementCount(player) < 2 {
+			confirm.Disabled = true
+			confirm.DisabledReason = "同系手牌不足2张，无法发动法术反弹"
+		}
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
 			Message:  "【法术反弹】是否发动？",
 			Options: []model.PromptOption{
-				{ID: "0", Label: "是"},
+				confirm,
 				{ID: "1", Label: "否"},
 			},
 			Min:          1,

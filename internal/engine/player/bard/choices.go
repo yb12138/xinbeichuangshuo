@@ -25,6 +25,13 @@ const (
 	dissonanceStepTarget  = "target"
 	dissonanceStepDiscard = "discard"
 
+	// 希望赋格曲：先摸牌 → 选分支 → 选目标（转移分支再弃 1 张牌）。总步数取上限，放置分支只走前三步。
+	hopeFlowID      = "bd_hope"
+	hopeStepDraw    = "draw"
+	hopeStepMode    = "mode"
+	hopeStepTarget  = "target"
+	hopeStepDiscard = "discard"
+
 	rousingFlowID      = "bd_rousing"
 	rousingStepMode    = "mode"
 	rousingStepTargets = "targets"
@@ -42,6 +49,12 @@ var (
 		{ID: dissonanceStepMode, ChoiceType: "bd_dissonance_mode", CancelPolicy: model.CancelPolicyBack},
 		{ID: dissonanceStepTarget, ChoiceType: "bd_dissonance_target", CancelPolicy: model.CancelPolicyBack},
 		{ID: dissonanceStepDiscard, ChoiceType: "bd_dissonance_discard_step", CancelPolicy: model.CancelPolicyAbort},
+	})
+	hopeFlowRuntime = model.MustNewPromptFlowRuntime(hopeFlowID, []model.PromptFlowStepSpec{
+		{ID: hopeStepDraw, ChoiceType: "bd_hope_draw_confirm", CancelPolicy: model.CancelPolicyDeny},
+		{ID: hopeStepMode, ChoiceType: "bd_hope_mode", CancelPolicy: model.CancelPolicyDeny},
+		{ID: hopeStepTarget, ChoiceType: "bd_hope_place_target", CancelPolicy: model.CancelPolicyDeny},
+		{ID: hopeStepDiscard, ChoiceType: "bd_hope_transfer_discard", CancelPolicy: model.CancelPolicyDeny},
 	})
 	rousingFlowRuntime = model.MustNewPromptFlowRuntime(rousingFlowID, []model.PromptFlowStepSpec{
 		{ID: rousingStepMode, ChoiceType: "bd_rousing_mode", CancelPolicy: model.CancelPolicyDecline},
@@ -201,7 +214,12 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【胜利交响诗】请选择要提炼的星石：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_hope_draw_confirm":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】是否先摸1张牌？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
+		// 发动后的第一步只是"要不要先摸 1 张"，选项直接写动作，避免看起来像又问一次是否发动
+		drawHint := ""
+		if player != nil {
+			drawHint = fmt.Sprintf("手牌 %d → %d", len(player.Hand), len(player.Hand)+1)
+		}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【希望赋格曲】发动后可先摸1张牌，然后选择放置或转移永恒乐章：", Options: []model.PromptOption{{ID: "0", Label: "摸1张牌", Hint: drawHint}, {ID: "1", Label: "不摸牌"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_hope_mode":
 		opts := []model.PromptOption{{ID: "0", Label: "将永恒乐章放置于目标队友面前"}}
 		if EternalHolderID(rt, player) != "" {
@@ -965,6 +983,7 @@ func handleHopeDrawConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]int
 	} else if selectionIndex != 1 {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
+	advanceHopeFlow(ctxData, hopeStepMode)
 	ctxData["choice_type"] = "bd_hope_mode"
 	intr := rt.GetPendingInterrupt()
 	if intr != nil {
@@ -972,6 +991,14 @@ func handleHopeDrawConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]int
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
+}
+
+// advanceHopeFlow 推进希望赋格曲的步骤进度（只用于"第几步"显示）。
+// 旧存档 / 测试里直接构造的中断没有流状态，此时静默跳过。
+func advanceHopeFlow(ctxData map[string]interface{}, stepID string) {
+	if flow := model.PromptFlowFromContext(ctxData); flow != nil && flow.FlowID == hopeFlowID {
+		_ = hopeFlowRuntime.MoveTo(flow, stepID)
+	}
 }
 
 func handleHopeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -986,6 +1013,7 @@ func handleHopeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{
 		if len(targetIDs) == 0 {
 			return fmt.Errorf("无可选队友目标")
 		}
+		advanceHopeFlow(ctxData, hopeStepTarget)
 		ctxData["choice_type"] = "bd_hope_place_target"
 		ctxData["target_ids"] = targetIDs
 		intr := rt.GetPendingInterrupt()
@@ -1013,6 +1041,7 @@ func handleHopeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{
 			return fmt.Errorf("没有可转移的目标角色")
 		}
 		ctxData["mode"] = selectionIndex
+		advanceHopeFlow(ctxData, hopeStepTarget)
 		ctxData["choice_type"] = "bd_hope_transfer_target"
 		ctxData["target_ids"] = targetIDs
 		intr := rt.GetPendingInterrupt()
@@ -1068,6 +1097,7 @@ func handleHopeTransferTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]
 	if err := transferBardEternalMovement(rt, user, target); err != nil {
 		return err
 	}
+	advanceHopeFlow(ctxData, hopeStepDiscard)
 	ctxData["choice_type"] = "bd_hope_transfer_discard"
 	intr := rt.GetPendingInterrupt()
 	if intr != nil {

@@ -53,3 +53,29 @@ func TestBuildFallbackActionNeverPasses(t *testing.T) {
 		t.Fatalf("fallback must not send Pass; engine rejects it")
 	}
 }
+
+// 额外行动现在总带"跳过"选项；机器人手里有攻击牌时应继续攻击，而不是白白放弃额外行动。
+func TestDecideActionSelectionUsesExtraActionInsteadOfSkipping(t *testing.T) {
+	state := StateSnapshot{
+		CurrentPlayer: "p1",
+		Players: map[string]PlayerSnapshot{
+			"p1": {ID: "p1", Camp: "Blue", MaxHand: 6, Hand: []model.Card{
+				// 低收益攻击：走不到"高收益优先"分支，才能检验"跳过"不会抢在攻击前面
+				{ID: "a1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
+			}},
+			"p2": {ID: "p2", Camp: "Red", MaxHand: 6, HandCount: 6},
+		},
+	}
+	prompt := &model.Prompt{
+		Type:    model.PromptConfirm,
+		Options: []model.PromptOption{{ID: "attack"}, {ID: "cannot_act", Label: "跳过额外行动"}},
+	}
+
+	action, ok := DecideAction(DecisionInput{PlayerID: "p1", State: state, Prompt: prompt})
+	if !ok {
+		t.Fatalf("expected an action")
+	}
+	if action.Type != model.CmdAttack {
+		t.Fatalf("expected the bot to attack with its extra action, got %s", action.Type)
+	}
+}

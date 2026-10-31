@@ -24,6 +24,7 @@ import {
   type NarrationChain,
   type NarrationRow,
   type NarrationSkill,
+  type NarrationSpecial,
   type ValueChipColor,
 } from '../stores/stageQueue.store'
 
@@ -277,6 +278,7 @@ interface MergedChainNode {
   row: NarrationRow
   chain?: NarrationChain
   skill?: NarrationSkill
+  special?: NarrationSpecial
   /** Link carrying the result: a cardless follow-up edge (same from→to) replaces the original. */
   resultLinkId: string
   /** Trigger skills that fired during this step, shown as small tags under the node. */
@@ -300,6 +302,10 @@ const mergedChain = computed(() => {
         continue
       }
       nodes.push({ row, skill: row.skill, resultLinkId: '', triggers: [] })
+      continue
+    }
+    if (row.special) {
+      nodes.push({ row, special: row.special, resultLinkId: '', triggers: [] })
       continue
     }
     const chain = row.chain
@@ -763,7 +769,8 @@ interface ChainNodeView {
   skill: boolean
   /** Extra targets beyond the one avatar shown ("+2"). */
   moreTargets: number
-  triggers: { name: string; stroke: string }[]
+  /** 挂在本步下的被动 / 响应技能；outcome = 它的结算结果（"信仰 +1"），没有可见结果时为空。 */
+  triggers: { name: string; outcome: string; stroke: string }[]
   /** Skill node: 消耗（"宝石 1"），小字显示在结果下。 */
   cost: string
   /** 悬停时显示的完整技能描述。 */
@@ -790,7 +797,7 @@ const chainView = computed(() => {
     const { chain, skill, row } = entry
     const next = chainNodes[index + 1]
     const last = !next
-    const triggers = entry.triggers.map((t) => ({ name: t.skillName, stroke: strokeOf(t.element, 'skill') }))
+    const triggers = entry.triggers.map((t) => ({ name: t.skillName, outcome: t.outcome || '', stroke: strokeOf(t.element, 'skill') }))
     if (skill) {
       // 只作用于自身的技能不画“A › A”，目标名写“自身”。
       const others = skill.targetIds.filter((id) => id !== skill.actorId)
@@ -814,6 +821,30 @@ const chainView = computed(() => {
         triggers,
         cost: skill.cost || '',
         hint: skill.effectText || '',
+      }
+    }
+    if (entry.special) {
+      const sp = entry.special
+      return {
+        id: row.id,
+        // 行动名作卡面，行动者自身后果（"手牌 +3"）放在动词行，避免挤在卡面角标里
+        verb: sp.outcome || '特殊行动',
+        fromAvatar: avatar(sp.actorId),
+        toAvatar: '',
+        fromName: seatName(sp.actorId),
+        toName: '',
+        cardName: sp.action,
+        cardArt: avatar(sp.actorId),
+        element: '',
+        stroke: LINK_COLORS.grey,
+        state: last && !source.previous ? 'current' : 'past',
+        result: '',
+        resultStyle: '',
+        skill: true,
+        moreTargets: 0,
+        triggers,
+        cost: '',
+        hint: '',
       }
     }
     const c = chain!
@@ -863,8 +894,12 @@ const chainView = computed(() => {
     }
     if (lastNode.state === 'waiting') lastNode.state = 'current'
   }
-  const notes = source.rows.filter((row) => !row.chain && !row.skill && row !== takeRow).slice(-2)
-  return { nodes: nodes.slice(-4), notes, previous: source.previous }
+  // 士气变化是这一手的最终后果：单独一行醒目显示，不挤进普通备注。
+  // 士气 / 阵营战绩区资源是这一手的最终后果：单独醒目显示，不挤进普通备注。
+  const isOutcomeRow = (row: NarrationRow) => !row.chain && !row.skill && !row.special && (row.tag === '士气' || row.tag === '资源')
+  const outcomes = source.rows.filter(isOutcomeRow).map((row) => ({ id: row.id, html: row.html, kind: row.tag === '士气' ? 'morale' : 'resource' }))
+  const notes = source.rows.filter((row) => !row.chain && !row.skill && !row.special && row !== takeRow && !isOutcomeRow(row)).slice(-2)
+  return { nodes: nodes.slice(-4), notes, outcomes, previous: source.previous }
 })
 
 const historyView = computed(() => store.historyChips.slice(-MAX_HISTORY))
@@ -1154,7 +1189,7 @@ onBeforeUnmount(() => {
     <div
       v-if="chainView"
       class="stage-chain"
-      :class="{ 'stage-chain--prev': chainView.previous }"
+      :class="{ 'stage-chain--prev': chainView.previous, 'stage-chain--lifted': decisionOpen }"
       data-testid="stage-chain"
     >
       <div class="stage-chain__tag">{{ chainView.previous ? '上一手' : '战斗链' }}</div>
@@ -1194,13 +1229,26 @@ onBeforeUnmount(() => {
               {{ node.state === 'waiting' ? '等待响应' : node.verb }}
             </div>
             <div v-if="node.cost" class="stage-chain__cost">消耗 {{ node.cost }}</div>
-            <div v-for="trigger in node.triggers" :key="trigger.name" class="stage-chain__trigger" :style="{ '--node-color': trigger.stroke }">
-              ✦ {{ trigger.name }}
+            <div
+              v-for="trigger in node.triggers"
+              :key="trigger.name"
+              class="stage-chain__trigger"
+              :style="{ '--node-color': trigger.stroke }"
+              data-testid="stage-chain-trigger"
+            >
+              ✦ {{ trigger.name }}<span v-if="trigger.outcome" class="stage-chain__trigger-outcome">{{ trigger.outcome }}</span>
             </div>
             <div class="stage-chain__names">{{ node.toName ? `${node.fromName} → ${node.toName}` : node.fromName }}</div>
           </div>
         </template>
       </div>
+      <div
+        v-for="row in chainView.outcomes"
+        :key="row.id"
+        :class="row.kind === 'morale' ? 'stage-chain__morale' : 'stage-chain__resource'"
+        :data-testid="row.kind === 'morale' ? 'stage-chain-morale' : 'stage-chain-resource'"
+        v-html="row.html"
+      />
       <div v-for="row in chainView.notes" :key="row.id" class="stage-chain__note">
         <span class="stage-row__text" v-html="row.html" />
       </div>
@@ -2008,7 +2056,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   max-width: 52%;
-  transition: filter 0.5s, opacity 0.5s;
+  transition: filter 0.5s, opacity 0.5s, top 0.3s ease;
+}
+/* 决策面板打开时上移，避免被面板盖住（面板默认在中央偏下，贴手牌上沿） */
+.stage-chain--lifted {
+  top: 26%;
 }
 .stage-chain--prev {
   filter: saturate(0.3) brightness(0.75);
@@ -2261,6 +2313,33 @@ onBeforeUnmount(() => {
   color: #dfe7f2;
   background: rgba(9, 14, 26, 0.9);
   border: 1px solid color-mix(in srgb, var(--node-color) 60%, transparent);
+  animation: stage-node-in 0.35s ease both;
+}
+.stage-chain__trigger-outcome {
+  margin-left: 6px;
+  font-weight: 700;
+  color: #fff;
+}
+.stage-chain__morale {
+  padding: 3px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: linear-gradient(180deg, #a3262f, #6a141b);
+  box-shadow: 0 0 0 1px rgba(255, 140, 150, 0.55), 0 0 12px rgba(226, 82, 94, 0.45);
+  animation: stage-node-in 0.35s ease both;
+}
+.stage-chain__resource {
+  padding: 3px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #fff6dc;
+  background: linear-gradient(180deg, rgba(92, 70, 24, 0.95), rgba(40, 30, 10, 0.95));
+  box-shadow: 0 0 0 1px rgba(240, 195, 90, 0.6);
   animation: stage-node-in 0.35s ease both;
 }
 .stage-chain__note {

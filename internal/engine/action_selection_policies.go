@@ -208,7 +208,8 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		if canCannotAct {
 			state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "cannot_act", Label: "无法行动（展示手牌）"})
 		}
-	} else if !state.hasRestrictedExtraAction {
+	} else {
+		// 额外行动是技能给的奖励，可以放弃：不论有没有可打出的牌都提供"跳过额外行动"。
 		state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "cannot_act", Label: "跳过额外行动"})
 	}
 }

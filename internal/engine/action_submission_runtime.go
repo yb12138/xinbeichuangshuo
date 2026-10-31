@@ -249,11 +249,8 @@ func (e *GameEngine) HandleActionSelectionAttackOrMagic(act model.PlayerAction, 
 }
 
 func (e *GameEngine) HandleActionSelectionCannotAct(player *model.Player) error {
-	// === 额外行动阶段：直接跳过 ===
+	// === 额外行动阶段：随时可以放弃（额外行动是技能奖励，不是必须执行的主行动） ===
 	if player.TurnState.CurrentExtraAction != "" {
-		if e.checkExtraActionCards(player, player.TurnState.CurrentExtraAction, player.TurnState.CurrentExtraElement) {
-			return errors.New("当前额外行动仍有可执行动作，不能跳过")
-		}
 		e.skipExtraAction(player)
 		return nil
 	}
@@ -273,10 +270,8 @@ func (e *GameEngine) validateExtraActionConstraint(p *model.Player, act model.Pl
 	if p.TurnState.CurrentExtraAction != "" {
 		requiredType := p.TurnState.CurrentExtraAction
 
+		// 额外行动随时可以放弃（与是否还有可打出的牌无关）
 		if act.Type == model.CmdCannotAct {
-			if e.checkExtraActionCards(p, requiredType, p.TurnState.CurrentExtraElement) {
-				return fmt.Errorf("当前额外行动仍有可执行动作，不能跳过")
-			}
 			return nil
 		}
 

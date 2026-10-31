@@ -6,6 +6,7 @@ import {
   edgeEnd,
   edgeResolveSteps,
   edgeStartSteps,
+  escapeHtml,
   flowLinkId,
   isSelfResolveEdge,
   flowLogSteps,
@@ -55,7 +56,21 @@ interface FlowMemory {
   narrated: boolean
   /** True once the flow produced its first step (and its mark-previous was enqueued). */
   started: boolean
+  /** 本行动里各玩家已到达的状态差值（每条时间线只带一个事件，特殊行动的后果要跨消息累计）。 */
+  playerDeltas: Map<string, Map<string, number>>
+  /** 本行动里已经出现过的阵营资源差值事件 id（特殊行动节点要排在它们前面）。 */
+  campResourceEventIds: Set<number>
 }
+
+const SPECIAL_ACTION_LABEL: Record<string, string> = { buy: '购买', synthesize: '合成', extract: '提炼' }
+
+/** 引擎给特殊行动的 action_id 加了类型后缀（"nw-t2-p1-a1-buy"）。 */
+function isSpecialActionId(actionId: string): boolean {
+  return /-(buy|synthesize|extract)$/i.test(actionId)
+}
+
+/** 特殊行动后果里只统计这几项（按服务端状态差值类型）。 */
+const PLAYER_OUTCOME_LABEL: Record<string, string> = { hand_count: '手牌', player_gem: '宝石', player_crystal: '水晶' }
 
 /** Keep memory for a bounded number of recent flows. */
 const MAX_REMEMBERED_FLOWS = 16
@@ -89,7 +104,17 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
   function memoryFor(flowId: string): FlowMemory {
     const existing = flows.get(flowId)
     if (existing) return existing
-    const memory: FlowMemory = { edges: new Map(), nodes: new Map(), results: new Map(), logOrders: new Set(), actorId: '', narrated: false, started: false }
+    const memory: FlowMemory = {
+      edges: new Map(),
+      nodes: new Map(),
+      results: new Map(),
+      logOrders: new Set(),
+      actorId: '',
+      narrated: false,
+      started: false,
+      playerDeltas: new Map(),
+      campResourceEventIds: new Set(),
+    }
     flows.set(flowId, memory)
     while (flows.size > MAX_REMEMBERED_FLOWS) {
       const oldest = flows.keys().next().value
@@ -204,8 +229,29 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
     // Heal / status changes only arrive as state deltas; play them after the flow beats they follow.
     if (!payload.is_replay) {
       for (const event of payload.events || []) {
+        // 特殊行动（购买 / 合成 / 提炼）没有攻击连线，流图里只有一个空的行动节点。
+        // 它的摸牌、战绩区星石差值先于 special_action 事件到达，所以从该行动的第一个事件起
+        // 就开新的一手，避免这些差值落进上一手。
+        const actionId = event.action_id || ''
+        if (isSpecialActionId(actionId)) {
+          const memory = memoryFor(actionId)
+          if (!memory.started) {
+            memory.started = true
+            if (actionId !== currentFlowId) batch.push({ type: 'mark-previous' })
+            currentFlowId = actionId
+          }
+        }
+        const special = specialActionStep(event)
+        if (special) {
+          const memory = actionId ? memoryFor(actionId) : null
+          if (!memory || !memory.narrated) {
+            batch.push(special)
+            if (memory) memory.narrated = true
+          }
+        }
         if (!event.deltas?.length) continue
         const flowId = event.action_id || event.source_event_id || ''
+        if (flowId && event.action_id) rememberPlayerDeltas(memoryFor(flowId), event)
         // 状态差值事件本身没有行动者：优先用技能因果的持有者（地下法则 +2 宝石 → 从冒险者飞出）。
         const actorId = event.actor_user_id || event.cause?.owner_id || (flowId ? flows.get(flowId)?.actorId : '') || ''
         const skillId = event.cause?.skill_id || ''
@@ -214,6 +260,46 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
     }
     if (batch.length === 0) return
     stageQueue.enqueue(...(payload.is_replay ? toReplaySteps(batch) : batch))
+  }
+
+  /** special_action 事件 → 战斗链节点。同一事件随整张时间线反复下发，靠 flow 的 narrated 标记去重。 */
+  function specialActionStep(event: NonNullable<TimelineNotifyPayload['events']>[number]): AtomicStep | null {
+    if (event.gameplay_type !== 'special_action') return null
+    const actorId = event.actor_user_id || ''
+    const action = SPECIAL_ACTION_LABEL[String(event.action_type || '').toLowerCase()]
+    if (!actorId || !action) return null
+    const who = roleName(actorId) || playerName(actorId)
+    return {
+      type: 'narration-row',
+      html: `${escapeHtml(who)} 执行特殊行动【${action}】`,
+      tag: '特殊',
+      tagColor: 'grey',
+      special: { actorId, action, outcome: specialActionOutcome(event.action_id || '', actorId) },
+    }
+  }
+
+  function rememberPlayerDeltas(memory: FlowMemory, event: NonNullable<TimelineNotifyPayload['events']>[number]) {
+    for (const delta of event.deltas || []) {
+      const label = PLAYER_OUTCOME_LABEL[delta.type]
+      if (!label || !delta.target_user_id) continue
+      const value = delta.value ?? (delta.after ?? 0) - (delta.before ?? 0)
+      const perPlayer = memory.playerDeltas.get(delta.target_user_id) || new Map<string, number>()
+      perPlayer.set(label, (perPlayer.get(label) ?? 0) + value)
+      memory.playerDeltas.set(delta.target_user_id, perPlayer)
+    }
+  }
+
+  /**
+   * 行动者自身的后果（"手牌 +3" / "宝石 +1 · 水晶 +1"）：取同一行动里该玩家已到达的状态差值，
+   * 不按行动名猜。阵营战绩区的变化由 campResourceSteps 另起一行。
+   */
+  function specialActionOutcome(actionId: string, actorId: string): string {
+    const totals = actionId ? flows.get(actionId)?.playerDeltas.get(actorId) : undefined
+    if (!totals) return ''
+    return [...totals]
+      .filter(([, value]) => value !== 0)
+      .map(([label, value]) => `${label} ${value > 0 ? '+' : ''}${value}`)
+      .join(' · ')
   }
 
   function reset() {

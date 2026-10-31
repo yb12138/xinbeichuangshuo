@@ -72,7 +72,7 @@ export type AtomicStep = StepTiming &
     | { type: 'turn-banner'; text: string; duration: number }
     | { type: 'mark-previous' }
     | { type: 'clear-stage'; summary?: string }
-    | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill }
+    | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill; special?: NarrationSpecial }
     /** 同一技能因果的结果后到（如茧在结算后才放置）：就地更新已有技能行。 */
     | { type: 'skill-result'; causeId: string; outcome: string; cost: string }
     /** 自身形态型（模板 5）：座位包裹光焰 + 形态名横幅。form 为空 = 脱离形态。 */
@@ -105,6 +105,15 @@ export interface NarrationSkill {
   effectText?: string
   /** 同一因果的节点 ID：后续结果到达时就地更新同一节点。 */
   causeId?: string
+}
+
+/** 特殊行动（购买 / 合成 / 提炼）：战斗链里画成一个以行动者为主的节点。 */
+export interface NarrationSpecial {
+  actorId: string
+  /** 行动名："购买" / "合成" / "提炼"。 */
+  action: string
+  /** 行动者自身的后果，如 "摸 3 张牌"；阵营资源变化另起一行。 */
+  outcome: string
 }
 
 /** Structured form of an edge row, rendered as one node of the combat chain. */
@@ -216,6 +225,7 @@ export interface NarrationRow {
   tagColor: LinkColor
   chain?: NarrationChain
   skill?: NarrationSkill
+  special?: NarrationSpecial
 }
 
 export interface PreviousActionState {
@@ -521,7 +531,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
       case 'narration-row':
         stageRows.value = [
           ...stageRows.value,
-          { id: ++seq, html: step.html, tag: step.tag, tagColor: step.tagColor, chain: step.chain, skill: step.skill },
+          { id: ++seq, html: step.html, tag: step.tag, tagColor: step.tagColor, chain: step.chain, skill: step.skill, special: step.special },
         ]
         break
     }
@@ -878,12 +888,67 @@ function stoneFlightSteps(deltas: TimelineDelta[], actorId?: string): AtomicStep
 }
 
 /** @param element 引起这批变化的技能元素（来自因果技能的动画映射），给形态光焰着色。 */
+const CAMP_LABEL: Record<string, string> = { Red: '红方', Blue: '蓝方' }
+
+const CAMP_RESOURCE_LABEL: Record<string, string> = { team_gem: '红宝石', team_crystal: '蓝水晶', team_cup: '星杯' }
+
+/**
+ * 阵营战绩区资源变化（红宝石 / 蓝水晶 / 星杯）：同一阵营同一批合成一行，写进叙述 / 战斗链。
+ * 例："蓝方战绩区 红宝石 +1 · 蓝水晶 +1"。合成星杯时宝石 / 水晶减少也照实写出。
+ */
+function campResourceSteps(deltas: TimelineDelta[]): AtomicStep[] {
+  // 固定顺序：红宝石 → 蓝水晶 → 星杯（服务端差值顺序不稳定）
+  const byCamp = new Map<string, Map<string, number>>()
+  for (const delta of deltas) {
+    if (!CAMP_RESOURCE_LABEL[delta.type] || !delta.camp) continue
+    const value = delta.value ?? (delta.after ?? 0) - (delta.before ?? 0)
+    if (value === 0) continue
+    const totals = byCamp.get(delta.camp) || new Map<string, number>()
+    totals.set(delta.type, (totals.get(delta.type) ?? 0) + value)
+    byCamp.set(delta.camp, totals)
+  }
+  const steps: AtomicStep[] = []
+  for (const [campKey, totals] of byCamp) {
+    const parts = Object.keys(CAMP_RESOURCE_LABEL)
+      .filter((type) => totals.has(type))
+      .map((type) => {
+        const value = totals.get(type)!
+        return `${CAMP_RESOURCE_LABEL[type]} ${value > 0 ? '+' : ''}${value}`
+      })
+    const camp = CAMP_LABEL[campKey] || escapeHtml(campKey)
+    steps.push({ type: 'narration-row', html: `${camp}战绩区 ${parts.join(' · ')}`, tag: '资源', tagColor: 'heal' })
+  }
+  return steps
+}
+
+/** 阵营士气下降：写进叙述 / 战斗链（"红方士气 15 → 13"），士气上升（极少见）同样记录。 */
+function moraleSteps(deltas: TimelineDelta[]): AtomicStep[] {
+  const steps: AtomicStep[] = []
+  for (const delta of deltas) {
+    // 阵营级差值（服务端 scope 为 "team"），按 camp 区分红 / 蓝
+    if (delta.type !== 'morale' || !delta.camp) continue
+    const before = delta.before ?? 0
+    const after = delta.after ?? 0
+    if (before === after) continue
+    const camp = CAMP_LABEL[delta.camp || ''] || escapeHtml(delta.camp || '')
+    steps.push({
+      type: 'narration-row',
+      html: `${camp}士气 ${before} → ${after}`,
+      tag: '士气',
+      tagColor: after < before ? 'attack' : 'heal',
+    })
+  }
+  return steps
+}
+
 export function deltaSteps(deltas: TimelineDelta[], actorId?: string, element?: string): AtomicStep[] {
   const steps: AtomicStep[] = []
   // 模板 4（资源型）：同一批里从牌库放到某座位的盖牌（牌库数量同时减少）合成一次“牌背飞入”。
   const deckDrawn = deltas.some((delta) => delta.type === 'deck_count' && (delta.value ?? 0) < 0)
   const coverPlaced = new Map<string, { count: number; coverKey: string }>()
   steps.push(...stoneFlightSteps(deltas, actorId))
+  steps.push(...moraleSteps(deltas))
+  steps.push(...campResourceSteps(deltas))
   for (const delta of deltas) {
     const target = delta.target_user_id || ''
     if (!target) continue

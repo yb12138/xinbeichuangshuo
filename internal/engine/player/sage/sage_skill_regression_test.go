@@ -902,3 +902,45 @@ func TestSageArcaneCodex_SelfTargetReboundCombo(t *testing.T) {
 	}
 	// 第二次法术反弹成功触发，套路验证通过
 }
+
+// 法术反弹确认提示弹出后同系手牌不再满足（如被其他效果弃牌）：
+// "是"应置灰并说明原因，不能点了才报错；"否"照常结束。
+func TestSageMagicRebound_ConfirmDisabledWhenPairLost(t *testing.T) {
+	g := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := g.AddPlayer("p1", "Sage", "sage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := g.State.Players["p1"]
+	p1.Hand = []model.Card{
+		sageTestCard("f1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		sageTestCard("f2", "烈焰击", model.CardTypeAttack, model.ElementFire),
+	}
+	g.State.Deck = []model.Card{sageTestCard("d1", "水涟斩", model.CardTypeAttack, model.ElementWater)}
+	g.AddPendingDamage(model.PendingDamage{SourceID: "p2", TargetID: "p1", Damage: 1, DamageType: model.MagicAttack})
+	g.State.CombatStage = model.CombatStageCalcDamage
+	runUntilChoiceInterrupt(g, 12)
+	testutils.RequireChoicePrompt(t, g, "p1", "sage_magic_rebound_confirm")
+
+	// 提示挂起期间失去一张火系牌
+	p1.Hand = []model.Card{p1.Hand[0], sageTestCard("w1", "水涟斩", model.CardTypeAttack, model.ElementWater)}
+
+	prompt := g.GetCurrentPrompt()
+	if prompt == nil || len(prompt.Options) != 2 {
+		t.Fatalf("expected rebound confirm prompt, got %+v", prompt)
+	}
+	if !prompt.Options[0].Disabled || !strings.Contains(prompt.Options[0].DisabledReason, "同系") {
+		t.Fatalf("expected 是 disabled with reason, got %+v", prompt.Options[0])
+	}
+	if prompt.Options[1].Disabled {
+		t.Fatalf("expected 否 to stay enabled, got %+v", prompt.Options[1])
+	}
+	if err := g.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
+		t.Fatalf("decline rebound failed: %v", err)
+	}
+	if testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt) == "sage_magic_rebound_confirm" {
+		t.Fatalf("expected rebound prompt closed after 否")
+	}
+}

@@ -59,7 +59,8 @@ func attackGatingHook(rt player.HookRuntime, ctx player.TimingHookContext) playe
 
 func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
-	if p == nil {
+	// 命中后 hook 只要攻击方或目标是兽灵武士就会分派；兽灵武士被别人打中时 SourceID 是攻击者，必须跳过。
+	if p == nil || !player.IsCharacter(p, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
 	if ctx.IsCounter || InIaijutsuForm(p) {

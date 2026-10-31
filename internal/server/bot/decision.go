@@ -110,8 +110,27 @@ func decideAction(input DecisionInput) (model.PlayerAction, bool) {
 
 func decideActionSelection(playerID string, state StateSnapshot, prompt *model.Prompt, me PlayerSnapshot, availableSkills []AvailableSkill, memory *Memory) (model.PlayerAction, bool) {
 	playable := botPlayableCards(me)
+	// 规则强制本行动发动指定技能（如审判满时的末日审判）：只能发动该技能。
+	if prompt.SkillID != "" && !hasPromptOption(prompt, "attack") {
+		for _, sk := range availableSkills {
+			if sk.ID == prompt.SkillID {
+				targetIDs := pickTargetsForSkill(state, me, sk)
+				return model.PlayerAction{
+					PlayerID:  playerID,
+					Type:      model.CmdSkill,
+					SkillID:   sk.ID,
+					TargetIDs: targetIDs,
+					TargetID:  firstOrEmpty(targetIDs),
+				}, true
+			}
+		}
+	}
+
 	attackCards := collectCardIndices(playable, model.CardTypeAttack)
 	magicCards := collectCardIndices(playable, model.CardTypeMagic)
+	if me.CannotCastMagic {
+		magicCards = nil
+	}
 
 	maxHand := estimateMaxHand(me.Role)
 	handPressure := float64(len(me.Hand)) / float64(maxHand)
@@ -155,15 +174,15 @@ func decideActionSelection(playerID string, state StateSnapshot, prompt *model.P
 	if hasPromptOption(prompt, "buy") && handPressure <= 0.6 {
 		return model.PlayerAction{PlayerID: playerID, Type: model.CmdBuy}, true
 	}
-	if hasPromptOption(prompt, "cannot_act") {
-		return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
-	}
-
 	if canAttack {
 		return bestAttack, true
 	}
 	if canMagic {
 		return bestMagic, true
+	}
+	// 额外行动现在总能"跳过"；只有真的没有可打的牌时才放弃，避免白白丢掉额外行动。
+	if hasPromptOption(prompt, "cannot_act") {
+		return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 	}
 
 	// 特殊兜底：无牌可打但有可发动技能
@@ -184,7 +203,7 @@ func pickBestAttack(playerID string, state StateSnapshot, me PlayerSnapshot, att
 	for _, cardIdx := range attackCards {
 		card := hand[cardIdx]
 		for targetID, target := range state.Players {
-			if targetID == playerID || target.Camp == me.Camp {
+			if targetID == playerID || target.Camp == me.Camp || target.NotAttackTargetable {
 				continue
 			}
 			hitProb := estimateHitProbability(state, me, target, card.Element, memory)
@@ -289,6 +308,13 @@ func decideCombatResponse(playerID string, state StateSnapshot, prompt *model.Pr
 
 	defendCards := collectDefendCards(playable)
 	counterCards := collectCounterCards(playable, model.Element(prompt.AttackElement))
+	// 引擎在提示里给出了可用牌（魔弹只能用魔弹传递、命格限制等）时，以引擎为准，避免提交被拒。
+	if len(prompt.DefendCardIDs) > 0 {
+		defendCards = indicesByCardID(playable, prompt.DefendCardIDs)
+	}
+	if len(prompt.CounterCardIDs) > 0 {
+		counterCards = indicesByCardID(playable, prompt.CounterCardIDs)
+	}
 
 	// 先尝试防御：高压局、暗灭攻击、手牌接近上限时更偏防御
 	if hasPromptOption(prompt, "defend") && len(defendCards) > 0 {
@@ -335,6 +361,11 @@ func decideCombatResponse(playerID string, state StateSnapshot, prompt *model.Pr
 
 func decideChooseCards(playerID string, state StateSnapshot, prompt *model.Prompt, me PlayerSnapshot) (model.PlayerAction, bool) {
 	hand := me.Hand
+	// 选项 ID 不一定是手牌下标（如充盈的"-1=不弃置、1..n=候选序号"）；
+	// 选项带 card_id 时按牌 ID 作答，与真人客户端走同一条路径。
+	if action, ok := decideChooseCardsByCardID(playerID, prompt, me); ok {
+		return action, true
+	}
 	candidates := make([]int, 0, len(prompt.Options))
 	for _, opt := range prompt.Options {
 		idx, err := strconv.Atoi(opt.ID)
@@ -386,6 +417,50 @@ func decideChooseCards(playerID string, state StateSnapshot, prompt *model.Promp
 		Type:       model.CmdSelect,
 		Selections: selections,
 	}, true
+}
+
+// decideChooseCardsByCardID 选项 ID 与手牌下标对不上、但带 card_id 时，按牌 ID 选出保留价值最低的牌。
+func decideChooseCardsByCardID(playerID string, prompt *model.Prompt, me PlayerSnapshot) (model.PlayerAction, bool) {
+	if prompt.SkillID == "water_shadow" {
+		return model.PlayerAction{}, false
+	}
+	handIndexByID := make(map[string]int, len(me.Hand))
+	for i, c := range me.Hand {
+		handIndexByID[c.ID] = i
+	}
+	mismatch := false
+	cards := make([]int, 0, len(prompt.Options))
+	for _, opt := range prompt.Options {
+		if opt.CardID == "" || opt.Disabled {
+			continue
+		}
+		idx, ok := handIndexByID[opt.CardID]
+		if !ok {
+			continue
+		}
+		if opt.ID != strconv.Itoa(idx) {
+			mismatch = true
+		}
+		cards = append(cards, idx)
+	}
+	if !mismatch || len(cards) == 0 {
+		return model.PlayerAction{}, false
+	}
+	need := prompt.Min
+	if need <= 0 {
+		need = 1
+	}
+	if need > len(cards) {
+		need = len(cards)
+	}
+	sort.Slice(cards, func(i, j int) bool {
+		return cardKeepValue(me.Role, me.Hand[cards[i]], len(me.Hand)) < cardKeepValue(me.Role, me.Hand[cards[j]], len(me.Hand))
+	})
+	ids := make([]string, 0, need)
+	for _, idx := range cards[:need] {
+		ids = append(ids, me.Hand[idx].ID)
+	}
+	return model.PlayerAction{PlayerID: playerID, Type: model.CmdSelect, CardIDs: ids}, true
 }
 
 func pickWaterShadowDiscards(candidates []int, hand []model.Card, me PlayerSnapshot, minPick, maxPick int) []int {
@@ -829,7 +904,7 @@ func pickFirstEnemy(state StateSnapshot, playerID string) string {
 		if pid == playerID {
 			continue
 		}
-		if p.Camp != me.Camp {
+		if p.Camp != me.Camp && !p.NotAttackTargetable {
 			return pid
 		}
 	}
@@ -919,6 +994,21 @@ func collectCardIndices(hand []model.Card, t model.CardType) []int {
 	out := make([]int, 0, len(hand))
 	for i, c := range hand {
 		if c.Type == t {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// indicesByCardID 按引擎给出的可用牌 ID 取出在 hand 中的位置。
+func indicesByCardID(hand []model.Card, ids []string) []int {
+	allowed := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		allowed[id] = true
+	}
+	out := make([]int, 0, len(ids))
+	for i, c := range hand {
+		if allowed[c.ID] {
 			out = append(out, i)
 		}
 	}

@@ -4,6 +4,7 @@ package engine
 
 import (
 	"starcup-engine/internal/engine/player"
+	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
 
@@ -55,7 +56,72 @@ func (e *GameEngine) isActionSkillUsableForExtraMagic(playerObj *model.Player, s
 		}
 	}
 
+	// Handler 自身的发动条件（形态 / 指示物等，如黑暗诅咒需祈祷形态且有符文）。
+	// 与服务端技能列表的置灰判定保持一致，否则会出现"技能全灰却不能宣告无法行动"的卡局。
+	if !e.actionSkillHandlerAllows(playerObj, skillDef) {
+		return false
+	}
+
 	return true
+}
+
+// actionSkillHandlerAllows 用"此刻发动"的探测上下文调用技能 Handler 的 CanUse。
+func (e *GameEngine) actionSkillHandlerAllows(playerObj *model.Player, skillDef model.SkillDefinition) bool {
+	if skillDef.LogicHandler == "" {
+		return true
+	}
+	// "放置现在、触发在未来"的场牌（如五系封印）：CanUse 判的是未来触发时机，不代表当前能否施放。
+	if skillDef.PlaceCard && skillDef.PlaceMode == model.FieldEffect && skillDef.PlaceHook != model.FieldHookManual {
+		return true
+	}
+	handler := skills.GetHandler(skillDef.LogicHandler)
+	if handler == nil {
+		return true
+	}
+	target := e.probeActionSkillTarget(playerObj, skillDef.TargetType)
+	targetID := playerObj.ID
+	if target != nil {
+		targetID = target.ID
+	}
+	ctx := &model.Context{
+		Game:   e,
+		User:   playerObj,
+		Target: target,
+		Timing: model.TimingActionDuring,
+		EventCtx: &model.EventContext{
+			Type:     model.EventNone,
+			SourceID: playerObj.ID,
+			TargetID: targetID,
+		},
+		Selections: map[string]any{},
+		Flags:      map[string]bool{},
+	}
+	if target != nil {
+		ctx.Targets = []*model.Player{target}
+	}
+	return handler.CanUse(ctx)
+}
+
+// probeActionSkillTarget 取第一个合法候选目标（按座位顺序，结果稳定）。
+func (e *GameEngine) probeActionSkillTarget(user *model.Player, targetType model.TargetType) *model.Player {
+	switch targetType {
+	case model.TargetSelf, model.TargetAllySelf, model.TargetAny, model.TargetSpecific:
+		return user
+	case model.TargetEnemy, model.TargetAlly:
+		for _, pid := range e.State.PlayerOrder {
+			p := e.State.Players[pid]
+			if p == nil {
+				continue
+			}
+			if targetType == model.TargetEnemy && p.Camp != user.Camp {
+				return p
+			}
+			if targetType == model.TargetAlly && p.Camp == user.Camp && p.ID != user.ID {
+				return p
+			}
+		}
+	}
+	return nil
 }
 
 func (e *GameEngine) CanSatisfyActionSkillDiscardRequirement(playerObj *model.Player, skillDef model.SkillDefinition) bool {

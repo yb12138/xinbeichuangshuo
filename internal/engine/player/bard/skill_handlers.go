@@ -191,8 +191,9 @@ func (h *BardHopeFugueHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "bd_hope_draw_confirm",
-			"user_id":     ctx.User.ID,
+			"choice_type":              "bd_hope_draw_confirm",
+			"user_id":                  ctx.User.ID,
+			model.PromptFlowContextKey: hopeFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [希望赋格曲]，请先选择是否摸1张牌", ctx.User.Name))

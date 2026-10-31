@@ -209,6 +209,26 @@ function onGripUp() {
 function resetPosition() {
   uiStore.setDecisionDockOffset({ x: 0, y: 0 })
 }
+/** 键盘挪动：方向键每次 24px（Shift 加速到 96px），回车 / 空格回到默认位置。 */
+function onGripKey(event: KeyboardEvent) {
+  const step = event.shiftKey ? 96 : 24
+  const delta: Record<string, [number, number]> = {
+    ArrowLeft: [-step, 0],
+    ArrowRight: [step, 0],
+    ArrowUp: [0, -step],
+    ArrowDown: [0, step],
+  }
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    resetPosition()
+    return
+  }
+  const move = delta[event.key]
+  if (!move) return
+  event.preventDefault()
+  const cur = uiStore.decisionDockOffset
+  uiStore.setDecisionDockOffset(clampOffset(cur.x + move[0], cur.y + move[1]))
+}
 onBeforeUnmount(() => {
   drag.value = null
   if (clock) clearInterval(clock)
@@ -252,6 +272,17 @@ const dockStyle = computed(() => {
           @pointercancel="onGripUp"
           @dblclick="resetPosition"
         >
+          <span
+            class="decision-dock__grip"
+            role="button"
+            tabindex="0"
+            title="拖动面板（方向键微调，双击回到默认位置）"
+            aria-label="拖动面板；方向键移动，回车回到默认位置"
+            data-testid="decision-dock-grip"
+            @keydown="onGripKey"
+          >
+            <i v-for="n in 6" :key="n" />
+          </span>
           <img v-if="header.avatar" class="decision-dock__avatar" :src="header.avatar" alt="" />
           <div class="decision-dock__titles">
             <div class="decision-dock__who">{{ header.who }}</div>
@@ -397,20 +428,52 @@ const dockStyle = computed(() => {
 }
 
 .decision-dock__head {
+  position: relative;
   cursor: grab;
   user-select: none;
   touch-action: none;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px 8px;
+  padding: 14px 14px 8px;
   border-bottom: 1px solid var(--bt-hairline-soft);
+}
+.decision-dock__head:hover {
+  background: rgba(185, 193, 205, 0.04);
+}
+/* 拖动把手：标题栏顶部居中的 2×3 点阵，悬停 / 聚焦时提亮 */
+.decision-dock__grip {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(3, 4px);
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: grab;
+}
+.decision-dock__grip i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--bt-chrome-mid);
+  transition: background 0.15s ease;
+}
+.decision-dock__head:hover .decision-dock__grip i,
+.decision-dock__grip:focus-visible i {
+  background: var(--bt-chrome-hi);
+}
+.decision-dock__grip:focus-visible {
+  outline: 2px solid var(--bt-active);
+  outline-offset: 1px;
 }
 .decision-dock--dragging .decision-dock__head {
   cursor: grabbing;
 }
 .decision-dock--strip .decision-dock__head {
-  padding: 10px 14px 8px;
+  padding: 14px 14px 8px;
 }
 .decision-dock__avatar {
   width: 38px;

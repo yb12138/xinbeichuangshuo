@@ -45,7 +45,7 @@ export function optionPreview(label: string, hint: string | undefined, handCount
   } else if (/宝石|水晶|星石|能量/.test(text)) {
     glyph = 'crystal'
     tone = 'gain'
-  } else if (/跳过|放弃|不发动|取消/.test(text)) {
+  } else if (/跳过|放弃|不发动|取消|^不(?:摸|弃|使用|放置|转移)/.test(text)) {
     glyph = 'skip'
   }
   return { title, desc, glyph, tone }
@@ -53,10 +53,15 @@ export function optionPreview(label: string, hint: string | undefined, handCount
 
 /**
  * 技能描述里"选择…；然后…"的共同后果，例如舞动的"然后将牌库顶1张牌面朝下放置为茧"。
- * 只取分号或句号之后以"然后"开头的那一句；没有就返回空字符串。
+ * 取分号或句号之后以"然后"开头的那一句，并把紧跟的"；或…"分支一起带上——
+ * 否则"然后选择：A；或B"会被截成只剩 A，看起来像选完就固定执行 A。
+ * "然后选择/选择一项"本身是下一步的分支说明，不是共同后果，不显示。
  */
 export function sharedConsequence(skillDescription: string | undefined): string {
   const text = String(skillDescription || '')
-  const m = text.match(/[；;。]\s*(然后[^；;。]+)/)
-  return m ? m[1]!.trim() : ''
+  const m = text.match(/[；;。]\s*(然后[^；;。]+(?:[；;]\s*或[^；;。]+)*)/)
+  if (!m) return ''
+  const clause = m[1]!.trim()
+  if (/^然后(?:你)?选择/.test(clause)) return ''
+  return clause
 }

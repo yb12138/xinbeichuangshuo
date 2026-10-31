@@ -279,4 +279,49 @@ describe('createStageQueueBridge', () => {
     // Only one skill row: the second notify must not add another node.
     expect(queued().filter((step) => step.type === 'narration-row')).toHaveLength(1)
   })
+
+  // 真实顺序（来自 8081 抓包）：摸牌差值 → 战绩区星石差值 → special_action，每条单独一个时间线消息，
+  // 流图里只有一个空的 "action" 节点。
+  it('narrates a 购买 special action with the actor outcome and the camp stones', () => {
+    const actionId = 'nw-t2-p1-a1-buy'
+    const buyFlow = flow(actionId, [], { action_type: 'unknown', actor_user_id: 'p1', nodes: [{ id: 'n1', order: 1, kind: 'action', label: '行动' }] })
+    const msg = (event: NonNullable<TimelineNotifyPayload['events']>[number]): TimelineNotifyPayload => ({
+      ...payload([buyFlow]),
+      events: [event],
+    })
+    bridge.onTimeline(
+      msg({
+        event_id: 22,
+        action_id: actionId,
+        gameplay_type: 'state_delta',
+        deltas: [
+          { type: 'deck_count', scope: 'global', field: 'deck_count', before: 134, after: 131, value: -3 },
+          { type: 'hand_count', scope: 'player', target_user_id: 'p1', camp: 'Blue', field: 'hand_count', before: 1, after: 4, value: 3 },
+        ],
+      } as never),
+    )
+    bridge.onTimeline(
+      msg({
+        event_id: 25,
+        action_id: actionId,
+        gameplay_type: 'state_delta',
+        deltas: [
+          { type: 'team_gem', scope: 'team', camp: 'Blue', field: 'gem', before: 0, after: 1, value: 1 },
+          { type: 'team_crystal', scope: 'team', camp: 'Blue', field: 'crystal', before: 0, after: 1, value: 1 },
+        ],
+      } as never),
+    )
+    bridge.onTimeline(msg({ event_id: 26, action_id: actionId, gameplay_type: 'special_action', actor_user_id: 'p1', action_type: 'Buy' } as never))
+    // 同一事件随后续消息重复下发也只画一次
+    bridge.onTimeline(msg({ event_id: 26, action_id: actionId, gameplay_type: 'special_action', actor_user_id: 'p1', action_type: 'Buy' } as never))
+
+    const steps = queued()
+    expect(steps[0]).toEqual({ type: 'mark-previous' })
+    const rows = steps.filter((step) => step.type === 'narration-row')
+    expect(rows.map((row) => row.type === 'narration-row' && row.tag)).toEqual(['资源', '特殊'])
+    const special = rows.find((row) => row.type === 'narration-row' && row.special)
+    expect(special && special.type === 'narration-row' && special.special).toEqual({ actorId: 'p1', action: '购买', outcome: '手牌 +3' })
+    const resource = rows.find((row) => row.type === 'narration-row' && row.tag === '资源')
+    expect(resource && resource.type === 'narration-row' && resource.html).toBe('蓝方战绩区 红宝石 +1 · 蓝水晶 +1')
+  })
 })
