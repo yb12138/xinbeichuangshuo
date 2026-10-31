@@ -925,10 +925,15 @@ func TestMagicBowDemonEye_Branch1TargetDiscardsThenUserCharges(t *testing.T) {
 	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p2" {
 		t.Fatalf("expected demon eye force target discard interrupt, got %+v", game.State.PendingInterrupt)
 	}
-	if err := game.ConfirmDiscard("p2", []int{1}); err != nil {
+	// 真实客户端走 HandleAction：目标在魔弓的回合里提交弃牌。
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{1}}); err != nil {
 		t.Fatalf("confirm demon eye target discard failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_charge_card")
+	// 充能提示必须能真正构建出来，否则客户端收不到新提示、仍停在目标的弃牌框上。
+	if prompt := game.GetCurrentPrompt(); prompt == nil || prompt.PlayerID != "p1" || len(prompt.Options) == 0 {
+		t.Fatalf("expected demon eye charge prompt for p1 after target discard, got %+v", prompt)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose demon-eye charge card after target discard failed: %v", err)
 	}

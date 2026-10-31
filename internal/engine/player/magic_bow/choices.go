@@ -959,15 +959,17 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 		return true
 	}
 
-	// 有手牌：推入充能选择中断
+	// 有手牌：推入充能选择中断（与分支②一致，需带上充能流程上下文，否则 BuildPrompt 返回 nil）
+	chargeCtx := map[string]interface{}{
+		"choice_type":       "mb_demon_eye_charge_card",
+		"user_id":           demonEyeUserID,
+		"remaining_indices": engineplayer.AllHandIndices(user),
+	}
+	model.SetPromptFlowContext(chargeCtx, initMagicBowDemonEyeChargeFlow())
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: demonEyeUserID,
-		Context: map[string]interface{}{
-			"choice_type":       "mb_demon_eye_charge_card",
-			"user_id":           demonEyeUserID,
-			"remaining_indices": engineplayer.AllHandIndices(user),
-		},
+		Context:  chargeCtx,
 	})
 	rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 已弃置1张手牌，请选择1张手牌作为充能", user.Name, discardPlayer.Name))
 	return true
