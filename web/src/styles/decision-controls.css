@@ -253,8 +253,11 @@
 }
 .dc-tiles--list .dc-tile {
   flex-direction: row;
+  align-items: center;
+  /* 竖排时不能沿用横排的 flex: 1 1 0 —— 那会让父容器把每行压到只剩文字高度，图标溢出行外。 */
+  flex: 0 0 auto;
   max-width: none;
-  min-height: 0;
+  min-height: 56px;
   gap: 12px;
   padding: 10px 14px;
   text-align: left;
