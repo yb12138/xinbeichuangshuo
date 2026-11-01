@@ -15,6 +15,7 @@ import {
   nodeSkillResult,
   nodeSteps,
   type AtomicStep,
+  type MoraleCauses,
   type useStageQueueStore,
 } from '../stores/stageQueue.store'
 
@@ -33,6 +34,8 @@ export interface StageQueueBridgeDeps {
   playerName: (id: string) => string
   roleName: (id: string) => string
   cardImage?: (card: Card) => string | undefined
+  /** 玩家所属阵营（"Red" / "Blue"），用于把士气下降的原因对到正确的阵营。 */
+  playerCamp?: (id: string) => string
 }
 
 interface EdgeMemory {
@@ -97,9 +100,11 @@ function toReplaySteps(steps: AtomicStep[]): AtomicStep[] {
 }
 
 export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
-  const { stageQueue, playerName, roleName, cardImage } = deps
+  const { stageQueue, playerName, roleName, cardImage, playerCamp } = deps
   const flows = new Map<string, FlowMemory>()
   let currentFlowId: string | null = null
+  /** 引擎在士气差值之前先发 morale_loss 标记说明原因；按阵营暂存，等差值到达时写进士气行。 */
+  const pendingMoraleCauses: MoraleCauses = {}
 
   function memoryFor(flowId: string): FlowMemory {
     const existing = flows.get(flowId)
@@ -249,13 +254,17 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
             if (memory) memory.narrated = true
           }
         }
+        if (event.narrative_kind === 'morale_loss') rememberMoraleCause(event)
         if (!event.deltas?.length) continue
         const flowId = event.action_id || event.source_event_id || ''
         if (flowId && event.action_id) rememberPlayerDeltas(memoryFor(flowId), event)
         // 状态差值事件本身没有行动者：优先用技能因果的持有者（地下法则 +2 宝石 → 从冒险者飞出）。
         const actorId = event.actor_user_id || event.cause?.owner_id || (flowId ? flows.get(flowId)?.actorId : '') || ''
         const skillId = event.cause?.skill_id || ''
-        batch.push(...deltaSteps(event.deltas, actorId, skillId ? SKILL_ANIMATION_MAP[skillId]?.element : undefined))
+        batch.push(...deltaSteps(event.deltas, actorId, skillId ? SKILL_ANIMATION_MAP[skillId]?.element : undefined, pendingMoraleCauses))
+        for (const delta of event.deltas) {
+          if (delta.type === 'morale' && delta.camp) delete pendingMoraleCauses[delta.camp]
+        }
       }
     }
     if (batch.length === 0) return
@@ -276,6 +285,16 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
       tagColor: 'grey',
       special: { actorId, action, outcome: specialActionOutcome(event.action_id || '', actorId) },
     }
+  }
+
+  /** "吟游诗人爆牌" / "吟游诗人爆牌 · 凋零"：爆牌者 + 造成伤害的技能（若有）。 */
+  function rememberMoraleCause(event: NonNullable<TimelineNotifyPayload['events']>[number]) {
+    const victimId = event.actor_user_id || ''
+    const camp = victimId && playerCamp ? playerCamp(victimId) : ''
+    if (!victimId || !camp) return
+    const who = roleName(victimId) || playerName(victimId)
+    const skill = String(event.skill_name || '').trim()
+    pendingMoraleCauses[camp] = skill ? `${who}爆牌 · ${skill}` : `${who}爆牌`
   }
 
   function rememberPlayerDeltas(memory: FlowMemory, event: NonNullable<TimelineNotifyPayload['events']>[number]) {
@@ -303,6 +322,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
   }
 
   function reset() {
+    for (const camp of Object.keys(pendingMoraleCauses)) delete pendingMoraleCauses[camp]
     flows.clear()
     currentFlowId = null
     stageQueue.reset()

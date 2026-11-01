@@ -84,6 +84,7 @@ type GameStateUpdate struct {
 	Subflow             string                `json:"subflow,omitempty"`
 	CurrentPlayer       string                `json:"current_player"`
 	HasPerformedStartup bool                  `json:"has_performed_startup"`
+	TurnNumber          int                   `json:"turn_number,omitempty"`
 	Players             map[string]PlayerView `json:"players"`
 	RedMorale           int                   `json:"red_morale"`
 	BlueMorale          int                   `json:"blue_morale"`

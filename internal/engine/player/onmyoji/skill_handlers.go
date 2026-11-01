@@ -78,6 +78,11 @@ func (h *OnmyojiShikigamiShiftHandler) Execute(ctx *model.Context) error {
 
 type OnmyojiDarkRitualHandler struct{ engineplayer.BaseHandler }
 
+// CanUse 黑暗祭礼的真正触发在回合结束 hook（turnEndDarkRitualHook：鬼火达上限才推目标选择，
+// 结算时再发 skill_activated）。这里的 handler 只占位：若返回 true，静默执行器会在每次行动结束
+// 跑一遍空的 Execute 并发出"发动黑暗祭礼"，战斗链里就会出现没有实际效果的黑暗祭礼。
+func (h *OnmyojiDarkRitualHandler) CanUse(ctx *model.Context) bool { return false }
+
 func (h *OnmyojiDarkRitualHandler) Execute(ctx *model.Context) error { return nil }
 
 type OnmyojiBindingHandler struct{ engineplayer.BaseHandler }

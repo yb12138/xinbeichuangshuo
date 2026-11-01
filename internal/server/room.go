@@ -45,6 +45,10 @@ type Room struct {
 	publicTimelineSnapshot *publicTimelineSnapshot
 	// eventCause 正在处理的引擎事件所带的因果，盖到本次广播的时间线条目上。
 	eventCause *model.Cause
+	// eventTrace 正在处理的引擎事件所带的叙事归属（窗口 / 行动 / 战斗 ID）。日志、状态差值等
+	// 不自带 trace 的条目用它，而不是沿用历史里最后一条——否则新回合开始的结算（虚弱等）
+	// 会被记到上一名玩家"回合结束"那一手里。
+	eventTrace *model.NarrativeTracePayload
 	// BotsPaused E2E 测试模式：暂停 bot 自动行动
 	BotsPaused bool
 	// actorLoopStarted 标记房间 Run 循环已启动，可用于将 gameplay 输入统一串行化到 inbox。

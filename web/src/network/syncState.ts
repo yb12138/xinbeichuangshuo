@@ -15,6 +15,7 @@ export function buildGameStateUpdateFromSyncState(payload: SyncStatePayload): Ga
     subflow: payload.subflow,
     current_player: payload.turn_player_id,
     has_performed_startup: payload.has_performed_startup,
+    turn_number: payload.turn_number,
     players,
     red_morale: payload.morale_red,
     blue_morale: payload.morale_blue,

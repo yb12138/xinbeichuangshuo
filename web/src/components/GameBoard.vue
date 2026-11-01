@@ -62,14 +62,28 @@ const {
 } = storeToRefs(battleReviewStore)
 const { drawBursts, initiatorFocus, turnBannerRequest } = storeToRefs(battleFxStore)
 
-// 回合横幅：行动玩家切换时短暂显示“红方 · 封印师 的回合”
-const TURN_BANNER_DURATION_MS = 2000
-const turnBanner = ref<{ text: string; visible: boolean; camp: 'Red' | 'Blue' | ''; id: number }>({
+// 回合徽章（方案A，outimage/暗黑奇幻卡牌回合提示方案板.png）：行动者切换时从顶部牌堆下方滑出，
+// 头像 + "狂战士 的回合" + "红阵营 · 第 12 回合"；只占顶部一窄条，不遮挡中央战斗链。
+const TURN_BANNER_DURATION_MS = 2200
+const turnBanner = ref<{
+  text: string
+  subtitle: string
+  portrait: string
+  isMine: boolean
+  visible: boolean
+  camp: 'Red' | 'Blue' | ''
+  id: number
+}>({
   text: '',
+  subtitle: '',
+  portrait: '',
+  isMine: false,
   visible: false,
   camp: '',
   id: 0,
 })
+const turnBannerPortraitFailed = ref(false)
+
 let turnBannerTimer: ReturnType<typeof setTimeout> | null = null
 const turnBannerTrigger = computed(() => turnBannerRequest.value)
 watch(turnBannerTrigger, (request) => {
@@ -81,7 +95,16 @@ watch(turnBannerTrigger, (request) => {
     turnBanner.value = { ...turnBanner.value, visible: false }
     return
   }
-  turnBanner.value = { text: request.text, visible: true, camp: request.camp, id: request.id }
+  turnBannerPortraitFailed.value = false
+  turnBanner.value = {
+    text: request.text,
+    subtitle: request.subtitle || '',
+    portrait: characterArtSrc(request.roleId),
+    isMine: !!request.isMine,
+    visible: true,
+    camp: request.camp,
+    id: request.id,
+  }
   turnBannerTimer = setTimeout(() => {
     turnBanner.value = { ...turnBanner.value, visible: false }
     turnBannerTimer = null
@@ -89,6 +112,8 @@ watch(turnBannerTrigger, (request) => {
 })
 const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
 const {
+  currentPlayer: turnPlayerId,
+  turnNumber,
   players,
   redMorale,
   blueMorale,
@@ -101,6 +126,29 @@ const {
   deckCount,
   characters,
 } = storeToRefs(snapshotStore)
+/**
+ * 常驻停靠徽章：大徽章收起后，缩成紧凑款停在当前行动方的阵营条内侧，直到下次换人。
+ * 由快照计算（不依赖换回合事件），刷新 / 重连后也能显示。
+ */
+const dockedTurnBadge = computed(() => {
+  const pid = turnPlayerId.value
+  const player = pid ? players.value[pid] : undefined
+  if (!player || (player.camp !== 'Red' && player.camp !== 'Blue')) return null
+  const roleId = String(player.role || '').trim()
+  const roleName = (roleId && characters.value[roleId]?.name) || player.name || pid
+  const isMine = !!myPlayerId.value && pid === myPlayerId.value
+  return {
+    camp: player.camp as 'Red' | 'Blue',
+    text: isMine ? '你的回合' : roleName,
+    sub: turnNumber.value > 0 ? `第 ${turnNumber.value} 回合` : '',
+    portrait: characterArtSrc(roleId),
+    isMine,
+  }
+})
+const dockedTurnBadgePortraitFailed = ref(false)
+watch(() => dockedTurnBadge.value?.portrait, () => {
+  dockedTurnBadgePortraitFailed.value = false
+})
 const {
   currentPrompt,
   selectedHandIndexes,
@@ -2571,6 +2619,31 @@ const fighterHundredDragonByPlayer = computed(() => {
 
       <div class="camp-bar camp-blue-bar">
         <span class="camp-side-label camp-side-label-left">蓝阵营</span>
+        <Transition name="turn-dock">
+          <span
+            v-if="dockedTurnBadge && dockedTurnBadge.camp === 'Blue' && !turnBanner.visible"
+            :key="dockedTurnBadge.text"
+            class="turn-dock turn-dock--blue"
+            :class="{ 'turn-dock--mine': dockedTurnBadge.isMine }"
+            role="status"
+            :aria-label="`${dockedTurnBadge.text} ${dockedTurnBadge.sub}`"
+            data-testid="turn-dock"
+          >
+            <span class="turn-dock__avatar" aria-hidden="true">
+              <img
+                v-if="dockedTurnBadge.portrait && !dockedTurnBadgePortraitFailed"
+                :src="dockedTurnBadge.portrait"
+                alt=""
+                draggable="false"
+                @error="dockedTurnBadgePortraitFailed = true"
+              />
+            </span>
+            <span class="turn-dock__text">{{ dockedTurnBadge.text }}</span>
+            <span v-if="!dockedTurnBadge.isMine" class="turn-dock__verb">行动中</span>
+            <span v-if="dockedTurnBadge.sub" class="turn-dock__sub">{{ dockedTurnBadge.sub }}</span>
+          </span>
+        </Transition>
+
         <div class="camp-center-metrics">
           <!-- :key 绑定数值，数值变化时重新挂载以触发 bump 动画 -->
           <span :key="'blue-morale-' + blueMorale" class="camp-score" title="士气">{{ blueMorale }}</span>
@@ -2608,8 +2681,64 @@ const fighterHundredDragonByPlayer = computed(() => {
         <span :key="'deck-' + deckCount" class="top-deck-count">{{ deckCount }}</span>
       </div>
 
+      <Transition name="turn-banner">
+        <div
+          v-if="turnBanner.visible"
+          :key="turnBanner.id"
+          class="turn-banner"
+          :class="{
+            'turn-banner--red': turnBanner.camp === 'Red',
+            'turn-banner--blue': turnBanner.camp === 'Blue',
+            'turn-banner--mine': turnBanner.isMine,
+          }"
+          role="status"
+          aria-live="polite"
+          data-testid="turn-banner"
+        >
+          <span class="turn-banner__avatar" aria-hidden="true">
+            <img
+              v-if="turnBanner.portrait && !turnBannerPortraitFailed"
+              :src="turnBanner.portrait"
+              alt=""
+              draggable="false"
+              @error="turnBannerPortraitFailed = true"
+            />
+          </span>
+          <span class="turn-banner__body">
+            <span class="turn-banner__text" data-testid="turn-banner-text">{{ turnBanner.text }}</span>
+            <span v-if="turnBanner.subtitle" class="turn-banner__sub" data-testid="turn-banner-sub">{{ turnBanner.subtitle }}</span>
+          </span>
+          <i class="turn-banner__gem" aria-hidden="true" />
+        </div>
+      </Transition>
+
       <div class="camp-bar camp-red-bar">
         <span class="camp-side-label camp-side-label-right">红阵营</span>
+        <Transition name="turn-dock">
+          <span
+            v-if="dockedTurnBadge && dockedTurnBadge.camp === 'Red' && !turnBanner.visible"
+            :key="dockedTurnBadge.text"
+            class="turn-dock turn-dock--red"
+            :class="{ 'turn-dock--mine': dockedTurnBadge.isMine }"
+            role="status"
+            :aria-label="`${dockedTurnBadge.text} ${dockedTurnBadge.sub}`"
+            data-testid="turn-dock"
+          >
+            <span class="turn-dock__avatar" aria-hidden="true">
+              <img
+                v-if="dockedTurnBadge.portrait && !dockedTurnBadgePortraitFailed"
+                :src="dockedTurnBadge.portrait"
+                alt=""
+                draggable="false"
+                @error="dockedTurnBadgePortraitFailed = true"
+              />
+            </span>
+            <span class="turn-dock__text">{{ dockedTurnBadge.text }}</span>
+            <span v-if="!dockedTurnBadge.isMine" class="turn-dock__verb">行动中</span>
+            <span v-if="dockedTurnBadge.sub" class="turn-dock__sub">{{ dockedTurnBadge.sub }}</span>
+          </span>
+        </Transition>
+
         <div class="camp-center-metrics">
           <span :key="'red-morale-' + redMorale" class="camp-score" title="士气">{{ redMorale }}</span>
           <span
@@ -2843,22 +2972,6 @@ const fighterHundredDragonByPlayer = computed(() => {
             />
           </div>
 
-          <Transition name="turn-banner">
-            <div
-              v-if="turnBanner.visible"
-              :key="turnBanner.id"
-              class="turn-banner"
-              :class="{
-                'turn-banner--red': turnBanner.camp === 'Red',
-                'turn-banner--blue': turnBanner.camp === 'Blue',
-              }"
-              role="status"
-              aria-live="polite"
-              data-testid="turn-banner"
-            >
-              <span class="turn-banner__text">{{ turnBanner.text }}</span>
-            </div>
-          </Transition>
         </div>
 
         <div class="bottom-hud flex-shrink-0 min-h-0 mt-2">
@@ -3599,50 +3712,231 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 /* 回合横幅：位于牌桌之上（seat 12 / 战斗区 5），低于提示/操作坞（24+）与连线层 */
+/* 放在顶部 HUD 内、居中压在牌堆上：落在两侧阵营分数之间的空白段，不遮挡下方的战斗链 */
 .turn-banner {
-  --turn-banner-color: rgba(212, 166, 74, 0.82);
+  /* 阵营色只做点缀：细线、头像光圈、菱形 */
+  --turn-banner-camp: #c9a45c;
+  --turn-banner-camp-glow: rgba(201, 164, 92, 0.35);
   position: absolute;
   left: 50%;
-  top: 38%;
-  z-index: 20;
-  width: min(720px, 86%);
+  top: 50%;
+  z-index: 25;
   transform: translate(-50%, -50%);
-  padding: 12px 24px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 260px;
+  /* 两侧阵营分数约占到 30% / 70%，中间 40% 是空白段 */
+  max-width: min(440px, 38vw);
+  height: 60px;
+  padding: 0 34px 0 8px;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent 0%, var(--turn-banner-color) 30%, var(--turn-banner-color) 70%, transparent 100%);
+  /* 切角徽章：左右两端斜切 */
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+  background:
+    linear-gradient(90deg, transparent, var(--turn-banner-camp) 18%, var(--turn-banner-camp) 82%, transparent) top / 100% 1px no-repeat,
+    linear-gradient(90deg, transparent, var(--turn-banner-camp) 18%, var(--turn-banner-camp) 82%, transparent) bottom / 100% 1px no-repeat,
+    radial-gradient(120% 140% at 22% 50%, var(--turn-banner-camp-glow), transparent 60%),
+    linear-gradient(180deg, rgba(20, 27, 39, 0.94), rgba(11, 15, 22, 0.94));
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
 }
 
 .turn-banner--red {
-  --turn-banner-color: rgba(220, 38, 38, 0.78);
+  --turn-banner-camp: #c0303c;
+  --turn-banner-camp-glow: rgba(192, 48, 60, 0.32);
 }
 
 .turn-banner--blue {
-  --turn-banner-color: rgba(37, 99, 235, 0.78);
+  --turn-banner-camp: #3b6fd8;
+  --turn-banner-camp-glow: rgba(59, 111, 216, 0.32);
+}
+
+/* 轮到我：金色描边加强 + 一次光扫 */
+.turn-banner--mine {
+  --turn-banner-camp: #ffd98a;
+  --turn-banner-camp-glow: rgba(255, 217, 138, 0.3);
+}
+.turn-banner--mine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 236, 190, 0.28) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: turn-banner-sweep 1.1s ease-out 0.25s both;
+}
+
+.turn-banner__avatar {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bt-bg-1, #111722);
+  box-shadow:
+    0 0 0 2px var(--turn-banner-camp),
+    0 0 0 4px rgba(0, 0, 0, 0.55),
+    0 0 12px var(--turn-banner-camp-glow);
+}
+.turn-banner__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+}
+
+.turn-banner__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
 }
 
 .turn-banner__text {
-  color: #fff;
-  font-size: clamp(18px, 2.2vw, 28px);
+  color: #f4ecd8;
+  font-size: clamp(16px, 1.5vw, 20px);
   font-weight: 800;
-  letter-spacing: 0.16em;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.turn-banner--mine .turn-banner__text {
+  color: #ffd98a;
+}
+
+.turn-banner__sub {
+  margin-top: 3px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--bt-text-sub, #9aa4b5);
+  white-space: nowrap;
+}
+
+.turn-banner__gem {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translateY(-50%) rotate(45deg);
+  background: var(--turn-banner-camp);
+  box-shadow: 0 0 8px var(--turn-banner-camp-glow);
+}
+
+/* 常驻停靠徽章：阵营条内侧（靠中间牌堆一侧）的紧凑胶囊，阵营色细描边 */
+.turn-dock {
+  --turn-dock-camp: var(--camp-accent, #c9a45c);
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  max-width: 40%;
+  padding: 0 12px 0 3px;
+  border-radius: 999px;
+  pointer-events: none;
+  white-space: nowrap;
+  background: linear-gradient(180deg, rgba(20, 27, 39, 0.92), rgba(11, 15, 22, 0.92));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--turn-dock-camp) 70%, transparent),
+    0 0 10px color-mix(in srgb, var(--turn-dock-camp) 30%, transparent);
+}
+/* 蓝方条在左：贴右端（靠牌堆）；红方条在右：贴左端 */
+.turn-dock--blue {
+  right: calc(var(--camp-chamfer, 16px) + 10px);
+}
+.turn-dock--red {
+  left: calc(var(--camp-chamfer, 16px) + 10px);
+}
+.turn-dock--mine {
+  --turn-dock-camp: #ffd98a;
+}
+.turn-dock__avatar {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bt-bg-1, #111722);
+  box-shadow: 0 0 0 1.5px var(--turn-dock-camp);
+}
+.turn-dock__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+}
+.turn-dock__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #f4ecd8;
+}
+.turn-dock--mine .turn-dock__text {
+  color: #ffd98a;
+}
+.turn-dock__verb {
+  font-size: 12px;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+.turn-dock__sub {
+  font-size: 11px;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+/* 停靠的同时阵营条上的数值不能被挡：这一侧的数值向外让出位置 */
+.camp-blue-bar:has(.turn-dock) .camp-center-metrics {
+  transform: translateX(-18%);
+}
+.camp-red-bar:has(.turn-dock) .camp-center-metrics {
+  transform: translateX(18%);
+}
+.camp-center-metrics {
+  transition: transform 0.3s ease;
+}
+
+.turn-dock-enter-active,
+.turn-dock-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.turn-dock-enter-from,
+.turn-dock-leave-to {
+  opacity: 0;
+}
+.turn-dock--blue.turn-dock-enter-from {
+  transform: translate(24px, -50%);
+}
+.turn-dock--red.turn-dock-enter-from {
+  transform: translate(-24px, -50%);
 }
 
 .turn-banner-enter-active,
 .turn-banner-leave-active {
-  transition: opacity 0.28s ease, transform 0.28s ease;
+  transition: opacity 0.26s ease, transform 0.26s ease;
 }
 
+/* 从牌堆里"展开"：先收在中间，再向两侧撑开 */
 .turn-banner-enter-from {
   opacity: 0;
-  transform: translate(-50%, -50%) scaleX(0.6);
+  transform: translate(-50%, -50%) scaleX(0.4);
 }
 
 .turn-banner-leave-to {
   opacity: 0;
-  transform: translate(-50%, -50%) scaleX(1.08);
+  transform: translate(-50%, -50%) scaleX(0.7);
+}
+
+@keyframes turn-banner-sweep {
+  to {
+    transform: translateX(100%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3654,6 +3948,11 @@ const fighterHundredDragonByPlayer = computed(() => {
   .turn-banner-enter-from,
   .turn-banner-leave-to {
     transform: translate(-50%, -50%);
+  }
+
+  .turn-banner--mine::after {
+    animation: none;
+    display: none;
   }
 }
 
@@ -3954,6 +4253,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .top-hud {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;

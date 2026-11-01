@@ -1049,3 +1049,52 @@ func TestButterflyReverse_Branch2ListedButDisabledWithoutPupa(t *testing.T) {
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_mode")
 }
+
+// 凋零的伤害让目标爆牌掉士气：士气原因标记要写出来源技能「凋零」，前端才能写"XX爆牌 · 凋零"。
+func TestButterflyWither_MoraleLossMarkerNamesWither(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Bard", "bard", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.Deck = rules.InitDeck()
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Heal = 0
+	p2.Heal = 0
+	p2.Hand = nil
+	for i := 0; i < 6; i++ {
+		p2.Hand = append(p2.Hand, butterflyTestCard(fmt.Sprintf("b%d", i), model.CardTypeAttack, model.ElementFire))
+	}
+
+	butterflydancer.QueueWitherChoice(engine.NewRoleChoiceRuntime(game), p1)
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	// 目标列表按玩家顺序：p1、p2，选 p2（吟游诗人）
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	// 吟游诗人爆牌，弃 1 张
+	for i := 0; i < 4 && game.State.PendingInterrupt != nil; i++ {
+		p := game.GetCurrentPrompt()
+		if p == nil || p.PlayerID != "p2" {
+			break
+		}
+		testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdSelect, Selections: []int{0}})
+	}
+
+	var marker *model.TimelineMarkerPayload
+	for _, ev := range obs.Events {
+		if ev.Type == model.EventTimelineMarker && ev.TimelineMarker != nil && ev.TimelineMarker.NarrativeKind == "morale_loss" && ev.TimelineMarker.PlayerID == "p2" {
+			marker = ev.TimelineMarker
+		}
+	}
+	if marker == nil {
+		t.Fatalf("expected a morale_loss marker for the bard; red morale=%d", game.State.RedMorale)
+	}
+	if marker.SkillName != "凋零" {
+		t.Fatalf("expected the marker to name 凋零 as the source skill, got %q (skill_id=%q)", marker.SkillName, marker.SkillID)
+	}
+}

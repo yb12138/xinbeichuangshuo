@@ -26,6 +26,15 @@ func (r *Room) nextTimelineEventMeta() (int64, string, int, string, string, stri
 }
 
 func (r *Room) buildTimelineNotify(payload timeline.Payload) TimelineNotifyPayload {
+	if payload.Trace == nil && r.eventTrace != nil {
+		// 只继承归属 ID，不继承具体的叙事种类（日志 / 差值有自己的种类）。
+		payload.Trace = &model.NarrativeTracePayload{
+			NarrativeWindowID: r.eventTrace.NarrativeWindowID,
+			ActionID:          r.eventTrace.ActionID,
+			CombatID:          r.eventTrace.CombatID,
+			SourceEventID:     r.eventTrace.SourceEventID,
+		}
+	}
 	if payload.Trace == nil {
 		payload.Trace = r.inheritActiveNarrativeTrace()
 	}

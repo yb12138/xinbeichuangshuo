@@ -40,6 +40,8 @@ type GameEngine struct {
 	actionSummary *actionSummary
 	// actionSummaryTurn 汇总所绑定的回合索引，用于跨回合清空。
 	actionSummaryTurn int
+	// damageSourceDealDispatching 正在分派攻击方增伤 hook（用于发出逐个技能的伤害修正标记）。
+	damageSourceDealDispatching bool
 	// suppressSealOnDiscard 为 true 时跳过某次弃牌链路上的封印检测（避免死循环或特殊剧情）。
 	suppressSealOnDiscard bool
 	// roleTimingHooks 声明式 Timing Hook 注册表（按 timing 分组，已排序）。

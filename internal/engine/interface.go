@@ -72,6 +72,14 @@ func (e *GameEngine) GetPlayerOrientation(playerID string) model.CharacterOrient
 	return effectivePlayerOrientation(player)
 }
 
+// TurnNumber 当前回合序号（从 1 起，每换一名行动者 +1；与行动汇总"回合N"一致）。
+func (e *GameEngine) TurnNumber() int {
+	if e.actionSummaryTurn <= 0 {
+		return 1
+	}
+	return e.actionSummaryTurn
+}
+
 func (e *GameEngine) GetPlayerForm(playerID string) string {
 	player := e.State.Players[playerID]
 	return effectivePlayerForm(player)

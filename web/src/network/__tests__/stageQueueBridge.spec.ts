@@ -7,6 +7,7 @@ import type { FieldCard } from '../../types/game'
 
 const NAMES: Record<string, string> = { p1: '测试玩家1', p5: '测试玩家5' }
 const ROLES: Record<string, string> = { p1: '圣女', p5: '封印师' }
+const CAMPS: Record<string, string> = { p1: 'Red', p5: 'Blue' }
 
 function attackEdge(overrides: Partial<ActionFlowEdgeDTO> = {}): ActionFlowEdgeDTO {
   return { id: 'e1', order: 1, from_user_id: 'p5', to_user_id: 'p1', phase: 'attack', label: '攻击·暗灭', ...overrides }
@@ -34,6 +35,7 @@ describe('createStageQueueBridge', () => {
       stageQueue: store,
       playerName: (id) => NAMES[id] || id,
       roleName: (id) => ROLES[id] || '',
+      playerCamp: (id) => CAMPS[id] || '',
     })
   })
 
@@ -323,5 +325,35 @@ describe('createStageQueueBridge', () => {
     expect(special && special.type === 'narration-row' && special.special).toEqual({ actorId: 'p1', action: '购买', outcome: '手牌 +3' })
     const resource = rows.find((row) => row.type === 'narration-row' && row.tag === '资源')
     expect(resource && resource.type === 'narration-row' && resource.html).toBe('蓝方战绩区 红宝石 +1 · 蓝水晶 +1')
+  })
+
+  // 真实顺序（8081 抓包）：morale_loss 标记（说明谁爆牌、来源技能）先到，紧接着士气差值。
+  it('writes the cause into the morale line (爆牌者 · 来源技能)', () => {
+    const msg = (event: NonNullable<TimelineNotifyPayload['events']>[number]): TimelineNotifyPayload => ({ ...payload([]), events: [event] })
+    bridge.onTimeline(
+      msg({ event_id: 55, action_id: 'a1', narrative_kind: 'morale_loss', actor_user_id: 'p1', target_user_ids: ['p1', 'p5'], skill_name: '凋零' } as never),
+    )
+    bridge.onTimeline(
+      msg({
+        event_id: 56,
+        action_id: 'a1',
+        gameplay_type: 'state_delta',
+        deltas: [{ type: 'morale', scope: 'team', camp: 'Red', field: 'morale', before: 15, after: 14, value: -1 }],
+      } as never),
+    )
+    const row = queued().find((step) => step.type === 'narration-row' && step.tag === '士气')
+    expect(row && row.type === 'narration-row' && row.html).toBe('红方士气 15 → 14（圣女爆牌 · 凋零）')
+  })
+
+  it('does not reuse a stale cause for a later morale drop', () => {
+    const msg = (event: NonNullable<TimelineNotifyPayload['events']>[number]): TimelineNotifyPayload => ({ ...payload([]), events: [event] })
+    bridge.onTimeline(msg({ event_id: 1, action_id: 'a1', narrative_kind: 'morale_loss', actor_user_id: 'p1' } as never))
+    const drop = (id: number, before: number, after: number) =>
+      msg({ event_id: id, action_id: 'a1', gameplay_type: 'state_delta', deltas: [{ type: 'morale', scope: 'team', camp: 'Red', field: 'morale', before, after, value: after - before }] } as never)
+    bridge.onTimeline(drop(2, 15, 14))
+    // 第二次士气下降没有对应的原因标记（例如合成星杯），不能沿用上一条原因
+    bridge.onTimeline(drop(3, 14, 13))
+    const rows = queued().filter((step) => step.type === 'narration-row' && step.tag === '士气')
+    expect(rows.map((row) => row.type === 'narration-row' && row.html)).toEqual(['红方士气 15 → 14（圣女爆牌）', '红方士气 14 → 13'])
   })
 })

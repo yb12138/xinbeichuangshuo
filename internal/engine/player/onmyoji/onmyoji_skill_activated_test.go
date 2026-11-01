@@ -98,3 +98,38 @@ func TestOnmyojiYinYangShift_EmitsSkillActivatedTargetingAttacker(t *testing.T) 
 		t.Fatalf("unexpected payload: %+v", events[0])
 	}
 }
+
+// 鬼火未达上限：行动结束 / 回合结束都不应出现"发动黑暗祭礼"（静默技能占位 handler 不能空跑）。
+func TestOnmyojiDarkRitual_NoActivationBelowCap(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Onmyoji", "onmyoji", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1, p2 := game.State.Players["p1"], game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["onmyoji_ghost_fire"] = 1
+	p1.Hand = []model.Card{{ID: "a1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2}}
+	p2.Hand = nil
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, CardID: testutils.PlayableCardID(t, game, "p1", 0), TargetID: "p2"}); err != nil {
+		t.Fatal(err)
+	}
+	game.Drive()
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}}); err != nil {
+		t.Fatal(err)
+	}
+	game.Drive()
+	if got := len(obs.SkillActivated("onmyoji_dark_ritual")); got != 0 {
+		t.Fatalf("expected no 黑暗祭礼 with ghost fire below cap, got %d activations", got)
+	}
+	if got := choiceTypeOf(game.State.PendingInterrupt); got == "onmyoji_dark_ritual_target" {
+		t.Fatalf("黑暗祭礼 target prompt must not appear below cap")
+	}
+}

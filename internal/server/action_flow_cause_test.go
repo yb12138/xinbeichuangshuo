@@ -205,3 +205,127 @@ func TestActionFlowCause_UndergroundLawCampGemsAttributed(t *testing.T) {
 	}
 	t.Fatalf("expected a team_gem +2 delta after buy")
 }
+
+// 天之弓：非圣命格主动攻击伤害 -1 只是返回修正值、不改待结算伤害，
+// 也要作为技能节点进入战斗链（"天之弓 伤害 -1"），否则玩家看不出伤害为什么少了 1。
+func TestActionFlowCause_HeavenlyBowDamageReductionShownInChain(t *testing.T) {
+	for _, tc := range []struct {
+		faction    string
+		wantReduce bool
+		wantDamage int
+	}{
+		{faction: "血", wantReduce: true, wantDamage: 1},
+		{faction: "圣", wantReduce: false, wantDamage: 2},
+	} {
+		t.Run(tc.faction, func(t *testing.T) {
+			room := newCauseFlowRoom(t,
+				map[string]string{"p1": "holy_bow", "p2": "berserker"},
+				map[string]model.Camp{"p1": model.BlueCamp, "p2": model.RedCamp},
+				[]string{"p1", "p2"})
+			setActivePlayer(room, "p1")
+			st := room.Engine.State
+			st.TurnStage = model.TurnStageActionExecution
+			st.PendingInterrupt = nil
+			st.InterruptQueue = nil
+			p1, p2 := st.Players["p1"], st.Players["p2"]
+			p1.TurnState = model.NewPlayerTurnState()
+			p1.Hand = []model.Card{{ID: "a1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2, Faction: tc.faction}}
+			p2.Hand = nil
+			room.Engine.Drive()
+			if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, CardID: "a1", TargetID: "p2"}); err != nil {
+				t.Fatal(err)
+			}
+			room.Engine.Drive()
+			if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}}); err != nil {
+				t.Fatal(err)
+			}
+			room.Engine.Drive()
+
+			reduced, damage := false, 0
+			for _, flow := range replayFlows(room) {
+				for _, node := range skillNodes(flow, "hb_heavenly_bow") {
+					for _, effect := range node.Effects {
+						if effect.Kind == "damage_modified" && effect.Summary == "伤害 -1" {
+							reduced = true
+						}
+					}
+				}
+				for _, edge := range flow.Edges {
+					if edge.Phase == "take" && edge.ToUserID == "p2" {
+						damage = edge.Damage
+					}
+				}
+			}
+			if reduced != tc.wantReduce {
+				t.Fatalf("faction %s: expected 天之弓 伤害 -1 in chain = %v, got %v", tc.faction, tc.wantReduce, reduced)
+			}
+			if damage != tc.wantDamage {
+				t.Fatalf("faction %s: expected %d damage, got %d", tc.faction, tc.wantDamage, damage)
+			}
+		})
+	}
+}
+
+// 回合开始的结算（虚弱等）属于新行动者：不能并进上一名玩家"回合结束"那一手（如沉沦协奏曲）。
+func TestActionFlow_TurnStartEffectsNotMergedIntoPreviousTurnEnd(t *testing.T) {
+	room := newCauseFlowRoom(t,
+		map[string]string{"p1": "bard", "p2": "berserker", "p3": "angel"},
+		map[string]model.Camp{"p1": model.BlueCamp, "p2": model.RedCamp, "p3": model.RedCamp},
+		[]string{"p1", "p2", "p3"})
+	setActivePlayer(room, "p1")
+	st := room.Engine.State
+	st.TurnStage = model.TurnStageActionExecution
+	st.PendingInterrupt, st.InterruptQueue = nil, nil
+	bard := st.Players["p1"]
+	bard.TurnState = model.NewPlayerTurnState()
+	bard.Hand = []model.Card{
+		{ID: "f1", Name: "火法术", Type: model.CardTypeMagic, Element: model.ElementFire},
+		{ID: "f2", Name: "火攻击", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "w1", Name: "水攻击", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+	}
+	st.Players["p3"].Hand = nil
+	st.Players["p2"].AddFieldCard(&model.FieldCard{
+		Card:    model.Card{ID: "wk", Name: "虚弱", Type: model.CardTypeMagic, Element: model.ElementFire},
+		OwnerID: "p2", SourceID: "p1", Mode: model.FieldEffect, Effect: model.EffectWeak,
+	})
+	room.Engine.HandlePostDamageResolved(&model.PendingDamage{SourceID: "p1", TargetID: "p2", Damage: 1, DamageType: model.MagicAttack})
+	room.Engine.HandlePostDamageResolved(&model.PendingDamage{SourceID: "p1", TargetID: "p3", Damage: 1, DamageType: model.MagicAttack})
+	room.Engine.Drive()
+	if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, CardID: "w1", TargetID: "p3"}); err != nil {
+		t.Fatal(err)
+	}
+	room.Engine.Drive()
+	_ = room.Engine.HandleAction(model.PlayerAction{PlayerID: "p3", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
+	room.Engine.Drive()
+	// 沉沦协奏曲：确认 → 弃两张火 → 选目标；随后进入狂战士回合，虚弱结算
+	for i := 0; i < 10 && st.PendingInterrupt != nil; i++ {
+		pi := st.PendingInterrupt
+		sel := []int{0}
+		if prompt := room.Engine.GetCurrentPrompt(); prompt != nil && prompt.Min > 1 {
+			sel = sel[:0]
+			for j := 0; j < prompt.Min; j++ {
+				sel = append(sel, j)
+			}
+		}
+		if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: pi.PlayerID, Type: model.CmdSelect, Selections: sel}); err != nil {
+			t.Fatalf("resolve %s for %s: %v", pi.Type, pi.PlayerID, err)
+		}
+		room.Engine.Drive()
+	}
+
+	descentAction, weakAction := "", ""
+	for _, ev := range room.snapshotTimelineHistory() {
+		if ev.SkillID == "bd_descent_concerto" && descentAction == "" {
+			descentAction = ev.ActionID
+		}
+		if ev.NarrativeKind == "field_effect_removed" && len(ev.TargetUserIDs) == 1 && ev.TargetUserIDs[0] == "p2" {
+			weakAction = ev.ActionID
+		}
+	}
+	if descentAction == "" || weakAction == "" {
+		t.Fatalf("expected both 沉沦协奏曲 and 虚弱 events, got descent=%q weak=%q", descentAction, weakAction)
+	}
+	if descentAction == weakAction {
+		t.Fatalf("虚弱 (berserker's turn start) merged into the bard's turn-end action %q", descentAction)
+	}
+}

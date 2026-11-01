@@ -34,6 +34,12 @@ const props = defineProps<{
   playerLabel?: (playerId: string) => string
 }>()
 
+/**
+ * 座位间连线（攻击弧、上一手虚线、沿弧飞牌）是否绘制。已停用：动作与结果统一由中间的战斗链表达，
+ * 棋盘上只保留攻击者 / 目标座位高亮和"未命中 / 抵挡"这类落点标记。
+ */
+const SHOW_SEAT_LINKS = false
+
 const store = useStageQueueStore()
 const snapshotStore = useSnapshotStore()
 const interruptStore = useInterruptStore()
@@ -968,7 +974,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="stage-overlay" aria-hidden="true" data-testid="stage-overlay">
-    <svg class="stage-links" :width="size.width" :height="size.height" :viewBox="`0 0 ${size.width || 1} ${size.height || 1}`">
+    <!-- 座位间连线已停用：动作与结果统一在战斗链里表达，棋盘上只保留座位高亮与落点标记。 -->
+    <svg v-if="SHOW_SEAT_LINKS" class="stage-links" :width="size.width" :height="size.height" :viewBox="`0 0 ${size.width || 1} ${size.height || 1}`">
       <defs>
         <marker
           v-for="key in COLOR_KEYS"
@@ -1013,7 +1020,7 @@ onBeforeUnmount(() => {
     <template v-for="view in linkViews" :key="`fx-${view.link.id}`">
       <!-- Card flies along the current arc once, then the reticle locks onto the target. -->
       <div
-        v-if="view.current && view.cardImageUrl"
+        v-if="SHOW_SEAT_LINKS && view.current && view.cardImageUrl"
         :key="`fly-${view.link.id}`"
         class="stage-fly-card"
         :style="{ offsetPath: `path('${view.d}')`, '--fly-color': view.stroke }"
