@@ -16,6 +16,7 @@ func (r *Room) buildSyncStatePayload(playerID string) SyncStatePayload {
 		Subflow:             stateView.Subflow,
 		TurnPlayerID:        stateView.CurrentPlayer,
 		HasPerformedStartup: stateView.HasPerformedStartup,
+		TurnNumber:          stateView.TurnNumber,
 		MoraleRed:           stateView.RedMorale,
 		MoraleBlue:          stateView.BlueMorale,
 		CupsRed:             stateView.RedCups,

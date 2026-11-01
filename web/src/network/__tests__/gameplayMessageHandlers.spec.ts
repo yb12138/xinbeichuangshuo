@@ -181,6 +181,37 @@ describe('createGameplayMessageHandlers', () => {
     expect(battleFxStore.initiatorFocus?.side).toBe('right')
   })
 
+  it('builds the turn badge from the acting role, camp and turn number', () => {
+    const { handlers, battleFxStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    const sync = (turnPlayer: string, turn: number): SyncStatePayload => ({
+      room_state: 'Playing',
+      turn_stage: 'ActionExecution',
+      turn_player_id: turnPlayer,
+      has_performed_startup: true,
+      turn_number: turn,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0],
+      stones_blue: [0, 0],
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+      characters: [{ id: 'hero', name: '勇者', title: '', faction: '', skills: [] }],
+      players: [buildSyncPlayer('p1', 'Red'), buildSyncPlayer('p2', 'Blue')],
+    })
+
+    handlers.handleSyncState(sync('p2', 11))
+    expect(battleFxStore.turnBannerRequest).toMatchObject({ text: '勇者 的回合', camp: 'Blue', isMine: false, roleId: 'hero' })
+    expect(battleFxStore.turnBannerRequest?.subtitle).toBe('蓝阵营 · 第 11 回合')
+
+    handlers.handleSyncState(sync('p1', 12))
+    expect(battleFxStore.turnBannerRequest).toMatchObject({ text: '你的回合', camp: 'Red', isMine: true, roleId: 'hero' })
+    expect(battleFxStore.turnBannerRequest?.subtitle).toBe('红阵营 · 第 12 回合')
+  })
+
   it('routes RequireAction into prompt or waiting state based on target player', () => {
     const { handlers, interruptStore, sessionStore } = buildHandlers()
     sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')

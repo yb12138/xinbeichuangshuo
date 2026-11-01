@@ -129,8 +129,21 @@ export type TurnBannerCamp = 'Red' | 'Blue' | ''
 
 export interface TurnBannerRequest {
   id: number
+  /** 主标题，如"狂战士 的回合"/"你的回合" */
   text: string
   camp: TurnBannerCamp
+  /** 副标题，如"红阵营 · 第 12 回合" */
+  subtitle?: string
+  /** 行动者角色 ID（取头像） */
+  roleId?: string
+  /** 轮到我自己：徽章加强显示 */
+  isMine?: boolean
+}
+
+export interface TurnBannerDetail {
+  subtitle?: string
+  roleId?: string
+  isMine?: boolean
 }
 
 interface CombatCueQueueItem {
@@ -721,10 +734,10 @@ export const useBattleFxStore = defineStore('battlefx', () => {
     if (previousActionSnapshot.value) previousActionSnapshot.value = null
   }
 
-  function showTurnBanner(text: string, camp: TurnBannerCamp = '') {
+  function showTurnBanner(text: string, camp: TurnBannerCamp = '', detail: TurnBannerDetail = {}) {
     if (!text) return
     turnBannerId++
-    turnBannerRequest.value = { id: turnBannerId, text, camp }
+    turnBannerRequest.value = { id: turnBannerId, text, camp, ...detail }
   }
 
   /**

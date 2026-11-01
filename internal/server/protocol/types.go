@@ -82,6 +82,7 @@ type SyncStatePayload struct {
 	Subflow             string                     `json:"subflow,omitempty"`
 	TurnPlayerID        string                     `json:"turn_player_id"`
 	HasPerformedStartup bool                       `json:"has_performed_startup"`
+	TurnNumber          int                        `json:"turn_number,omitempty"`
 	MoraleRed           int                        `json:"morale_red"`
 	MoraleBlue          int                        `json:"morale_blue"`
 	CupsRed             int                        `json:"cups_red"`

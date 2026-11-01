@@ -219,6 +219,7 @@ export interface GameStateUpdate {
   subflow?: string
   current_player: string
   has_performed_startup: boolean
+  turn_number?: number
   players: Record<string, PlayerView>
   red_morale: number
   blue_morale: number
@@ -375,6 +376,7 @@ export interface SyncStatePayload {
   subflow?: string
   turn_player_id: string
   has_performed_startup: boolean
+  turn_number?: number
   morale_red: number
   morale_blue: number
   cups_red: number

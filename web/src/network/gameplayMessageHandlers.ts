@@ -64,14 +64,20 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     return camp || ''
   }
 
-  /** 回合横幅文案，如“红方 · 封印师 的回合”；角色未知时退回玩家名 */
-  const turnBannerText = (playerId: string) => {
+  /**
+   * 回合徽章内容：主标题"狂战士 的回合"（轮到我时为"你的回合"），
+   * 副标题"红阵营 · 第 12 回合"；角色未知时退回玩家名。
+   */
+  const turnBannerContent = (playerId: string) => {
     const player = snapshotStore.players[playerId]
-    if (!player) return ''
+    if (!player) return null
     const roleId = String(player.role || '').trim()
     const roleName = (roleId && snapshotStore.characters[roleId]?.name) || roleId || player.name || playerId
-    const camp = campLabel(player.camp)
-    return camp ? `${camp} · ${roleName} 的回合` : `${roleName} 的回合`
+    const isMine = !!sessionStore.myPlayerId && playerId === sessionStore.myPlayerId
+    const campName = player.camp === 'Red' ? '红阵营' : player.camp === 'Blue' ? '蓝阵营' : ''
+    const turn = snapshotStore.turnNumber
+    const subtitle = [campName, turn > 0 ? `第 ${turn} 回合` : ''].filter(Boolean).join(' · ')
+    return { text: isMine ? '你的回合' : `${roleName} 的回合`, subtitle, roleId, isMine }
   }
 
   const signed = (value?: number) => {
@@ -267,9 +273,13 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             battleFxStore.startActingPlayerFocus(nextCurrent, 'turn')
           }
           if (nextCurrent && nextCurrent !== prevCurrent) {
-            const bannerText = turnBannerText(nextCurrent)
-            if (bannerText) {
-              battleFxStore.showTurnBanner(bannerText, normalizeCamp(snapshotStore.players[nextCurrent]?.camp) || '')
+            const banner = turnBannerContent(nextCurrent)
+            if (banner) {
+              battleFxStore.showTurnBanner(banner.text, normalizeCamp(snapshotStore.players[nextCurrent]?.camp) || '', {
+                subtitle: banner.subtitle,
+                roleId: banner.roleId,
+                isMine: banner.isMine,
+              })
             }
             if (prevCurrent) {
               const prevName = playerNameById(prevCurrent)

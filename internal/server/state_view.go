@@ -152,6 +152,7 @@ func (r *Room) buildStateForPlayer(playerID string) GameStateUpdate {
 		Subflow:             string(state.Subflow),
 		CurrentPlayer:       currentPlayerID,
 		HasPerformedStartup: hasPerformedStartup,
+		TurnNumber:          r.Engine.TurnNumber(),
 		Players:             players,
 		RedMorale:           state.RedMorale,
 		BlueMorale:          state.BlueMorale,
