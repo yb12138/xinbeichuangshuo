@@ -921,8 +921,11 @@ function campResourceSteps(deltas: TimelineDelta[]): AtomicStep[] {
   return steps
 }
 
-/** 阵营士气下降：写进叙述 / 战斗链（"红方士气 15 → 13"），士气上升（极少见）同样记录。 */
-function moraleSteps(deltas: TimelineDelta[]): AtomicStep[] {
+/** 士气下降的原因（来自引擎 morale_loss 标记）；camp → "吟游诗人爆牌 · 凋零"。 */
+export type MoraleCauses = Partial<Record<string, string>>
+
+/** 阵营士气下降：写进叙述 / 战斗链（"红方士气 15 → 13（吟游诗人爆牌）"），士气上升（极少见）同样记录。 */
+function moraleSteps(deltas: TimelineDelta[], causes: MoraleCauses = {}): AtomicStep[] {
   const steps: AtomicStep[] = []
   for (const delta of deltas) {
     // 阵营级差值（服务端 scope 为 "team"），按 camp 区分红 / 蓝
@@ -931,9 +934,10 @@ function moraleSteps(deltas: TimelineDelta[]): AtomicStep[] {
     const after = delta.after ?? 0
     if (before === after) continue
     const camp = CAMP_LABEL[delta.camp || ''] || escapeHtml(delta.camp || '')
+    const cause = after < before ? causes[delta.camp] : ''
     steps.push({
       type: 'narration-row',
-      html: `${camp}士气 ${before} → ${after}`,
+      html: `${camp}士气 ${before} → ${after}${cause ? `（${escapeHtml(cause)}）` : ''}`,
       tag: '士气',
       tagColor: after < before ? 'attack' : 'heal',
     })
@@ -941,13 +945,13 @@ function moraleSteps(deltas: TimelineDelta[]): AtomicStep[] {
   return steps
 }
 
-export function deltaSteps(deltas: TimelineDelta[], actorId?: string, element?: string): AtomicStep[] {
+export function deltaSteps(deltas: TimelineDelta[], actorId?: string, element?: string, moraleCauses?: MoraleCauses): AtomicStep[] {
   const steps: AtomicStep[] = []
   // 模板 4（资源型）：同一批里从牌库放到某座位的盖牌（牌库数量同时减少）合成一次“牌背飞入”。
   const deckDrawn = deltas.some((delta) => delta.type === 'deck_count' && (delta.value ?? 0) < 0)
   const coverPlaced = new Map<string, { count: number; coverKey: string }>()
   steps.push(...stoneFlightSteps(deltas, actorId))
-  steps.push(...moraleSteps(deltas))
+  steps.push(...moraleSteps(deltas, moraleCauses))
   steps.push(...campResourceSteps(deltas))
   for (const delta of deltas) {
     const target = delta.target_user_id || ''

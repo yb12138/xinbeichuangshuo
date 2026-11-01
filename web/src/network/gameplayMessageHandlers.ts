@@ -50,6 +50,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
       return snapshotStore.characters[role]?.name || ''
     },
     cardImage: (card) => (card?.name ? cardArtSrc(card) : undefined),
+    playerCamp: (id: string) => snapshotStore.players[id]?.camp || '',
   })
 
   const normalizeCamp = (camp?: string): MoraleCamp | undefined => {
