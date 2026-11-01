@@ -84,4 +84,8 @@ func (e *GameEngine) prepareNextTurnRuntime(nextPlayer *model.Player) {
 	// 设置阶段为第1步：Buff结算
 	e.setTurnStage(model.TurnStageTurnBeforeStart)
 	e.clearCombatStage()
+
+	// 回合开始的结算（虚弱 / 中毒、希望赋格曲等）是新行动者的独立一手：不开新的叙事行动，
+	// 它们会沿用上一名玩家"回合结束"那一手的 ActionID，被并进上一手的战斗链（如沉沦协奏曲之后）。
+	e.beginNarrativeAction("turn_start", nextPlayer.ID)
 }

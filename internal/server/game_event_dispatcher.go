@@ -16,7 +16,11 @@ type scheduledBotPrompt struct {
 func (r *Room) OnGameEvent(event model.GameEvent) {
 	// 本事件期间广播的时间线条目（含随后的公共状态差值）都归属事件发出时的因果。
 	r.eventCause = event.Cause
-	defer func() { r.eventCause = nil }()
+	r.eventTrace = event.Narrative
+	defer func() {
+		r.eventCause = nil
+		r.eventTrace = nil
+	}()
 	scheduledBot := r.dispatchGameEvent(event)
 	if event.Type != model.EventStateDelta {
 		r.broadcastPublicStateDelta(string(event.Type))
