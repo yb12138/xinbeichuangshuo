@@ -4,6 +4,7 @@ package engine
 
 import (
 	"sort"
+	"starcup-engine/internal/model"
 
 	engineplayer "starcup-engine/internal/engine/player"
 )
@@ -152,8 +153,34 @@ func (e *GameEngine) runRoleTimingHook(entry roleTimingHookEntry, rt engineplaye
 	var result engineplayer.TimingHookResult
 	e.WithSkillCause(entry.SkillID, ownerID, func() {
 		result = entry.Hook(rt, ctx)
+		if e.damageSourceDealDispatching {
+			e.publishHookDamageDelta(entry, ownerID, ctx, result)
+		}
 	})
 	return result
+}
+
+// publishHookDamageDelta 攻击方增伤 hook（天之弓 -1、剑气 +1…）只返回修正值、不改待结算伤害，
+// 快照比较捕捉不到；这里在该技能的因果下补发 damage_modified，战斗链才能显示"天之弓 伤害 -1"。
+func (e *GameEngine) publishHookDamageDelta(entry roleTimingHookEntry, ownerID string, ctx engineplayer.TimingHookContext, result engineplayer.TimingHookResult) {
+	if result.DamageDelta == 0 {
+		return
+	}
+	summary := "伤害 +" + itoa(result.DamageDelta)
+	if result.DamageDelta < 0 {
+		summary = "伤害 " + itoa(result.DamageDelta)
+	}
+	e.publishTimelineMarker(model.TimelineMarkerPayload{
+		PlayerID:      ownerID,
+		SkillID:       entry.SkillID,
+		SkillName:     e.skillTitleFor(ownerID, entry.SkillID),
+		ActionType:    "skill",
+		NarrativeKind: "damage_modified",
+		VisualKind:    "skill_effect",
+		SkillPhase:    "resolved",
+		TargetIDs:     uniqueNonEmpty(ctx.TargetID),
+		Summary:       summary,
+	})
 }
 
 // hookSkillOwner 在 hook 上下文涉及的玩家中找到该角色的持有者（Source → Target → Player）。

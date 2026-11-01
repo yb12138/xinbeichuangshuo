@@ -100,14 +100,18 @@ func (e *GameEngine) applyDamageSourceDealAttackModifiers(attacker *model.Player
 		if target != nil {
 			targetID = target.ID
 		}
-		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingDamageSourceDeal, engineplayer.TimingHookContext{
+		hookCtx := engineplayer.TimingHookContext{
 			SourceID:         attacker.ID,
 			TargetID:         targetID,
 			ActionType:       action.Type,
 			Card:             action.Card,
 			Damage:           damage,
 			CounterInitiator: action.CounterInitiator,
-		})
+		}
+		// 标记"正在结算攻击方增伤"：带技能归属的 hook 产生的修正会发出 damage_modified，供战斗链展示
+		e.damageSourceDealDispatching = true
+		result := e.dispatchAllRoleTimingHooks(engineplayer.TimingDamageSourceDeal, hookCtx)
+		e.damageSourceDealDispatching = false
 		damage += result.DamageDelta
 		if damage < 0 {
 			damage = 0
