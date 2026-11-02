@@ -74,6 +74,8 @@ type CombatCuePayload struct {
 	AttackerID string `json:"attacker_id"`
 	TargetID   string `json:"target_id"`
 	Phase      string `json:"phase"`
+	// Card 攻击宣言时的攻击牌（含技能视为的虚拟攻击，如圣屑飓暴），供战斗链标牌名与命格。
+	Card *Card `json:"card,omitempty"`
 }
 
 // DrawCardsPayload is the typed payload for EventDrawCards events.

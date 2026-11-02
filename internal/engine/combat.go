@@ -17,7 +17,14 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 	if attacker != nil && target != nil && card != nil {
 		e.beginNarrativeCombat(attackerID, len(isCounter) > 0 && isCounter[0])
 		e.NotifyActionStep(fmt.Sprintf("%s出%s攻击%s", model.GetPlayerDisplayName(attacker), card.Name, model.GetPlayerDisplayName(target)))
-		e.NotifyCombatCue(attackerID, targetID, "attack")
+		// 只给技能视为的虚拟攻击带牌（圣屑飓暴、多重射击：没有出牌事件，战斗链靠它画卡面）。
+		// 应战反击的牌已由"应战"那一步出牌带过；再带一次，反击宣言的边就有了牌，
+		// 战斗链会把它画成第二张卡（同一张雷光斩出现两次），而不是并入应战。
+		var cueCard *model.Card
+		if len(isCounter) == 0 || !isCounter[0] {
+			cueCard = card
+		}
+		e.notifyCombatCueWithCard(attackerID, targetID, "attack", cueCard)
 	}
 	combatReq := model.CombatRequest{
 		AttackerID:      attackerID,
