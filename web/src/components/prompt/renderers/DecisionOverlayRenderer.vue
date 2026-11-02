@@ -48,6 +48,19 @@ function overlayDecisionOptionTitle(option: DecisionOverlayOption): string {
 
 const docked = inject(DECISION_DOCKED, false)
 
+// —— 是 / 否：肯定项（是 / 发动 / id 0）放右边用金色，否定项放左边 ——
+function isAffirmative(option: DecisionOverlayOption): boolean {
+  const label = String(option.label || '').trim()
+  if (label === '否' || /不发动|放弃|跳过/.test(label)) return false
+  return label === '是' || /发动/.test(label) || option.id === '0' || option.id === 'yes'
+}
+const yesNoOptions = computed(() => [...props.options].sort((a, b) => Number(isAffirmative(a)) - Number(isAffirmative(b))))
+/** "是"被置灰时（如法术反弹同系牌不足）把原因写在按钮下方。 */
+const yesNoDisabledReason = computed(() => {
+  const yes = props.options.find((o) => isAffirmative(o))
+  return yes?.disabled ? yes.disabledReason || '' : ''
+})
+
 // —— 停靠模式（决策面板规范图模板 1）：选项卡先点选、再在底部操作条确认 ——
 const picked = ref('')
 watch(
@@ -112,19 +125,22 @@ const pickedNumericHint = computed(() => {
 
           <!-- ══════ DOCKED: yes-no → 放弃/发动 footer (no cards needed) ══════ -->
           <template v-else-if="docked && mode === 'yes-no'">
-            <div class="decision-actions">
+            <!-- 是 / 否：一行两个小按钮，居中；"否"在左、"是"在右（与"放弃 / 发动"同序） -->
+            <div class="decision-actions decision-actions--yesno" data-testid="decision-yesno">
               <button
-                v-for="option in options"
+                v-for="option in yesNoOptions"
                 :key="option.id"
                 type="button"
-                :class="option.id === '0' || option.id === 'yes' || /发动/.test(option.label) ? 'dc-pill dc-pill--gold decision-actions__gold' : 'dc-pill decision-actions__ghost'"
+                :class="isAffirmative(option) ? 'dc-pill dc-pill--gold decision-actions__gold' : 'dc-pill decision-actions__ghost'"
                 :data-testid="`prompt-option-${option.id}`"
                 :disabled="!!option.disabled"
+                :title="option.disabled && option.disabledReason ? option.disabledReason : undefined"
                 @click="emit('select', option.id)"
               >
                 {{ String(option.label || '').trim() }}
               </button>
             </div>
+            <p v-if="yesNoDisabledReason" class="decision-yesno__reason" data-testid="decision-yesno-reason">{{ yesNoDisabledReason }}</p>
           </template>
 
           <!-- ══════ DOCKED: numeric → tiles + consequence line ══════ -->
@@ -546,6 +562,18 @@ const pickedNumericHint = computed(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 0 0;
+}
+/* 是 / 否：两个普通尺寸按钮居中并排 */
+.decision-actions--yesno {
+  justify-content: center;
+  gap: 16px;
+  padding: 14px 0 4px;
+}
+.decision-yesno__reason {
+  margin: 6px 0 0;
+  font-size: 12px;
+  text-align: center;
+  color: #f07c72;
 }
 .decision-shared {
   margin-top: 10px;
