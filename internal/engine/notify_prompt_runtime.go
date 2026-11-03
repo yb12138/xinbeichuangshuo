@@ -247,8 +247,19 @@ func (e *GameEngine) NotifyActionSummary(line string) {
 }
 
 func (e *GameEngine) NotifyCombatCue(attackerID, targetID, phase string) {
+	e.notifyCombatCueWithCard(attackerID, targetID, phase, nil)
+}
+
+// notifyCombatCueWithCard 攻击宣言带上攻击牌：技能视为的虚拟攻击（圣屑飓暴、多重射击）不会有出牌事件，
+// 战斗链靠它显示牌名与命格。
+func (e *GameEngine) notifyCombatCueWithCard(attackerID, targetID, phase string, card *model.Card) {
 	if e.observer == nil || attackerID == "" || targetID == "" || phase == "" {
 		return
+	}
+	var cueCard *model.Card
+	if card != nil {
+		copied := *card
+		cueCard = &copied
 	}
 	e.emitGameEvent(model.GameEvent{
 		Type: model.EventCombatCue,
@@ -256,6 +267,7 @@ func (e *GameEngine) NotifyCombatCue(attackerID, targetID, phase string) {
 			AttackerID: attackerID,
 			TargetID:   targetID,
 			Phase:      phase,
+			Card:       cueCard,
 		},
 		Narrative: e.combatCueNarrativeTrace(phase),
 	})

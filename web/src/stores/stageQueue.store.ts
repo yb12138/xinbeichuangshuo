@@ -72,9 +72,9 @@ export type AtomicStep = StepTiming &
     | { type: 'turn-banner'; text: string; duration: number }
     | { type: 'mark-previous' }
     | { type: 'clear-stage'; summary?: string }
-    | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill; special?: NarrationSpecial }
+    | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill; special?: NarrationSpecial; effect?: NarrationEffect }
     /** 同一技能因果的结果后到（如茧在结算后才放置）：就地更新已有技能行。 */
-    | { type: 'skill-result'; causeId: string; outcome: string; cost: string }
+    | { type: 'skill-result'; causeId: string; outcome: string; cost: string; revealed?: NarrationSkill['revealed'] }
     /** 自身形态型（模板 5）：座位包裹光焰 + 形态名横幅。form 为空 = 脱离形态。 */
     | { type: 'form-change'; playerId: string; form: string; label: string; element?: string }
     /** 资源型（模板 4）：count 张牌背从中央牌堆飞入座位（盖牌放置：茧、充能……）。 */
@@ -105,9 +105,24 @@ export interface NarrationSkill {
   effectText?: string
   /** 同一因果的节点 ID：后续结果到达时就地更新同一节点。 */
   causeId?: string
+  /** 技能公开展示的牌（圣屑飓暴弃置并展示的同系牌等）；暗弃不包含。 */
+  revealed?: Pick<Card, 'name' | 'element' | 'type' | 'faction'>[]
 }
 
 /** 特殊行动（购买 / 合成 / 提炼）：战斗链里画成一个以行动者为主的节点。 */
+/** 场上效果结算（回合开始的虚弱 / 中毒、封印触发等）：在战斗链里画成一张卡。 */
+export interface NarrationEffect {
+  /** 放置者（虚弱的施放者）；无归属时为空。 */
+  actorId: string
+  targetIds: string[]
+  /** 效果名："虚弱" / "中毒"…… */
+  label: string
+  /** 效果对应的牌（取牌面图），可能为空。 */
+  card?: Pick<Card, 'name' | 'element' | 'type' | 'faction'>
+  /** 'effect' 场上效果；'extra_action' 额外行动。 */
+  kind: 'effect' | 'extra_action'
+}
+
 export interface NarrationSpecial {
   actorId: string
   /** 行动名："购买" / "合成" / "提炼"。 */
@@ -122,7 +137,7 @@ export interface NarrationChain {
   fromPlayerId: string
   toPlayerId: string
   verb: string
-  card?: Pick<Card, 'name' | 'element' | 'type'>
+  card?: Pick<Card, 'name' | 'element' | 'type' | 'faction'>
 }
 
 export type AtomicStepType = AtomicStep['type']
@@ -226,6 +241,7 @@ export interface NarrationRow {
   chain?: NarrationChain
   skill?: NarrationSkill
   special?: NarrationSpecial
+  effect?: NarrationEffect
 }
 
 export interface PreviousActionState {
@@ -485,7 +501,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
         if (index < 0) break
         const row = stageRows.value[index]!
         const next = stageRows.value.slice()
-        next[index] = { ...row, skill: { ...row.skill!, outcome: step.outcome, cost: step.cost } }
+        next[index] = { ...row, skill: { ...row.skill!, outcome: step.outcome, cost: step.cost, ...(step.revealed?.length ? { revealed: step.revealed } : {}) } }
         stageRows.value = next
         break
       }
@@ -531,7 +547,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
       case 'narration-row':
         stageRows.value = [
           ...stageRows.value,
-          { id: ++seq, html: step.html, tag: step.tag, tagColor: step.tagColor, chain: step.chain, skill: step.skill, special: step.special },
+          { id: ++seq, html: step.html, tag: step.tag, tagColor: step.tagColor, chain: step.chain, skill: step.skill, special: step.special, effect: step.effect },
         ]
         break
     }
@@ -748,6 +764,13 @@ export function edgeEnd(edge: ActionFlowEdgeDTO): { text: string; style: LinkEnd
   return null
 }
 
+/** 技能节点上公开展示的牌（服务端只挂非隐藏的展示牌），只保留战斗链需要的字段。 */
+function revealedCards(node: ActionFlowNodeDTO): Pick<Card, 'name' | 'element' | 'type' | 'faction'>[] {
+  return (node.cards || [])
+    .filter((c) => c?.name)
+    .map((c) => ({ name: c.name, element: c.element, type: c.type, faction: c.faction }))
+}
+
 export function nodeSteps(
   node: ActionFlowNodeDTO,
   playerNameFn: (id: string) => string,
@@ -807,16 +830,25 @@ export function nodeSteps(
         cost,
         effectText: node.effect_text || '',
         causeId: node.cause_id || '',
+        ...(revealedCards(node).length ? { revealed: revealedCards(node) } : {}),
       },
     })
   } else if ((kind === 'effect' || kind === 'extra_action') && label) {
     const tag = kind === 'extra_action' ? '额外行动' : '效果'
     const toward = targets ? ` → ${targets}` : ''
+    const card = node.cards?.find((c) => c?.name)
     steps.push({
       type: 'narration-row',
       html: `${actor ? `${actor} ` : ''}${escapeHtml(label)}${toward}`,
       tag,
       tagColor: kind === 'extra_action' ? 'grey' : 'skill',
+      effect: {
+        actorId: node.actor_user_id || '',
+        targetIds: (node.target_user_ids || []).filter(Boolean),
+        label,
+        ...(card ? { card: { name: card.name, element: card.element, type: card.type, faction: card.faction } } : {}),
+        kind: kind === 'extra_action' ? 'extra_action' : 'effect',
+      },
     })
   }
   // 'card' / 'action' nodes are represented by their edges; nothing extra to show.
@@ -830,9 +862,15 @@ export function nodeSkillResult(
   node: ActionFlowNodeDTO,
   playerNameFn: (id: string) => string,
   roleNameFn: (id: string) => string,
-): { outcome: string; cost: string } {
+): { outcome: string; cost: string; revealed?: NarrationSkill['revealed'] } {
   const result = skillResult(node, (id) => playerLabel(id, playerNameFn, roleNameFn))
-  return { outcome: skillResultSummary(result), cost: result.costs.map((item) => item.text).join(' · ') }
+  const revealed = revealedCards(node)
+  return {
+    outcome: skillResultSummary(result),
+    cost: result.costs.map((item) => item.text).join(' · '),
+    // 展示的牌常晚于技能宣言到达（先宣言、后弃牌展示），随结果一起就地更新到技能节点上
+    ...(revealed.length ? { revealed } : {}),
+  }
 }
 
 /** Damage / heal chips for a node's targets (empty when the node carries no damage). */
@@ -1069,7 +1107,7 @@ export function edgeStartSteps(
         fromPlayerId: edge.from_user_id,
         toPlayerId: edge.to_user_id,
         verb,
-        card: firstCard ? { name: firstCard.name, element: firstCard.element, type: firstCard.type } : undefined,
+        card: firstCard ? { name: firstCard.name, element: firstCard.element, type: firstCard.type, faction: firstCard.faction } : undefined,
       },
     },
   ]

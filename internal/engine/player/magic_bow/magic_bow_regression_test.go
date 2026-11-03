@@ -328,7 +328,8 @@ func TestMagicBowCharge_DiscardFirstThenChooseX(t *testing.T) {
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
 }
 
-func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
+// 摸牌超上限按通用爆牌规则：先弃到上限（每弃 1 张士气 -1），弃完再从剩余手牌里选充能。
+func TestMagicBowCharge_DrawOverflowDiscardsThenPlacesCharges(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -364,18 +365,24 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
 
-	// 选择X=4，4->8，默认上限6，爆士气2但不弃牌。
+	// 选择X=4，4->8，默认上限6：先爆牌弃 2 张。
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{4}}); err != nil {
 		t.Fatalf("choose charge draw x failed: %v", err)
 	}
+	if !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected an overflow discard before placing charges, got %+v", game.State.PendingInterrupt)
+	}
+	if got := game.State.RedMorale; got != redMoraleBefore {
+		t.Fatalf("morale should only drop when the cards are discarded, before=%d now=%d", redMoraleBefore, got)
+	}
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("overflow discard failed: %v", err)
+	}
 	if got := game.State.RedMorale; got != redMoraleBefore-2 {
-		t.Fatalf("expected red morale -2 after overflow draw, before=%d after=%d", redMoraleBefore, got)
+		t.Fatalf("expected red morale -2 after discarding 2, before=%d after=%d", redMoraleBefore, got)
 	}
-	if got := len(p1.Hand); got != 8 {
-		t.Fatalf("expected no discard after overflow draw, hand should stay 8, got %d", got)
-	}
-	if engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
-		t.Fatalf("should not open discard interrupt after charge overflow draw")
+	if got := len(p1.Hand); got != 6 {
+		t.Fatalf("expected hand discarded down to 6, got %d", got)
 	}
 
 	// 新流程：直接进入盖牌多选（跳过数量选择步骤）
@@ -390,6 +397,54 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 	}
 	if got := magicbowplayer.ChargeCount(p1, ""); got != 4 {
 		t.Fatalf("expected 4 charges placed, got %d", got)
+	}
+	if got := len(p1.Hand); got != 2 {
+		t.Fatalf("expected 2 cards left after discarding 2 and charging 4, got %d", got)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("charge flow should be finished, got pending %+v", game.State.PendingInterrupt)
+	}
+}
+
+// 摸牌后刚好到上限（不爆牌）：不弹弃牌，直接选充能，士气不变。
+func TestMagicBowCharge_DrawToLimitPlacesWithoutDiscard(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("h3", "雷光斩", model.CardTypeAttack, model.ElementThunder),
+		magicBowTestCard("h4", "风神斩", model.CardTypeAttack, model.ElementWind),
+	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementThunder),
+	}
+	redMoraleBefore := game.State.RedMorale
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{Type: model.EventTurnStart, SourceID: "p1"})
+	if err := (&magicbowplayer.MagicBowChargeHandler{}).Execute(ctx); err != nil {
+		t.Fatalf("execute charge failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil { // X=2: 4->6
+		t.Fatalf("choose charge draw x failed: %v", err)
+	}
+	if engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("hand at the limit should not discard")
+	}
+	if got := testutils.ChoiceTypeOfInterrupt(game.State.PendingInterrupt); got != "mb_charge_place_cards" {
+		t.Fatalf("expected place-cards choice, got %q", got)
+	}
+	if game.State.RedMorale != redMoraleBefore {
+		t.Fatalf("morale should be unchanged, before=%d after=%d", redMoraleBefore, game.State.RedMorale)
 	}
 }
 

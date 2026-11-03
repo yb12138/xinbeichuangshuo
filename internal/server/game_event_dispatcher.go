@@ -181,8 +181,16 @@ func (r *Room) handleCombatCueGameEvent(event model.GameEvent) {
 		AttackerID: payload.AttackerID,
 		TargetID:   payload.TargetID,
 		Phase:      payload.Phase,
+		Cards:      cueCards(payload.Card),
 		Trace:      event.Narrative,
 	})
+}
+
+func cueCards(card *model.Card) []model.Card {
+	if card == nil || card.Name == "" {
+		return nil
+	}
+	return []model.Card{*card}
 }
 
 func (r *Room) handleDrawCardsGameEvent(event model.GameEvent) {

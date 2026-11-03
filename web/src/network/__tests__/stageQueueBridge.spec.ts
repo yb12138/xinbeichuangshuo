@@ -48,6 +48,31 @@ describe('createStageQueueBridge', () => {
     expect(row && row.type === 'narration-row' && row.html).toContain('封印师（测试玩家5）')
   })
 
+  it('keeps every move of the same turn on one chain and archives it when the turn changes', () => {
+    // 圣弓第 1 回合：攻击，然后回合结束的自动填充（另一手）——同一回合窗口，接在链后面
+    bridge.onTimeline(payload([flow('nw-t1-p1-a1-attack', [attackEdge()], { narrative_window_id: 'nw-t1-p1' })]))
+    bridge.onTimeline(
+      payload([
+        flow('nw-t1-p1-a2-turn_end', [], {
+          narrative_window_id: 'nw-t1-p1',
+          action_type: 'unknown',
+          nodes: [{ id: 'n1', order: 1, kind: 'skill', actor_user_id: 'p1', skill_id: 'hb_auto_fill', skill_name: '自动填充' }],
+        }),
+      ]),
+    )
+    expect(queued().filter((step) => step.type === 'mark-previous')).toHaveLength(1)
+
+    // 下一名玩家的回合：新窗口，才收起上一回合
+    bridge.onTimeline(payload([flow('nw-t2-p5-a1-attack', [attackEdge({ id: 'e9' })], { narrative_window_id: 'nw-t2-p5' })]))
+    expect(queued().filter((step) => step.type === 'mark-previous')).toHaveLength(2)
+  })
+
+  it('falls back to the action id prefix when a flow has no window id', () => {
+    bridge.onTimeline(payload([flow('nw-t3-p1-a1-attack', [attackEdge()])]))
+    bridge.onTimeline(payload([flow('nw-t3-p1-a2-magic', [attackEdge({ id: 'e2' })])]))
+    expect(queued().filter((step) => step.type === 'mark-previous')).toHaveLength(1)
+  })
+
   it('attaches structured chain data and the card element to edge steps', () => {
     const card = { id: 'c1', name: '雷光斩', type: 'Attack', element: 'Thunder', damage: 2 } as NonNullable<ActionFlowEdgeDTO['cards']>[number]
     bridge.onTimeline(payload([flow('f1', [attackEdge({ cards: [card] })])]))
@@ -86,6 +111,32 @@ describe('createStageQueueBridge', () => {
     ])
     const rows = steps.filter((step) => step.type === 'narration-row')
     expect(rows.map((row) => row.type === 'narration-row' && row.skill?.opening)).toEqual(['active', 'trigger'])
+  })
+
+  it('shows a skill that arrives after the pending placeholder as a chain node, not a text log', () => {
+    // 回合结束的自动填充：先只有占位"行动"节点（玩家还在选），选完后才出现技能节点。
+    bridge.onTimeline(
+      payload([
+        flow('f-te', [], {
+          action_type: 'unknown',
+          actor_user_id: 'p1',
+          nodes: [{ id: 'f-te-node-pending', order: 1, kind: 'action', actor_user_id: 'p1', label: '行动', outcome: 'pending' }],
+        }),
+      ]),
+    )
+    bridge.onTimeline(
+      payload([
+        flow('f-te', [], {
+          action_type: 'unknown',
+          actor_user_id: 'p1',
+          nodes: [{ id: 'f-te-node-1', order: 1, kind: 'skill', actor_user_id: 'p1', skill_id: 'hb_auto_fill', skill_name: '自动填充' }],
+          logs: [{ order: 1, text: '技能 圣女：自动填充' }],
+        }),
+      ]),
+    )
+    const rows = queued().filter((step) => step.type === 'narration-row')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ skill: { skillId: 'hb_auto_fill', skillName: '自动填充' } })
   })
 
   it('turns heal and status state deltas into heal numbers and flying status icons', () => {

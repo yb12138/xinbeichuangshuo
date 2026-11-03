@@ -136,7 +136,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		if len(options) > 0 && remainingPick > len(options) {
 			remainingPick = len(options)
 		}
-		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: fmt.Sprintf("【不谐和弦】请 %s 选择要弃置的%d张手牌：", actor.Name, remainingPick), Options: options, Min: remainingPick, Max: remainingPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
+		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: actor.ID, Message: fmt.Sprintf("【不谐和弦】请选择要弃置的%d张手牌：", remainingPick), Options: options, Min: remainingPick, Max: remainingPick, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"}}
 	case "bd_rousing_mode":
 		opts := []model.PromptOption{
 			{ID: "0", Label: "对2名对手各造成1点法术伤害"},
@@ -579,6 +579,10 @@ func handleDissonanceTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 	ctxData["current_actor_id"] = currentActor.ID
 	flow.PutSelection(dissonanceStepDiscard, model.PromptFlowSelection{Count: n})
 	ctxData["remaining_indices"] = engineplayer.AllHandIndices(currentActor)
+	// 弃牌由弃牌者本人选择：中断要交给他，否则提示仍发给吟游诗人，目标收不到而卡住
+	if intr := rt.GetPendingInterrupt(); intr != nil {
+		intr.PlayerID = currentActor.ID
+	}
 	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, dissonanceFlowRuntime, flow, dissonanceStepDiscard)
 }
 
@@ -648,6 +652,9 @@ func handleDissonanceDiscardStep(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		ctxData["current_actor_id"] = nextActor.ID
 		flow.PutSelection(dissonanceStepDiscard, model.PromptFlowSelection{Count: needCount})
 		ctxData["remaining_indices"] = engineplayer.AllHandIndices(nextActor)
+		if intr := rt.GetPendingInterrupt(); intr != nil {
+			intr.PlayerID = nextActor.ID
+		}
 		engineplayer.NotifyChoiceContext(rt, ctxData)
 		return nil
 	}

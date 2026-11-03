@@ -103,6 +103,25 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
   const { stageQueue, playerName, roleName, cardImage, playerCamp } = deps
   const flows = new Map<string, FlowMemory>()
   let currentFlowId: string | null = null
+  /**
+   * 当前战斗链所属的回合窗口（nw-t{回合}-{玩家}）。同一名玩家这一回合里的每一手（攻击、应战、
+   * 回合结束的自动填充…）都接在同一条链上；换到下一名玩家的回合才把整条链收进"上一回合"。
+   */
+  let currentWindowId: string | null = null
+
+  /** 从 flow / action id 取回合窗口：flow 带了就用，没带时按 "nw-t1-p1-a2-xxx" 截出前缀。 */
+  function windowOf(windowId: string | undefined, actionId: string): string {
+    if (windowId) return windowId
+    const m = /^(nw-t\d+-[^-]+)-a\d+/.exec(actionId)
+    return m ? m[1]! : actionId
+  }
+
+  /** 新的一手开始：同一回合窗口内继续累积，换了窗口才收起上一回合。 */
+  function startAction(flowId: string, windowId: string, batch: AtomicStep[]) {
+    if (flowId !== currentFlowId && windowId !== currentWindowId) batch.push({ type: 'mark-previous' })
+    currentFlowId = flowId
+    currentWindowId = windowId
+  }
   /** 引擎在士气差值之前先发 morale_loss 标记说明原因；按阵营暂存，等差值到达时写进士气行。 */
   const pendingMoraleCauses: MoraleCauses = {}
 
@@ -223,11 +242,10 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
       if (flow.actor_user_id) memory.actorId = flow.actor_user_id
       const delta = flowDelta(flow, memory)
       if (delta.length === 0) continue
-      // A new action: demote the current one to "上一手" before its first beat.
+      // 新的一手：同一回合内接在链后面；换了回合才把这一条链收进"上一回合"
       if (!memory.started) {
         memory.started = true
-        if (flow.flow_id !== currentFlowId) batch.push({ type: 'mark-previous' })
-        currentFlowId = flow.flow_id
+        startAction(flow.flow_id, windowOf(flow.narrative_window_id, flow.action_id || flow.flow_id), batch)
       }
       batch.push(...delta)
     }
@@ -242,8 +260,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
           const memory = memoryFor(actionId)
           if (!memory.started) {
             memory.started = true
-            if (actionId !== currentFlowId) batch.push({ type: 'mark-previous' })
-            currentFlowId = actionId
+            startAction(actionId, windowOf(event.narrative_window_id, actionId), batch)
           }
         }
         const special = specialActionStep(event)
@@ -325,6 +342,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
     for (const camp of Object.keys(pendingMoraleCauses)) delete pendingMoraleCauses[camp]
     flows.clear()
     currentFlowId = null
+    currentWindowId = null
     stageQueue.reset()
   }
 

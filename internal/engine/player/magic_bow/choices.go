@@ -551,6 +551,39 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		rt.DrawCardsWithOptions(user.ID, xValue, model.DrawOptions{PreventOverflow: true})
 	}
 
+	// 摸牌后超出手牌上限：按通用爆牌规则先弃到上限（每弃 1 张士气 -1），弃完再选充能。
+	// 摸牌本身跳过了自动爆牌检查（PreventOverflow），由这里接上，弃牌后经 after_discard 回到充能。
+	if overflow := len(user.Hand) - rt.GetMaxHand(user); overflow > 0 {
+		rt.PopInterrupt()
+		rt.PushInterrupt(&model.Interrupt{
+			Type:     model.InterruptChoice,
+			PlayerID: user.ID,
+			Context: map[string]interface{}{
+				"choice_type":                 "system_discard_cards",
+				"discard_subflow":             true,
+				"discard_count":               overflow,
+				"discard_reason":              "hand_overflow",
+				"victim_id":                   user.ID,
+				"stay_in_turn":                true,
+				"discard_forced":              true,
+				"forced_reason":               "爆牌弃牌为强制步骤，不能取消",
+				"prompt":                      fmt.Sprintf("【充能】手牌超出上限，请弃置%d张牌：", overflow),
+				"flow_continuation_role_id":   "magic_bow",
+				"flow_continuation_player_id": user.ID,
+				"flow_continuation_skill_id":  "mb_charge_place",
+				"charge_x":                    xValue,
+			},
+		})
+		rt.Log(fmt.Sprintf("%s 的 [充能] 摸%d张后超出手牌上限%d张：先弃牌，再放置充能", user.Name, xValue, overflow))
+		return nil
+	}
+
+	return enterChargePlaceCards(rt, user, xValue, ctxData)
+}
+
+// enterChargePlaceCards 进入"选最多 X 张手牌作为充能"；无可放置时直接结束充能。
+// ctxData 为当前中断的上下文（爆牌弃完后由 after_discard 新开一个中断，传 nil）。
+func enterChargePlaceCards(rt engineplayer.ChoiceRuntime, user *model.Player, xValue int, ctxData map[string]interface{}) error {
 	room := ChargeCap - ChargeCount(user, "")
 	maxPlace := xValue
 	if maxPlace > len(user.Hand) {
@@ -560,13 +593,6 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		maxPlace = room
 	}
 
-	// 检查手牌溢出，无论是否进入盖牌流程
-	overflow := len(user.Hand) - rt.GetMaxHand(user)
-	if overflow > 0 {
-		rt.ApplyCampMoraleLoss(user.Camp, overflow)
-		rt.Log(fmt.Sprintf("%s 的 [充能] 摸牌后超出手牌上限%d：士气-%d（本次不弃牌）", user.Name, overflow, overflow))
-	}
-
 	if maxPlace <= 0 {
 		// 充能上限满了或其他原因导致不能盖牌
 		if room <= 0 {
@@ -574,7 +600,9 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		} else {
 			rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，不放置充能", user.Name, xValue))
 		}
-		rt.PopInterrupt()
+		if ctxData != nil {
+			rt.PopInterrupt()
+		}
 		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
@@ -583,16 +611,30 @@ func handleChargeDrawX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 
 	// 直接进入盖牌选择（跳过数量选择步骤）
 	// Min=0 允许不选，Max=maxPlace 最多可选maxPlace张
+	if ctxData == nil {
+		ctxData = map[string]interface{}{"user_id": user.ID}
+	}
 	ctxData["choice_type"] = "mb_charge_place_cards"
 	ctxData["max_place"] = maxPlace
 	model.SetPromptFlowContext(ctxData, initMagicBowChargePlaceFlow(0))
 	ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
-	if intr := rt.GetPendingInterrupt(); intr != nil {
+	if intr := rt.GetPendingInterrupt(); intr != nil && intr.PlayerID == user.ID && interruptChoiceType(intr) == "mb_charge_draw_x" {
 		intr.Context = ctxData
+		rt.NotifyInterruptPrompt()
+	} else {
+		rt.PushInterrupt(&model.Interrupt{Type: model.InterruptChoice, PlayerID: user.ID, Context: ctxData})
 	}
-	rt.NotifyInterruptPrompt()
 	rt.Log(fmt.Sprintf("%s 的 [充能] 生效：摸%d张，请选择要放置为充能的手牌（最多%d张）", user.Name, xValue, maxPlace))
 	return nil
+}
+
+func interruptChoiceType(intr *model.Interrupt) string {
+	if intr == nil {
+		return ""
+	}
+	data, _ := intr.Context.(map[string]interface{})
+	choiceType, _ := data["choice_type"].(string)
+	return choiceType
 }
 
 func handleChargePlaceCount(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -889,6 +931,13 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 func handleMagicBowAfterDiscard(rt engineplayer.ChoiceRuntime, cont model.FlowContinuation) error {
 	if cont.SkillID == "mb_charge" {
 		return continueChargeAfterDiscard(rt, cont.PlayerID)
+	}
+	if cont.SkillID == "mb_charge_place" {
+		user := rt.GetPlayers()[cont.PlayerID]
+		if user == nil {
+			return fmt.Errorf("充能后续执行者不存在: %s", cont.PlayerID)
+		}
+		return enterChargePlaceCards(rt, user, runtimeutil.ToIntContextValue(cont.Data["charge_x"]), nil)
 	}
 	if cont.SkillID == "mb_demon_eye" {
 		discardPlayerID, _ := cont.Data["discard_player_id"].(string)

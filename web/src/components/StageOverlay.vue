@@ -25,6 +25,7 @@ import {
   type NarrationRow,
   type NarrationSkill,
   type NarrationSpecial,
+  type NarrationEffect,
   type ValueChipColor,
 } from '../stores/stageQueue.store'
 
@@ -75,13 +76,6 @@ const LINK_COLORS: Record<LinkColor, string> = {
   heal: '#59e39a',
   grey: '#7d8799',
 }
-const TAG_BG: Record<LinkColor, string> = {
-  attack: '#7a1f27',
-  magic: '#4a2f80',
-  skill: '#1d4f73',
-  heal: '#1c6b45',
-  grey: '#6b7690',
-}
 const END_STYLE: Record<LinkEndStyle, { bg: string; fg: string; prefix: string }> = {
   blocked: { bg: '#f0d27a', fg: '#2a1d00', prefix: '✕ ' },
   hit: { bg: '#a3262f', fg: '#fff', prefix: '' },
@@ -95,7 +89,10 @@ const CHIP_BG: Record<ValueChipColor, string> = {
   neutral: '#33425e',
 }
 const COLOR_KEYS = Object.keys(LINK_COLORS) as LinkColor[]
-const MAX_ROWS = 5
+/** 一回合里所有的手都累积在同一条链上，行数会比单手多；卡片数量另行限制（MAX_CHAIN_NODES）。 */
+const MAX_ROWS = 40
+/** 战斗链最多同时显示的卡片数；更早的步骤折叠成开头的"+N 步"。 */
+const MAX_CHAIN_NODES = 8
 const MAX_HISTORY = 4
 const MEASURE_INTERVAL_MS = 250
 
@@ -285,6 +282,7 @@ interface MergedChainNode {
   chain?: NarrationChain
   skill?: NarrationSkill
   special?: NarrationSpecial
+  effect?: NarrationEffect
   /** Link carrying the result: a cardless follow-up edge (same from→to) replaces the original. */
   resultLinkId: string
   /** Trigger skills that fired during this step, shown as small tags under the node. */
@@ -314,6 +312,10 @@ const mergedChain = computed(() => {
       nodes.push({ row, special: row.special, resultLinkId: '', triggers: [] })
       continue
     }
+    if (row.effect) {
+      nodes.push({ row, effect: row.effect, resultLinkId: '', triggers: [] })
+      continue
+    }
     const chain = row.chain
     if (!chain) continue
     if (prev?.chain && !chain.card && prev.chain.fromPlayerId === chain.fromPlayerId && prev.chain.toPlayerId === chain.toPlayerId) {
@@ -322,7 +324,8 @@ const mergedChain = computed(() => {
     }
     nodes.push({ row, chain, resultLinkId: chain.linkId, triggers: [] })
   }
-  return nodes.length ? { nodes, source } : null
+  // 没有卡片节点也返回：只有士气 / 资源 / 备注的一手同样在战斗链里显示（不再退回文字框）
+  return source.rows.length ? { nodes, source } : null
 })
 
 /** Element per link id, so a cardless follow-up arc keeps the colour of the card it continues. */
@@ -781,6 +784,19 @@ interface ChainNodeView {
   cost: string
   /** 悬停时显示的完整技能描述。 */
   hint: string
+  /** 牌的命格（圣 / 血 / 幻 / 咏 / 技），卡面右上角印章；无牌或未知时为空。 */
+  faction: string
+  /** 卡面底部的牌名条：有牌图时显示（无牌图时卡面本身就是名字）。 */
+  showCardName: boolean
+  /** 技能公开展示的牌（圣屑飓暴弃置展示的两张等）。 */
+  revealed: { key: string; name: string; art: string; faction: string; element: string }[]
+}
+
+function cardFaction(card: { faction?: string; description?: string } | undefined): string {
+  if (!card) return ''
+  if (card.faction && card.faction.trim()) return card.faction.trim()
+  const m = card.description?.match(/([幻咏血技圣])命格/)
+  return m?.[1] || ''
 }
 
 function seatName(id: string): string {
@@ -827,6 +843,15 @@ const chainView = computed(() => {
         triggers,
         cost: skill.cost || '',
         hint: skill.effectText || '',
+        faction: '',
+        showCardName: false,
+        revealed: (skill.revealed || []).map((card, i) => ({
+          key: `${row.id}-${i}`,
+          name: card.name,
+          art: cardArtSrc(card as Card),
+          faction: cardFaction(card),
+          element: card.element || '',
+        })),
       }
     }
     if (entry.special) {
@@ -851,6 +876,38 @@ const chainView = computed(() => {
         triggers,
         cost: '',
         hint: '',
+        faction: '',
+        showCardName: false,
+        revealed: [],
+      }
+    }
+    if (entry.effect) {
+      // 场上效果结算（虚弱 / 中毒…）：放置者 → 承受者，效果牌作卡面
+      const ef = entry.effect
+      const target = ef.targetIds[0] || ''
+      const from = ef.actorId || target
+      return {
+        id: row.id,
+        verb: ef.kind === 'extra_action' ? '额外行动' : `${ef.label} 生效`,
+        fromAvatar: avatar(from),
+        toAvatar: target && target !== from ? avatar(target) : '',
+        fromName: seatName(from),
+        toName: target && target !== from ? ef.targetIds.map(seatName).join('、') : '',
+        cardName: ef.label,
+        cardArt: ef.card?.name ? cardArtSrc(ef.card as Card) : '',
+        element: ef.card?.element || '',
+        stroke: strokeOf(ef.card?.element, ef.kind === 'extra_action' ? 'grey' : 'skill'),
+        state: last && !source.previous ? 'current' : 'past',
+        result: '',
+        resultStyle: '',
+        skill: false,
+        moreTargets: Math.max(0, ef.targetIds.length - 1),
+        triggers,
+        cost: '',
+        hint: '',
+        faction: cardFaction(ef.card),
+        showCardName: !!ef.card?.name,
+        revealed: [],
       }
     }
     const c = chain!
@@ -887,6 +944,9 @@ const chainView = computed(() => {
       triggers,
       cost: '',
       hint: '',
+      faction: cardFaction(c.card),
+      showCardName: !!c.card?.name,
+      revealed: [],
     }
   })
   // "X 承受" closes the chain: show it as the last card's result instead of a separate line.
@@ -902,10 +962,11 @@ const chainView = computed(() => {
   }
   // 士气变化是这一手的最终后果：单独一行醒目显示，不挤进普通备注。
   // 士气 / 阵营战绩区资源是这一手的最终后果：单独醒目显示，不挤进普通备注。
-  const isOutcomeRow = (row: NarrationRow) => !row.chain && !row.skill && !row.special && (row.tag === '士气' || row.tag === '资源')
+  const isOutcomeRow = (row: NarrationRow) => !row.chain && !row.skill && !row.special && !row.effect && (row.tag === '士气' || row.tag === '资源')
   const outcomes = source.rows.filter(isOutcomeRow).map((row) => ({ id: row.id, html: row.html, kind: row.tag === '士气' ? 'morale' : 'resource' }))
-  const notes = source.rows.filter((row) => !row.chain && !row.skill && !row.special && row !== takeRow && !isOutcomeRow(row)).slice(-2)
-  return { nodes: nodes.slice(-4), notes, outcomes, previous: source.previous }
+  const notes = source.rows.filter((row) => !row.chain && !row.skill && !row.special && !row.effect && row !== takeRow && !isOutcomeRow(row)).slice(-2)
+  const hiddenSteps = Math.max(0, nodes.length - MAX_CHAIN_NODES)
+  return { nodes: nodes.slice(-MAX_CHAIN_NODES), hiddenSteps, notes, outcomes, previous: source.previous }
 })
 
 const historyView = computed(() => store.historyChips.slice(-MAX_HISTORY))
@@ -1200,7 +1261,8 @@ onBeforeUnmount(() => {
       data-testid="stage-chain"
     >
       <div class="stage-chain__tag">{{ chainView.previous ? '上一手' : '战斗链' }}</div>
-      <div class="stage-chain__track">
+      <div v-if="chainView.nodes.length" class="stage-chain__track">
+        <span v-if="chainView.hiddenSteps" class="stage-chain__folded" data-testid="stage-chain-folded">+{{ chainView.hiddenSteps }} 步</span>
         <template v-for="(node, index) in chainView.nodes" :key="node.id">
           <div v-if="index > 0" class="stage-chain__arrow" :class="{ 'stage-chain__arrow--live': node.state !== 'past' }" :style="{ '--node-color': node.stroke }" />
           <div
@@ -1224,6 +1286,13 @@ onBeforeUnmount(() => {
               </template>
               <img v-else-if="node.cardArt" :src="node.cardArt" alt="" />
               <span v-else-if="!node.skill" class="stage-chain__card-text">{{ node.cardName }}</span>
+              <span
+                v-if="node.showCardName && node.cardArt"
+                class="stage-chain__card-name"
+                :class="{ 'stage-chain__card-name--raised': !!node.result }"
+                data-testid="stage-chain-card-name"
+              >{{ node.cardName }}</span>
+              <span v-if="node.faction" class="stage-chain__fate" :title="`${node.faction}命格`" data-testid="stage-chain-fate">{{ node.faction }}</span>
               <span v-if="node.element" class="stage-chain__elem"><ElementGlyph :element="node.element" /></span>
               <span v-if="node.state === 'waiting'" class="stage-chain__timer" />
               <span v-if="node.result" class="stage-chain__result" :class="`stage-chain__result--${node.resultStyle}`">{{ node.result }}</span>
@@ -1236,6 +1305,14 @@ onBeforeUnmount(() => {
               {{ node.state === 'waiting' ? '等待响应' : node.verb }}
             </div>
             <div v-if="node.cost" class="stage-chain__cost">消耗 {{ node.cost }}</div>
+            <!-- 技能公开展示的牌：小牌面并排，带命格与牌名 -->
+            <div v-if="node.revealed.length" class="stage-chain__revealed" data-testid="stage-chain-revealed">
+              <div v-for="card in node.revealed" :key="card.key" class="stage-chain__mini" :title="card.faction ? `${card.name} · ${card.faction}命格` : card.name">
+                <img v-if="card.art" :src="card.art" alt="" />
+                <span v-if="card.faction" class="stage-chain__fate stage-chain__fate--mini">{{ card.faction }}</span>
+                <span class="stage-chain__card-name stage-chain__card-name--mini">{{ card.name }}</span>
+              </div>
+            </div>
             <div
               v-for="trigger in node.triggers"
               :key="trigger.name"
@@ -1261,20 +1338,6 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div
-      v-else-if="narration"
-      class="stage-story"
-      :class="{ 'stage-story--prev': narration.previous, 'stage-story--lifted': decisionOpen }"
-    >
-      <div class="stage-story__head">
-        <span class="stage-story__tag">{{ narration.previous ? '上一手' : '当前行动' }}</span>
-      </div>
-      <div v-for="row in narration.rows" :key="row.id" class="stage-row">
-        <!-- Row html is pre-escaped by the stage queue builders. -->
-        <span class="stage-row__text" v-html="row.html" />
-        <span class="stage-row__tag" :style="{ background: narration.previous ? TAG_BG.grey : TAG_BG[row.tagColor] }">{{ row.tag }}</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -1880,56 +1943,7 @@ onBeforeUnmount(() => {
   animation: stage-fade-in 0.3s ease both;
 }
 
-.stage-story {
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  transform: translateX(-50%);
-  width: min(560px, 44%);
-  border-radius: 14px;
-  background: rgba(9, 14, 26, 0.9);
-  border: 1px solid #3b4d6e;
-  padding: 10px 14px 8px;
-  transition: filter 0.5s, border-color 0.5s, top 0.25s ease;
-}
 /* 决策面板打开时上移，避免与面板上下贴在一起 */
-.stage-story--lifted {
-  top: 18%;
-}
-.stage-story--prev {
-  filter: saturate(0.35) brightness(0.8);
-  border-style: dashed;
-}
-.stage-story__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.stage-story__tag {
-  font-size: 12px;
-  font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 8px;
-  background: #c88a1e;
-  color: #1b1205;
-}
-.stage-story--prev .stage-story__tag {
-  background: #6b7690;
-  color: #fff;
-}
-.stage-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  padding: 4px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  animation: stage-row-in 0.35s ease both;
-}
-.stage-row:first-of-type {
-  border-top: 0;
-}
 .stage-row__text {
   min-width: 0;
   overflow: hidden;
@@ -1939,13 +1953,6 @@ onBeforeUnmount(() => {
 .stage-row__text :deep(b) {
   color: #fff;
   font-weight: 700;
-}
-.stage-row__tag {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 6px;
-  margin-left: auto;
-  flex: none;
 }
 
 @keyframes stage-draw {
@@ -1986,12 +1993,6 @@ onBeforeUnmount(() => {
   from {
     opacity: 0;
     transform: translateX(-50%) scaleX(0.6);
-  }
-}
-@keyframes stage-row-in {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
   }
 }
 
@@ -2062,7 +2063,8 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  max-width: 52%;
+  /* 一整回合的步骤会更多：放宽到 80%，超出时轨道换行 */
+  max-width: 80%;
   transition: filter 0.5s, opacity 0.5s, top 0.3s ease;
 }
 /* 决策面板打开时上移，避免被面板盖住（面板默认在中央偏下，贴手牌上沿） */
@@ -2070,8 +2072,7 @@ onBeforeUnmount(() => {
   top: 26%;
 }
 .stage-chain--prev {
-  filter: saturate(0.3) brightness(0.75);
-  opacity: 0.8;
+  opacity: 0.92;
 }
 .stage-chain__tag {
   font-size: 11px;
@@ -2083,8 +2084,22 @@ onBeforeUnmount(() => {
 }
 .stage-chain__track {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: 4px;
+  row-gap: 10px;
+}
+.stage-chain__folded {
+  align-self: center;
+  margin-bottom: 30px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--bt-text-sub, #9aa4b5);
+  background: rgba(16, 24, 40, 0.85);
+  border: 1px solid #33425e;
+  white-space: nowrap;
 }
 .stage-chain__arrow {
   width: 46px;
@@ -2119,10 +2134,9 @@ onBeforeUnmount(() => {
   transition: transform 0.4s ease, opacity 0.4s ease, filter 0.4s ease;
   animation: stage-node-in 0.45s ease both;
 }
+/* 已结算的步骤保留原色、略缩小；当前步骤靠放大与高亮箭头区分，不再置灰（置灰后牌面看不清） */
 .stage-chain__node--past {
-  transform: scale(0.82);
-  opacity: 0.6;
-  filter: saturate(0.5);
+  transform: scale(0.9);
 }
 .stage-chain__node--current,
 .stage-chain__node--waiting {
@@ -2177,6 +2191,88 @@ onBeforeUnmount(() => {
   border-color: var(--node-color);
   box-shadow: 0 0 0 1px var(--node-color), 0 0 22px color-mix(in srgb, var(--node-color) 65%, transparent), 0 6px 14px rgba(0, 0, 0, 0.55);
 }
+/* 卡面底部牌名条（与手牌卡面同样的位置感） */
+.stage-chain__card-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px 3px 3px;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.85) 40%);
+  color: #f4ecd8;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+/* 卡面底部有"命中 / 未命中"结果角标时，牌名条上移让开 */
+.stage-chain__card-name--raised {
+  bottom: 10px;
+  border-radius: 0;
+}
+/* 命格印章：右上角红底方印（和手牌 CardComponent 一致） */
+.stage-chain__fate {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 17px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #7a1f1f, #4a1010);
+  box-shadow:
+    0 0 0 1px var(--bt-chrome-mid, #8090a8),
+    inset 0 0 0 1px rgba(255, 210, 180, 0.35);
+  color: #ffe9d6;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+}
+
+/* 技能公开展示的牌 */
+.stage-chain__revealed {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 4px;
+}
+.stage-chain__mini {
+  position: relative;
+  width: 40px;
+  height: 56px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bt-bg-0, #070b14);
+  border: 1px solid var(--bt-chrome-mid, #8090a8);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+.stage-chain__mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.stage-chain__card-name--mini {
+  font-size: 9px;
+  padding: 1px 2px 2px;
+  border-radius: 0;
+}
+.stage-chain__fate--mini {
+  width: 13px;
+  height: 13px;
+  font-size: 9px;
+  right: 2px;
+  top: 2px;
+}
+
 .stage-chain__elem {
   position: absolute;
   left: 4px;

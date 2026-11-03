@@ -132,4 +132,45 @@ describe('DecisionOverlayRenderer (docked) layout', () => {
     expect(tiles!.classList.contains('overlay-panel-body')).toBe(false)
     expect(tiles!.parentElement?.classList.contains('overlay-panel-body')).toBe(true)
   })
+
+  // "是否发动"类（阴阳转换、法术反弹）：一行两个小按钮，点了就提交，不画成大分支卡
+  it('renders a plain 是/否 as two small buttons that submit immediately', async () => {
+    const { emitted } = render(DecisionOverlayRenderer, {
+      props: {
+        ...baseProps,
+        title: '【阴阳转换】是否发动？',
+        mode: 'yes-no' as const,
+        options: [
+          { id: '0', label: '是', buttonLabel: '是' },
+          { id: '1', label: '否', buttonLabel: '否' },
+        ],
+      },
+      global: { provide: { [DECISION_DOCKED as symbol]: true } },
+    })
+    const row = screen.getByTestId('decision-yesno')
+    const buttons = row.querySelectorAll('button')
+    // 否在左、是在右
+    expect([...buttons].map((b) => b.textContent?.trim())).toEqual(['否', '是'])
+    expect(screen.queryByTestId('branch-option-0')).toBeNull()
+    expect(screen.queryByTestId('decision-confirm-btn')).toBeNull()
+    await fireEvent.click(screen.getByTestId('prompt-option-0'))
+    expect(emitted().select).toEqual([['0']])
+  })
+
+  it('shows why 是 is disabled under the buttons', () => {
+    render(DecisionOverlayRenderer, {
+      props: {
+        ...baseProps,
+        title: '【法术反弹】是否发动？',
+        mode: 'yes-no' as const,
+        options: [
+          { id: '0', label: '是', buttonLabel: '是', disabled: true, disabledReason: '同系手牌不足2张，无法发动法术反弹' },
+          { id: '1', label: '否', buttonLabel: '否' },
+        ],
+      },
+      global: { provide: { [DECISION_DOCKED as symbol]: true } },
+    })
+    expect((screen.getByTestId('prompt-option-0') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByTestId('decision-yesno-reason').textContent).toContain('同系手牌不足2张')
+  })
 })

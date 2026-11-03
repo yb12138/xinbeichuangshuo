@@ -435,7 +435,8 @@
 | TestMagicBowMultiShot_TargetCannotRepeatPrevious | 连射不重复目标 | 上次攻击p2后目标池仅剩p3 |
 | TestMagicBowCharge_FollowupPlaceCharges | 充能（后续放置） | 选摸X后选放置数量和牌，消耗水晶 |
 | TestMagicBowCharge_DiscardFirstThenChooseX | 充能（先弃后选X） | 手牌超4时先强制弃到4 |
-| TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard | 充能（超摸士气） | 超摸仅扣士气不弹弃牌 |
+| TestMagicBowCharge_DrawOverflowDiscardsThenPlacesCharges | 充能（超摸爆牌） | 超摸先弃到上限（每张士气-1），再从剩余手牌选充能 |
+| TestMagicBowCharge_DrawToLimitPlacesWithoutDiscard | 充能（摸到上限） | 刚好到上限不弃牌，直接选充能 |
 | TestMagicBowThunderScatter_ExtraDamageSplit | 雷散额外分配 | 2雷充能对p2造成3点、p3造成1点 |
 | TestMagicBowMagicPierce_HitBonusCappedAtTwo | 魔贯命中加伤上限 | 3火充能只消耗1个+2伤害 |
 | TestMagicBowMagicPierce_MissDealsExactlyThreeMagicDamage | 魔贯未命中精确3点 | 仅消耗1火充能 |

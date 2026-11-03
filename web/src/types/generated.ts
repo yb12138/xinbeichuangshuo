@@ -195,6 +195,7 @@ export interface CombatCuePayload {
   attacker_id: string
   target_id: string
   phase: string
+  card?: Card
 }
 
 export interface DamageDealtPayload {

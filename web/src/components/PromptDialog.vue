@@ -1528,8 +1528,17 @@ const isYesNoDecision = computed(() => {
   return labels.every(l => l.length > 0 && l.length <= 3)
 })
 
+/** 选项正好是"是 / 否"（阴阳转换、法术反弹等"是否发动"）：用一行两个小按钮，不画成大分支卡。 */
+const isPlainYesNo = computed(() => {
+  const options = prompt.value?.options || []
+  if (options.length !== 2) return false
+  const labels = options.map((o) => String(o.label || '').trim())
+  return labels[0] === '是' && labels[1] === '否'
+})
+
 const decisionOverlayMode = computed<'numeric' | 'text' | 'activation-cost' | 'yes-no'>(() => {
   if (singleActivationCostConfirmOption.value) return 'activation-cost'
+  if (isPlainYesNo.value) return 'yes-no'
   if (isSystemBranchPromptChoice()) return 'text'
   if (inlinePrimaryButtons.value.some(opt => opt.numeric)) return 'numeric'
   if (isYesNoDecision.value) return 'yes-no'

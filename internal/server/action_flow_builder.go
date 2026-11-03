@@ -192,7 +192,13 @@ func (b *actionFlowBuilder) applyBackboneEvent(event TimelineEvent) {
 			phase = "counter"
 		}
 		for _, targetID := range event.TargetUserIDs {
-			b.ensureEdge(event.ActorUserID, targetID, phase, event.CombatID)
+			edgeID := b.ensureEdge(event.ActorUserID, targetID, phase, event.CombatID)
+			// 宣言带的攻击牌只在边上没有真实出牌时补上（技能视为的虚拟攻击：圣屑飓暴、多重射击）
+			if kind == "combat_declared" && len(event.Cards) > 0 {
+				if edge := b.edgeByID(edgeID); edge != nil && len(edge.Cards) == 0 {
+					b.attachCardsToEdge(edgeID, event.EventID, event.Cards)
+				}
+			}
 		}
 		return
 	case visualKind == "card" && len(event.Cards) > 0:
@@ -228,6 +234,15 @@ func (b *actionFlowBuilder) applySkillOrEffectEvent(event TimelineEvent) {
 			node.Effects = append(node.Effects, ActionFlowEffectDTO{Kind: kind, Summary: event.Summary, TargetIDs: uniqueFlowStrings(event.TargetUserIDs)})
 		}
 		return
+	}
+
+	// 技能因果下公开展示的牌（圣屑飓暴弃2张同系并展示、沉沦协奏曲展示弃牌…）：
+	// 挂到该技能节点上，战斗链据此把牌面画出来。暗弃 / 盖放（Hidden）不展示。
+	if cause := event.Cause; cause != nil && cause.SkillID != "" && visualKind == "card" && !event.Hidden && len(event.Cards) > 0 {
+		if index := b.ensureCauseNode(event); index >= 0 {
+			node := &b.flow.Nodes[index]
+			node.Cards = append(node.Cards, cloneFlowCards(event.Cards)...)
+		}
 	}
 
 	switch {
@@ -499,7 +514,7 @@ func (b *actionFlowBuilder) applyEffectEvent(event TimelineEvent) {
 		// 无名称、无归属的状态变化（如规则结算的资源差值）不构成可读的步骤；差值仍随事件下发。
 		return
 	}
-	nodeID := b.addNode(ActionFlowNodeDTO{
+	effectNode := ActionFlowNodeDTO{
 		Kind:          "effect",
 		ActorUserID:   event.ActorUserID,
 		TargetUserIDs: targets,
@@ -507,7 +522,12 @@ func (b *actionFlowBuilder) applyEffectEvent(event TimelineEvent) {
 		AnchorEdgeID:  anchorEdgeID,
 		Outcome:       "resolved",
 		Label:         label,
-	})
+	}
+	// 带上效果牌（虚弱 / 中毒的牌面），战斗链据此画卡面
+	if event.FieldCard != nil && event.FieldCard.Card.Name != "" {
+		effectNode.Cards = []model.Card{event.FieldCard.Card}
+	}
+	nodeID := b.addNode(effectNode)
 	b.attachNodeToEdge(anchorEdgeID, nodeID)
 }
 
@@ -790,12 +810,19 @@ func (b *actionFlowBuilder) ensureFallbackActionNode() {
 	if len(b.flow.Nodes) > 0 || len(b.flow.Edges) > 0 || b.flow.ActorUserID == "" {
 		return
 	}
-	b.addNode(ActionFlowNodeDTO{
+	// 占位节点用独立 ID，不占 node-1：流图每次都按当前事件重建，等真正的技能节点出现时
+	// 它会排到 node-1。若占位也叫 node-1，前端按 ID 记"已显示"，就会把真正的技能节点当成
+	// 已显示跳过，退回成一句"当前行动 · 技能 X"的文字框，进不了战斗链。
+	node := ActionFlowNodeDTO{
+		ID:          fmt.Sprintf("%s-node-pending", b.flow.ActionID),
 		Kind:        "action",
 		ActorUserID: b.flow.ActorUserID,
 		Label:       actionTypeVerb(b.flow.ActionType),
 		Outcome:     "pending",
-	})
+	}
+	b.flow.Nodes = append(b.flow.Nodes, node)
+	b.nodeIndexByID[node.ID] = len(b.flow.Nodes) - 1
+	b.addActor(node.ActorUserID)
 }
 
 func (b *actionFlowBuilder) addActor(playerID string) {

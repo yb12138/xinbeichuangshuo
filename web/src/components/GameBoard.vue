@@ -4009,9 +4009,13 @@ const fighterHundredDragonByPlayer = computed(() => {
   content: '';
   position: absolute;
   inset: 0;
+  /* 对战房间背景：星穹金环大教堂（outimage/星穹金环大教堂*.png）。
+     上面叠一层暗化遮罩，中间留亮、四周压暗，保证座位卡与战斗链文字可读；
+     center 70% 让地面法阵落在牌桌中央附近。 */
   background:
-    radial-gradient(960px 460px at 50% 40%, rgba(42, 86, 132, 0.18), rgba(16, 27, 42, 0.34) 58%, rgba(8, 14, 24, 0.58) 100%),
-    linear-gradient(180deg, rgba(8, 16, 28, 0.42), rgba(5, 10, 18, 0.56));
+    radial-gradient(960px 460px at 50% 40%, rgba(42, 86, 132, 0.04), rgba(16, 27, 42, 0.2) 58%, rgba(8, 14, 24, 0.5) 100%),
+    linear-gradient(180deg, rgba(8, 16, 28, 0.2), rgba(5, 10, 18, 0.34)),
+    url('/assets/bg/arena_starlit_cathedral.webp') center 70% / cover no-repeat;
   z-index: 0;
 }
 
@@ -4020,8 +4024,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(980px 420px at 50% 42%, rgba(120, 195, 219, 0.16), transparent 72%),
-    linear-gradient(180deg, rgba(2, 10, 20, 0.2), rgba(2, 7, 16, 0.46));
+    radial-gradient(980px 420px at 50% 42%, rgba(120, 195, 219, 0.1), transparent 72%),
+    linear-gradient(180deg, rgba(2, 10, 20, 0.08), rgba(2, 7, 16, 0.3));
   pointer-events: none;
   z-index: 0;
 }

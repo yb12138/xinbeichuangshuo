@@ -39,58 +39,45 @@ function baseProps() {
 }
 
 describe('ResponsePromptRenderer', () => {
-  it('renders the element hint and one tinted card per response with its consequence', () => {
-    render(ResponsePromptRenderer, {
-      props: baseProps(),
-    })
+  it('renders the element hint and one button per response option', () => {
+    render(ResponsePromptRenderer, { props: baseProps() })
 
     expect(screen.getByTestId('response-prompt')).toBeInTheDocument()
     expect(screen.getByText('此次攻击系别：火系（应战需同系或暗灭）')).toBeInTheDocument()
-    const take = screen.getByTestId('prompt-option-take')
-    expect(take).toHaveClass('dc-tile--take')
-    expect(take).toHaveTextContent('命中')
-    expect(take).toHaveTextContent('承受火系攻击伤害')
-    expect(screen.getByTestId('prompt-option-defend')).toHaveClass('dc-tile--defend')
-    expect(screen.getByTestId('prompt-option-defend')).toHaveTextContent('防御')
-    const counter = screen.getByTestId('prompt-option-counter')
-    expect(counter).toHaveClass('dc-tile--counter')
-    expect(counter).toHaveTextContent('应战 / 传递')
-    // 禁用时写原因而不是后果
-    expect(counter).toHaveTextContent('没有可用的同系牌')
-    expect(counter).not.toHaveTextContent('打出火系攻击或暗灭')
+    expect(screen.getByTestId('response-take')).toHaveTextContent('命中')
+    expect(screen.getByTestId('response-defend')).toHaveTextContent('防御')
+    expect(screen.getByTestId('response-counter')).toHaveTextContent('应战 / 传递')
   })
 
   it('emits selected option id', async () => {
     const user = userEvent.setup()
-    const { emitted } = render(ResponsePromptRenderer, {
-      props: baseProps(),
-    })
-
-    await user.click(screen.getByTestId('prompt-option-defend'))
-
-    expect(emitted('select')).toEqual([['defend']])
+    const { emitted } = render(ResponsePromptRenderer, { props: baseProps() })
+    await user.click(screen.getByTestId('response-take'))
+    expect(emitted().select).toEqual([['take']])
   })
 
   it('does not emit select when an option is disabled', async () => {
     const user = userEvent.setup()
-    const { emitted } = render(ResponsePromptRenderer, {
-      props: baseProps(),
-    })
-
-    await user.click(screen.getByTestId('prompt-option-counter'))
-
-    expect(emitted('select')).toBeUndefined()
+    const { emitted } = render(ResponsePromptRenderer, { props: baseProps() })
+    await user.click(screen.getByTestId('response-counter'))
+    expect(emitted().select).toBeUndefined()
   })
 
+  it('renders response prompt through the response renderer and keeps take submit behavior', () => {
+    render(ResponsePromptRenderer, { props: baseProps() })
+    const actions = screen.getByTestId('response-actions')
+    expect(actions.querySelectorAll('button')).toHaveLength(3)
+    expect(screen.getByTestId('response-take')).not.toBeDisabled()
+    expect(screen.getByTestId('response-counter')).toBeDisabled()
+  })
 
-  it('does not render while hidden', () => {
+  it('mentions the faction when the responder can counter by 命格 (阴阳师)', () => {
     render(ResponsePromptRenderer, {
       props: {
         ...baseProps(),
-        visible: false,
+        hint: '此次攻击系别：火系·幻命格（应战需同系或暗灭）',
       },
     })
-
-    expect(screen.queryByTestId('response-prompt')).not.toBeInTheDocument()
+    expect(screen.getByTestId('response-hint')?.textContent).toContain('幻命格')
   })
 })

@@ -877,7 +877,7 @@ describe('PromptDialog', () => {
     render(PromptDialog, { global: { plugins: [pinia] } })
 
     expect(screen.getByText('此次攻击：火系 · 咏命格（应战需同系、咏命格或暗灭）')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-option-counter')).toHaveTextContent('打出火系、咏命格攻击或暗灭')
+    expect(screen.getByTestId('response-counter')).toHaveTextContent('应战 / 传递')
   })
 
   it('renders response prompt through the response renderer and keeps take submit behavior', async () => {
@@ -896,12 +896,12 @@ describe('PromptDialog', () => {
 
     expect(screen.getByTestId('response-prompt')).toBeInTheDocument()
     expect(screen.getByText('此次攻击系别：火系（应战需同系或暗灭）')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-option-take')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-option-defend')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-option-counter')).toBeInTheDocument()
+    expect(screen.getByTestId('response-take')).toBeInTheDocument()
+    expect(screen.getByTestId('response-defend')).toBeInTheDocument()
+    expect(screen.getByTestId('response-counter')).toBeInTheDocument()
     expect(screen.queryByTestId('decision-overlay')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByTestId('prompt-option-take'))
+    await userEvent.click(screen.getByTestId('response-take'))
 
     expect(submitRespondTakeMock).toHaveBeenCalledOnce()
     expect(submitSelectMock).not.toHaveBeenCalled()

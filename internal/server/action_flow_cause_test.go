@@ -329,3 +329,186 @@ func TestActionFlow_TurnStartEffectsNotMergedIntoPreviousTurnEnd(t *testing.T) {
 		t.Fatalf("虚弱 (berserker's turn start) merged into the bard's turn-end action %q", descentAction)
 	}
 }
+
+// 回合结束技能（自动填充）先只有占位节点、选完才出技能节点：两者 ID 不能相同，
+// 否则前端按节点 ID 判断"已显示"，会把技能节点跳过，退回成一句文字日志，不进战斗链。
+func TestActionFlow_PendingPlaceholderDoesNotShareSkillNodeID(t *testing.T) {
+	room := newCauseFlowRoom(t,
+		map[string]string{"p1": "holy_bow", "p2": "berserker"},
+		map[string]model.Camp{"p1": model.BlueCamp, "p2": model.RedCamp},
+		[]string{"p1", "p2"})
+	setActivePlayer(room, "p1")
+	st := room.Engine.State
+	st.TurnStage = model.TurnStageActionExecution
+	st.PendingInterrupt, st.InterruptQueue = nil, nil
+	p1 := st.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 2
+	p1.Hand = []model.Card{{ID: "a1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2, Faction: "圣"}}
+	st.Players["p2"].Hand = nil
+	room.Engine.Drive()
+	if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, CardID: "a1", TargetID: "p2"}); err != nil {
+		t.Fatal(err)
+	}
+	room.Engine.Drive()
+	_ = room.Engine.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
+	room.Engine.Drive()
+
+	ids := map[string]string{} // node ID → kind 首次出现
+	check := func() {
+		hist := room.snapshotTimelineHistory()
+		for i, ev := range hist {
+			for _, flow := range buildLiveActionFlows(hist[:i], ev, room.timelineDisplayName) {
+				for _, node := range flow.Nodes {
+					if kind, ok := ids[node.ID]; ok && kind != node.Kind {
+						t.Fatalf("node id %q reused: first %s, now %s", node.ID, kind, node.Kind)
+					}
+					ids[node.ID] = node.Kind
+				}
+			}
+		}
+	}
+	check()
+	for i := 0; i < 4 && st.PendingInterrupt != nil; i++ {
+		pi := st.PendingInterrupt
+		_ = room.Engine.HandleAction(model.PlayerAction{PlayerID: pi.PlayerID, Type: model.CmdSelect, Selections: []int{0}})
+		room.Engine.Drive()
+	}
+	check()
+	sawAutoFill := false
+	for _, flow := range replayFlows(room) {
+		if len(skillNodes(flow, "hb_auto_fill")) > 0 {
+			sawAutoFill = true
+		}
+	}
+	if !sawAutoFill {
+		t.Fatalf("expected an 自动填充 skill node after resolving it")
+	}
+}
+
+// 技能公开展示的牌（圣屑飓暴弃置并展示 2 张同系攻击牌）要挂在技能节点上，战斗链才能画出牌面与命格。
+func TestActionFlowCause_SkillRevealedCardsAttachedToSkillNode(t *testing.T) {
+	room := newCauseFlowRoom(t,
+		map[string]string{"p1": "holy_bow", "p2": "berserker"},
+		map[string]model.Camp{"p1": model.BlueCamp, "p2": model.RedCamp},
+		[]string{"p1", "p2"})
+	setActivePlayer(room, "p1")
+	st := room.Engine.State
+	st.TurnStage = model.TurnStageActionExecution
+	st.PendingInterrupt, st.InterruptQueue = nil, nil
+	p1 := st.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "a1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2, Faction: "血"},
+		{ID: "a2", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2, Faction: "幻"},
+	}
+	st.Players["p2"].Hand = nil
+	room.Engine.Drive()
+	if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "hb_holy_shard_storm"}); err != nil {
+		t.Fatal(err)
+	}
+	room.Engine.Drive()
+	if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("choose cards: %v", err)
+	}
+	room.Engine.Drive()
+
+	var revealed []model.Card
+	for _, flow := range replayFlows(room) {
+		for _, node := range skillNodes(flow, "hb_holy_shard_storm") {
+			revealed = append(revealed, node.Cards...)
+		}
+	}
+	if len(revealed) != 2 {
+		t.Fatalf("expected the 2 revealed cards on the 圣屑飓暴 node, got %+v", revealed)
+	}
+
+	// 选目标后视为的圣命格攻击：攻击边要带上虚拟攻击牌，战斗链才能标出牌名与"圣"命格
+	if prompt := room.Engine.GetCurrentPrompt(); prompt != nil {
+		pick := 0
+		for i, o := range prompt.Options {
+			if o.TargetID == "p2" {
+				pick = i
+			}
+		}
+		if err := room.Engine.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{pick}}); err != nil {
+			t.Fatalf("choose target: %v", err)
+		}
+		room.Engine.Drive()
+	}
+	var attackCards []model.Card
+	for _, flow := range replayFlows(room) {
+		for _, edge := range flow.Edges {
+			if edge.Phase == "attack" && edge.ToUserID == "p2" {
+				attackCards = append(attackCards, edge.Cards...)
+			}
+		}
+	}
+	if len(attackCards) != 1 || attackCards[0].Name != "圣屑飓暴" || attackCards[0].Faction != "圣" {
+		t.Fatalf("expected the virtual 圣屑飓暴 attack card (圣命格) on the attack edge, got %+v", attackCards)
+	}
+	factions := map[string]bool{}
+	for _, c := range revealed {
+		factions[c.Faction] = true
+	}
+	if !factions["血"] || !factions["幻"] {
+		t.Fatalf("expected revealed cards to keep their 命格, got %+v", revealed)
+	}
+}
+
+// 暗弃（Hidden）的牌不能出现在任何技能节点上——否则战斗链会把盖住的牌面泄露给所有人。
+func TestActionFlowCause_HiddenDiscardNotAttachedToSkillNode(t *testing.T) {
+	cause := &model.Cause{ID: "c9", SkillID: "x_skill", SkillName: "测试技", OwnerID: "p1"}
+	events := []TimelineEvent{
+		{EventID: 1, ActionID: "a1", ActorUserID: "p1", SkillID: "x_skill", NarrativeKind: "skill_triggered", VisualKind: "skill_token", Cause: cause},
+		{EventID: 2, ActionID: "a1", ActorUserID: "p1", NarrativeKind: "card_played", VisualKind: "none", Hidden: true, CardRole: "discard",
+			Cards: []model.Card{{ID: "h", Name: "秘密牌", Type: model.CardTypeMagic}}, Cause: cause},
+	}
+	flows := buildReplayActionFlows(events, func(id, name string) string { return id })
+	for _, flow := range flows {
+		for _, node := range flow.Nodes {
+			if len(node.Cards) > 0 {
+				t.Fatalf("hidden discard leaked onto node %+v", node)
+			}
+		}
+	}
+}
+
+// 应战反击：反击宣言不能再带一次牌。应战那一步已带过雷光斩；反击边若也带牌，
+// 前端就不会把它并入应战，战斗链里同一张牌出现两次（"应战" + "攻击 未命中"）。
+func TestActionFlow_CounterAttackEdgeIsCardless(t *testing.T) {
+	room := newCauseFlowRoom(t,
+		map[string]string{"p1": "holy_bow", "p2": "berserker", "p3": "bard"},
+		map[string]model.Camp{"p1": model.BlueCamp, "p2": model.RedCamp, "p3": model.BlueCamp},
+		[]string{"p1", "p2", "p3"})
+	setActivePlayer(room, "p1")
+	st := room.Engine.State
+	st.TurnStage = model.TurnStageActionExecution
+	st.PendingInterrupt, st.InterruptQueue = nil, nil
+	st.Players["p1"].TurnState = model.NewPlayerTurnState()
+	st.Players["p1"].Hand = []model.Card{{ID: "a1", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2, Faction: "咏"}}
+	st.Players["p2"].Hand = []model.Card{{ID: "c1", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2, Faction: "技"}}
+	st.Players["p3"].Hand = []model.Card{{ID: "h1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight, Faction: "圣"}}
+	room.Engine.Drive()
+	must := func(a model.PlayerAction) {
+		if err := room.Engine.HandleAction(a); err != nil {
+			t.Fatalf("%+v: %v", a, err)
+		}
+		room.Engine.Drive()
+	}
+	must(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, CardID: "a1", TargetID: "p2"})
+	must(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, CardID: "c1", TargetID: "p3", ExtraArgs: []string{"counter"}})
+	must(model.PlayerAction{PlayerID: "p3", Type: model.CmdRespond, CardID: "h1", ExtraArgs: []string{"defend"}})
+
+	cardsFromP2toP3 := 0
+	for _, flow := range replayFlows(room) {
+		for _, edge := range flow.Edges {
+			if edge.FromUserID == "p2" && edge.ToUserID == "p3" {
+				cardsFromP2toP3 += len(edge.Cards)
+			}
+		}
+	}
+	if cardsFromP2toP3 != 1 {
+		t.Fatalf("expected the counter card once on p2→p3 edges, got %d", cardsFromP2toP3)
+	}
+}
