@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toStagePx } from '../composables/useStageScale'
 /**
  * Battle "stage" drawn directly between player seats.
  *
@@ -134,9 +135,18 @@ function involvedPlayerIds(): string[] {
   }
   for (const change of store.formChanges) ids.add(change.playerId)
   for (const flight of store.deckFlights) ids.add(flight.playerId)
+  for (const flight of store.handFlights) {
+    ids.add(flight.fromPlayerId)
+    ids.add(flight.toPlayerId)
+  }
   for (const flight of store.stoneFlights) ids.add(flight.playerId)
   ids.delete('')
   return [...ids]
+}
+
+/** 元素中心点：视觉坐标 → 相对根元素的舞台布局坐标。 */
+function centerOf(r: DOMRect, originX: number, originY: number): Point {
+  return { x: toStagePx(r.left - originX + r.width / 2), y: toStagePx(r.top - originY + r.height / 2) }
 }
 
 function measure() {
@@ -157,16 +167,18 @@ function measure() {
     const el = root.querySelector<HTMLElement>(`[data-player-anchor="${CSS.escape(id)}"]`)
     if (!el) continue
     const r = el.getBoundingClientRect()
-    const left = r.left - originX
-    const top = r.top - originY
+    const left = toStagePx(r.left - originX)
+    const top = toStagePx(r.top - originY)
+    const w = toStagePx(r.width)
+    const h = toStagePx(r.height)
     const box: SeatBox = {
       left,
       top,
-      right: left + r.width,
-      bottom: top + r.height,
-      cx: left + r.width / 2,
-      cy: top + r.height / 2,
-      leftSide: left + r.width / 2 < width / 2,
+      right: left + w,
+      bottom: top + h,
+      cx: left + w / 2,
+      cy: top + h / 2,
+      leftSide: left + w / 2 < width / 2,
     }
     next[id] = box
   }
@@ -176,7 +188,7 @@ function measure() {
   for (const el of root.querySelectorAll<HTMLElement>('[data-camp-anchor]')) {
     const icon = el.querySelector<SVGElement>('.camp-icon') ?? el
     const r = icon.getBoundingClientRect()
-    nextCamp[el.dataset.campAnchor || ''] = { x: r.left - originX + r.width / 2, y: r.top - originY + r.height / 2 }
+    nextCamp[el.dataset.campAnchor || ''] = centerOf(r, originX, originY)
   }
   const prevCamp = campAnchors.value
   if (
@@ -189,7 +201,7 @@ function measure() {
   const deckEl = root.querySelector<HTMLElement>('[data-deck-anchor]')
   if (deckEl) {
     const r = deckEl.getBoundingClientRect()
-    const point = { x: r.left - originX + r.width / 2, y: r.top - originY + r.height / 2 }
+    const point = centerOf(r, originX, originY)
     if (!deckAnchor.value || Math.abs(deckAnchor.value.x - point.x) > 0.5 || Math.abs(deckAnchor.value.y - point.y) > 0.5) {
       deckAnchor.value = point
     }
@@ -202,7 +214,7 @@ function measure() {
     const mark = seat?.querySelector<HTMLElement>(`[data-mark-key="${CSS.escape(change.statusKey)}"] .seat-mark-icon`)
     if (!mark) continue
     const r = mark.getBoundingClientRect()
-    anchors[`${change.playerId}|${change.statusKey}`] = { x: r.left - originX + r.width / 2, y: r.top - originY + r.height / 2 }
+    anchors[`${change.playerId}|${change.statusKey}`] = centerOf(r, originX, originY)
   }
   const prev = markAnchors.value
   const changed =
@@ -634,6 +646,41 @@ const deckFlightViews = computed(() => {
   return views
 })
 
+/**
+ * 手牌流动：牌背从交出方座位沿弧线飞到接收方座位（天使祝福交牌、水之神力给牌）。
+ * 一端为空时用牌堆位置：弃牌 = 座位 → 牌堆方向后淡出，替他人摸牌 = 牌堆 → 座位。
+ */
+const handFlightViews = computed(() => {
+  const views: { id: string; style: Record<string, string> }[] = []
+  const pointOf = (playerId: string): Point | null => {
+    if (!playerId) return deckAnchor.value
+    const box = seats.value[playerId]
+    return box ? { x: box.cx, y: box.cy } : null
+  }
+  for (const flight of store.handFlights) {
+    const from = pointOf(flight.fromPlayerId)
+    const to = pointOf(flight.toPlayerId)
+    if (!from || !to) continue
+    // 同侧（同一列座位）之间的弧线向棋盘中央鼓出，避免贴着座位边飞
+    const sameColumn = Math.abs(to.x - from.x) < 40
+    const lift = Math.max(70, Math.abs(to.x - from.x) * 0.2)
+    for (let i = 0; i < flight.count; i++) {
+      const end = { x: to.x + (i - (flight.count - 1) / 2) * 8, y: to.y }
+      const c = sameColumn
+        ? { x: from.x + (from.x < size.value.width / 2 ? 120 : -120), y: (from.y + end.y) / 2 }
+        : { x: (from.x + end.x) / 2, y: Math.min(from.y, end.y) - lift }
+      views.push({
+        id: `${flight.id}-${i}`,
+        style: {
+          offsetPath: `path('M${from.x.toFixed(1)},${from.y.toFixed(1)} Q${c.x.toFixed(1)},${c.y.toFixed(1)} ${end.x.toFixed(1)},${end.y.toFixed(1)}')`,
+          animationDelay: `${(i * 0.14).toFixed(2)}s`,
+        },
+      })
+    }
+  }
+  return views
+})
+
 /** 模板 4 资源型：宝石 / 水晶在座位与阵营栏之间沿弧线飞行，多颗依次错开。 */
 const stoneFlightViews = computed(() => {
   const views: { id: string; stone: 'gem' | 'crystal'; style: Record<string, string> }[] = []
@@ -790,6 +837,8 @@ interface ChainNodeView {
   showCardName: boolean
   /** 技能公开展示的牌（圣屑飓暴弃置展示的两张等）。 */
   revealed: { key: string; name: string; art: string; faction: string; element: string }[]
+  /** 手牌流动：交出方头像 ➜ 接收方头像 ×N；一端为空 = 牌库（摸） / 弃牌堆（弃）。 */
+  transfers: { key: string; fromAvatar: string; toAvatar: string; fromName: string; toName: string; count: number; title: string }[]
 }
 
 function cardFaction(card: { faction?: string; description?: string } | undefined): string {
@@ -797,6 +846,25 @@ function cardFaction(card: { faction?: string; description?: string } | undefine
   if (card.faction && card.faction.trim()) return card.faction.trim()
   const m = card.description?.match(/([幻咏血技圣])命格/)
   return m?.[1] || ''
+}
+
+/** 只有手牌流动、没有别的结果时，动词写成净效果：「收 2 张」「给出 1 张」「弃 2 张」。 */
+function transferVerb(skill: { actorId: string; transfers?: { from: string; to: string; count: number }[] }): string {
+  const list = skill.transfers || []
+  if (!list.length) return ''
+  const sum = (pick: (t: { from: string; to: string; count: number }) => boolean) =>
+    list.filter(pick).reduce((total, t) => total + t.count, 0)
+  const received = sum((t) => t.to === skill.actorId && !!t.from)
+  const given = sum((t) => t.from === skill.actorId && !!t.to)
+  const discarded = sum((t) => !!t.from && !t.to)
+  const drawn = sum((t) => !t.from && !!t.to)
+  const parts = [
+    received ? `收 ${received} 张` : '',
+    given ? `给出 ${given} 张` : '',
+    discarded ? `弃 ${discarded} 张` : '',
+    drawn ? `摸 ${drawn} 张` : '',
+  ].filter(Boolean)
+  return parts.join(' · ') || `${sum(() => true)} 张易手`
 }
 
 function seatName(id: string): string {
@@ -826,7 +894,7 @@ const chainView = computed(() => {
       const firstTarget = others[0] || ''
       return {
         id: row.id,
-        verb: skill.outcome || (skill.opening === 'trigger' ? '触发' : '发动'),
+        verb: skill.outcome || transferVerb(skill) || (skill.opening === 'trigger' ? '触发' : '发动'),
         fromAvatar: avatar(skill.actorId),
         toAvatar: firstTarget ? avatar(firstTarget) : '',
         fromName: seatName(skill.actorId),
@@ -845,6 +913,19 @@ const chainView = computed(() => {
         hint: skill.effectText || '',
         faction: '',
         showCardName: false,
+        transfers: (skill.transfers || []).map((t, i) => {
+          const fromName = t.from ? seatName(t.from) : '牌库'
+          const toName = t.to ? seatName(t.to) : '弃牌堆'
+          return {
+            key: `${row.id}-t${i}`,
+            fromAvatar: t.from ? avatar(t.from) : '',
+            toAvatar: t.to ? avatar(t.to) : '',
+            fromName,
+            toName,
+            count: t.count,
+            title: t.from && t.to ? `${fromName} 交给 ${toName} ${t.count} 张牌` : t.from ? `${fromName} 弃 ${t.count} 张牌` : `${toName} 摸 ${t.count} 张牌`,
+          }
+        }),
         revealed: (skill.revealed || []).map((card, i) => ({
           key: `${row.id}-${i}`,
           name: card.name,
@@ -879,6 +960,7 @@ const chainView = computed(() => {
         faction: '',
         showCardName: false,
         revealed: [],
+        transfers: [],
       }
     }
     if (entry.effect) {
@@ -908,6 +990,7 @@ const chainView = computed(() => {
         faction: cardFaction(ef.card),
         showCardName: !!ef.card?.name,
         revealed: [],
+        transfers: [],
       }
     }
     const c = chain!
@@ -947,6 +1030,7 @@ const chainView = computed(() => {
       faction: cardFaction(c.card),
       showCardName: !!c.card?.name,
       revealed: [],
+      transfers: [],
     }
   })
   // "X 承受" closes the chain: show it as the last card's result instead of a separate line.
@@ -1221,6 +1305,14 @@ onBeforeUnmount(() => {
     </div>
 
     <div
+      v-for="card in handFlightViews"
+      :key="`hand-${card.id}`"
+      class="stage-hand-card"
+      :style="card.style"
+      data-testid="stage-hand-flight"
+    />
+
+    <div
       v-for="stone in stoneFlightViews"
       :key="`stone-${stone.id}`"
       class="stage-stone"
@@ -1311,6 +1403,17 @@ onBeforeUnmount(() => {
                 <img v-if="card.art" :src="card.art" alt="" />
                 <span v-if="card.faction" class="stage-chain__fate stage-chain__fate--mini">{{ card.faction }}</span>
                 <span class="stage-chain__card-name stage-chain__card-name--mini">{{ card.name }}</span>
+              </div>
+            </div>
+            <!-- 手牌流动：谁把几张牌交给了谁 -->
+            <div v-if="node.transfers.length" class="stage-chain__transfers" data-testid="stage-chain-transfers">
+              <div v-for="t in node.transfers" :key="t.key" class="stage-chain__transfer" :title="t.title" :aria-label="t.title">
+                <img v-if="t.fromAvatar" :src="t.fromAvatar" alt="" />
+                <span v-else class="stage-chain__transfer-pile">{{ t.fromName }}</span>
+                <span class="stage-chain__transfer-arrow" aria-hidden="true">➜</span>
+                <img v-if="t.toAvatar" :src="t.toAvatar" alt="" />
+                <span v-else class="stage-chain__transfer-pile">{{ t.toName }}</span>
+                <span class="stage-chain__transfer-count">{{ t.count }} 张</span>
               </div>
             </div>
             <div
@@ -1850,6 +1953,32 @@ onBeforeUnmount(() => {
   15% { opacity: 1; }
   85% { offset-distance: 100%; transform: scale(1.1) rotate(4deg); opacity: 1; }
   100% { offset-distance: 100%; transform: scale(1) rotate(0); opacity: 0; }
+}
+
+.stage-hand-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 30px;
+  height: 42px;
+  margin: -21px 0 0 -15px;
+  border-radius: 3px;
+  background: url('/assets/card-back.webp') center / cover no-repeat, #1b2340;
+  box-shadow: 0 0 0 1px rgba(232, 202, 140, 0.7), 0 6px 14px rgba(0, 0, 0, 0.55);
+  offset-rotate: 0deg;
+  pointer-events: none;
+  animation: stage-hand-fly 0.85s cubic-bezier(0.45, 0.05, 0.35, 1) both;
+}
+@keyframes stage-hand-fly {
+  0% { offset-distance: 0%; transform: scale(0.7) rotate(-10deg); opacity: 0; }
+  12% { opacity: 1; }
+  85% { offset-distance: 100%; transform: scale(1.08) rotate(6deg); opacity: 1; }
+  100% { offset-distance: 100%; transform: scale(0.9) rotate(0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-hand-card {
+    animation-duration: 0.01s;
+  }
 }
 
 .stage-stone {
@@ -2417,6 +2546,46 @@ onBeforeUnmount(() => {
   background: rgba(9, 14, 26, 0.9);
   border: 1px solid color-mix(in srgb, var(--node-color) 60%, transparent);
   animation: stage-node-in 0.35s ease both;
+}
+.stage-chain__transfers {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.stage-chain__transfer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 3px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #dfe7f2;
+  background: rgba(9, 14, 26, 0.9);
+  border: 1px solid color-mix(in srgb, var(--node-color) 55%, transparent);
+  animation: stage-node-in 0.35s ease both;
+}
+.stage-chain__transfer img {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  object-fit: cover;
+  object-position: center 20%;
+  border: 1px solid var(--bt-chrome, #b8c4d6);
+}
+.stage-chain__transfer-arrow {
+  font-size: 9px;
+  color: var(--node-color);
+}
+.stage-chain__transfer-pile {
+  font-size: 10px;
+  color: #aab4c8;
+}
+.stage-chain__transfer-count {
+  margin-left: 2px;
+  font-weight: 700;
+  color: #fff;
 }
 .stage-chain__trigger-outcome {
   margin-left: 6px;

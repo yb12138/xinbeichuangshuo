@@ -407,4 +407,30 @@ describe('createStageQueueBridge', () => {
     const rows = queued().filter((step) => step.type === 'narration-row' && step.tag === '士气')
     expect(rows.map((row) => row.type === 'narration-row' && row.html)).toEqual(['红方士气 15 → 14（圣女爆牌）', '红方士气 14 → 13'])
   })
+
+  it('天使祝福：每名交牌人确认时只飞新增的牌，结果随后落到同一技能节点', () => {
+    const hand = (id: string, before: number, after: number) => ({ type: 'hand_count', target_user_id: id, field: 'hand_count', before, after, value: after - before })
+    const skillNode = (deltas: unknown[]) => ({
+      id: 'n1', order: 1, kind: 'skill', actor_user_id: 'p3', target_user_ids: ['p1', 'p5'],
+      skill_id: 'angel_blessing', skill_name: '天使祝福', cause_id: 'c1', deltas,
+    })
+    const angelFlow = (deltas: unknown[]) => flow('f9', [], { action_type: 'skill', nodes: [skillNode(deltas) as never] })
+
+    bridge.onTimeline(payload([angelFlow([])]))
+    expect(queued().filter((step) => step.type === 'hand-flight')).toEqual([])
+
+    bridge.onTimeline(payload([angelFlow([hand('p5', 4, 3), hand('p3', 4, 5)])]))
+    bridge.onTimeline(payload([angelFlow([hand('p5', 4, 3), hand('p3', 4, 5), hand('p1', 4, 3), hand('p3', 5, 6)])]))
+
+    const flights = queued().filter((step) => step.type === 'hand-flight')
+    expect(flights).toEqual([
+      { type: 'hand-flight', fromPlayerId: 'p5', toPlayerId: 'p3', count: 1 },
+      { type: 'hand-flight', fromPlayerId: 'p1', toPlayerId: 'p3', count: 1 },
+    ])
+    const results = queued().filter((step) => step.type === 'skill-result')
+    expect(results[results.length - 1]).toMatchObject({ causeId: 'c1', outcome: '', transfers: [
+      { from: 'p5', to: 'p3', count: 1 },
+      { from: 'p1', to: 'p3', count: 1 },
+    ] })
+  })
 })

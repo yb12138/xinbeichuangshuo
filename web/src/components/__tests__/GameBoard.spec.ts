@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import GameBoard from '../GameBoard.vue'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
@@ -634,6 +634,80 @@ describe('GameBoard target picker', () => {
     expect(interruptStore.selectedHandIndexes).toEqual([0])
     expect(submitSelectCardIDsMock).not.toHaveBeenCalled()
     expect(submitSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('counter flow: targets stay locked until a counter card is picked; defend cards are off in step ①', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '元素师',
+      camp: 'Red',
+      role: 'elementalist',
+      hand: [
+        buildCard({ id: 'thunder', name: '雷光斩', element: 'Thunder' }),
+        buildCard({ id: 'holy', name: '圣光', type: 'Magic', element: 'Light' }),
+      ],
+      hand_count: 2,
+    })
+    const foe = buildPlayer({ id: 'p9', name: '暗杀者', camp: 'Blue', role: 'assassin' })
+    const players = { p1: me, p9: foe }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'elementalist')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const store = useInterruptStore()
+    store.setPrompt({
+      type: 'confirm',
+      player_id: 'p1',
+      message: '需要响应攻击',
+      attack_element: 'Thunder',
+      counter_target_ids: ['p9'],
+      counter_card_ids: ['thunder'],
+      defend_card_ids: ['holy'],
+      options: [
+        { id: 'take', label: '承受伤害', button_label: '命中' },
+        { id: 'counter', label: '应战', button_label: '应战' },
+        { id: 'defend', label: '防御', button_label: '防御' },
+      ],
+      min: 1,
+      max: 1,
+      presentation: { kind: 'response', layout: 'inline', numeric_base: 0 },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const selectableFlags = () =>
+      Array.from(container.querySelectorAll('.hand-card-row .card-shell')).map((c) => c.classList.contains('selectable'))
+
+    // 响应阶段：应战牌和防御牌都能点，目标不能点
+    expect(selectableFlags()).toEqual([true, true])
+    expect(screen.getByTestId('player-area-p9')).toBeDisabled()
+
+    // ① 选牌：只有应战牌可选，目标仍不能点
+    store.setCounterFlowStage('card')
+    await nextTick()
+    expect(selectableFlags()).toEqual([true, false])
+    expect(screen.getByTestId('player-area-p9')).toBeDisabled()
+
+    // ② 选目标：攻击方阵营的目标亮起
+    store.setSelectedHandIndexes([0])
+    store.setCounterFlowStage('target')
+    await nextTick()
+    expect(screen.getByTestId('player-area-p9')).not.toBeDisabled()
   })
 
   it('only lights up hand cards the engine listed for counter/defend', () => {

@@ -9,6 +9,8 @@ export const useInterruptStore = defineStore('interrupt', () => {
   const selectedFieldOptionIndexes = ref<number[]>([])
   const selectedTargets = ref<string[]>([])
   const promptCounterTarget = ref('')
+  // 应战两步流程：none = 还在选响应方式；card = ① 选应战牌；target = ② 选应战目标
+  const counterFlowStage = ref<'none' | 'card' | 'target'>('none')
   const errorMessage = ref('')
   const skillEffectToast = ref('')
   let errorTimer: ReturnType<typeof setTimeout> | null = null
@@ -38,6 +40,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
     selectedFieldOptionIndexes.value = []
     selectedTargets.value = []
     promptCounterTarget.value = ''
+    counterFlowStage.value = 'none'
   }
 
   function clearActionState() {
@@ -128,6 +131,10 @@ export const useInterruptStore = defineStore('interrupt', () => {
     waitingFor.value = playerId
   }
 
+  function setCounterFlowStage(stage: 'none' | 'card' | 'target') {
+    counterFlowStage.value = stage
+  }
+
   function setPromptCounterTarget(playerId: string) {
     promptCounterTarget.value = playerId
   }
@@ -206,6 +213,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
     selectedFieldOptionIndexes,
     selectedTargets,
     promptCounterTarget,
+    counterFlowStage,
     errorMessage,
     skillEffectToast,
     actionMode,
@@ -231,6 +239,7 @@ export const useInterruptStore = defineStore('interrupt', () => {
     setPrompt,
     setWaiting,
     setPromptCounterTarget,
+    setCounterFlowStage,
     setSelectedHandIndexes,
     setSelectedFieldOptionIndexes,
     setSelectedTargets,

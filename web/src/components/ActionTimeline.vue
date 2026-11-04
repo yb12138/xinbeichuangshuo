@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 6px;
   width: fit-content;
-  max-width: min(92vw, 940px);
+  max-width: min(calc(92 * var(--vw, 1vw)), 940px);
   border: none;
   background: none;
   padding: 0;
@@ -256,7 +256,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: min(56vw, 640px);
+  max-width: min(calc(56 * var(--vw, 1vw)), 640px);
 }
 
 .history-btn {
@@ -283,7 +283,7 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(120, 155, 176, 0.3);
   background: rgba(6, 15, 26, 0.9);
   padding: 8px;
-  width: min(86vw, 620px);
+  width: min(calc(86 * var(--vw, 1vw)), 620px);
   box-shadow: 0 12px 28px rgba(2, 8, 20, 0.42);
 }
 
@@ -408,13 +408,13 @@ onBeforeUnmount(() => {
   transform: translateY(-5px);
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .history-list {
     max-height: 128px;
   }
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .timeline-strip {
     min-height: 30px;
     grid-template-columns: auto 16px minmax(72px, 1fr) auto;
@@ -427,11 +427,11 @@ onBeforeUnmount(() => {
   }
 
   .line-text {
-    max-width: min(42vw, 280px);
+    max-width: min(calc(42 * var(--vw, 1vw)), 280px);
   }
 
   .history-panel {
-    width: min(94vw, 560px);
+    width: min(calc(94 * var(--vw, 1vw)), 560px);
   }
 }
 </style>
