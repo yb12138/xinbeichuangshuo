@@ -10,6 +10,9 @@ import DirectionPromptRenderer from './prompt/renderers/DirectionPromptRenderer.
 import ExtractPromptRenderer from './prompt/renderers/ExtractPromptRenderer.vue'
 import FraudElementRenderer from './prompt/renderers/FraudElementRenderer.vue'
 import ResponsePromptRenderer from './prompt/renderers/ResponsePromptRenderer.vue'
+import CounterFlowRenderer from './prompt/renderers/CounterFlowRenderer.vue'
+import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import { cardArtSrc } from '../constants/cardArt'
 import SkillChoicePromptRenderer from './prompt/renderers/SkillChoicePromptRenderer.vue'
 import TargetPickerPromptRenderer from './prompt/renderers/TargetPickerPromptRenderer.vue'
 import DockStripActions from './prompt/renderers/DockStripActions.vue'
@@ -549,6 +552,11 @@ function handleOptionClick(optionId: string) {
     return
   }
   if (responseKind === 'counter') {
+    // 应战改为两步：① 选应战牌 → ② 选目标（与攻击行动一致），这里只进入流程
+    if (needsCounterTargetSelection.value) {
+      startCounterFlow()
+      return
+    }
     if (interruptStore.selectedHandIndexes.length === 0) {
       showPromptError(isMagicMissilePrompt.value ? '请先选择一张【魔弹】进行传递' : '请先选择一张攻击牌进行应战')
       return
@@ -1603,6 +1611,69 @@ function shouldHideOptionHint(option: DockButtonOption): boolean {
   return promptOptionResponseKind({ id: option.id }) !== null
 }
 
+// —— 应战两步流程 ——
+const { myPlayableCards } = useBattleInteractionState()
+const counterFlowActive = computed(() =>
+  interruptStore.counterFlowStage !== 'none' && hasCounterOption.value && needsCounterTargetSelection.value
+)
+const counterFlowStage = computed<'card' | 'target'>(() =>
+  interruptStore.counterFlowStage === 'target' ? 'target' : 'card'
+)
+const counterFlowCard = computed(() => {
+  const idx = interruptStore.selectedHandIndexes[0]
+  if (idx === undefined) return null
+  return myPlayableCards.value.find((item) => item.index === idx)?.card ?? null
+})
+const counterFlowRule = computed(() => {
+  const option = inlinePrimaryButtons.value.find((o) => promptOptionResponseKind({ id: o.id }) === 'counter')
+  return option ? responseConsequence('counter', option) : ''
+})
+
+function startCounterFlow() {
+  interruptStore.setPromptCounterTarget('')
+  // 已经先点了一张可应战的牌：直接进入第二步；否则清掉残留选牌（例如为防御点过的圣光）从第一步开始
+  const counterIDs = new Set(prompt.value?.counter_card_ids || [])
+  const preselected = counterFlowCard.value
+  if (preselected && counterIDs.has(String(preselected.id || '').trim())) {
+    interruptStore.setSelectedHandIndexes([interruptStore.selectedHandIndexes[0]!])
+    interruptStore.setCounterFlowStage('target')
+    return
+  }
+  interruptStore.setSelectedHandIndexes([])
+  interruptStore.setCounterFlowStage('card')
+}
+
+function backFromCounterFlow() {
+  if (interruptStore.counterFlowStage === 'target') {
+    interruptStore.setSelectedHandIndexes([])
+    interruptStore.setPromptCounterTarget('')
+    interruptStore.setCounterFlowStage('card')
+    return
+  }
+  interruptStore.setSelectedHandIndexes([])
+  interruptStore.setCounterFlowStage('none')
+}
+
+// 第一步选中牌 → 自动进入第二步；第二步取消选牌 → 回到第一步
+watch(
+  () => [interruptStore.counterFlowStage, interruptStore.selectedHandIndexes.length] as const,
+  ([stage, count]) => {
+    if (stage === 'card' && count > 0) interruptStore.setCounterFlowStage('target')
+    else if (stage === 'target' && count === 0) interruptStore.setCounterFlowStage('card')
+  }
+)
+
+// 第二步选中目标 → 直接提交应战
+watch(
+  () => interruptStore.promptCounterTarget,
+  (targetId) => {
+    if (!targetId || interruptStore.counterFlowStage !== 'target') return
+    if (!submitRespondCounter(isMagicMissilePrompt.value)) {
+      interruptStore.setPromptCounterTarget('')
+    }
+  }
+)
+
 const responsePromptOptions = computed<ResponsePromptOption[]>(() => {
   if (!hasCounterOrDefend.value) return []
   return inlinePrimaryButtons.value
@@ -1710,6 +1781,16 @@ watch(autoResolveOptionId, (optionId) => {
             :show-confirm="promptRequiresManualTargetConfirm"
             :can-confirm="canConfirmPrompt"
             @confirm="confirmPromptAction"
+          />
+
+          <CounterFlowRenderer
+            v-else-if="promptRendererKey === 'response' && counterFlowActive"
+            :stage="counterFlowStage"
+            :is-magic-missile="isMagicMissilePrompt"
+            :card-art="counterFlowCard ? cardArtSrc(counterFlowCard) : ''"
+            :card-name="counterFlowCard?.name || ''"
+            :rule="counterFlowRule"
+            @back="backFromCounterFlow"
           />
 
           <ResponsePromptRenderer
@@ -1989,9 +2070,9 @@ watch(autoResolveOptionId, (optionId) => {
   transform: translateY(10px) scale(0.98);
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .prompt-inline-surface {
-    width: min(92vw, 680px);
+    width: min(calc(92 * var(--vw, 1vw)), 680px);
     padding: 8px;
     gap: 7px;
   }
@@ -2003,7 +2084,7 @@ watch(autoResolveOptionId, (optionId) => {
 
 }
 
-@media (max-width: 560px) {
+@container stage (max-width: 560px) {
   .prompt-inline-surface {
     width: 100%;
     padding: 7px;
@@ -2035,8 +2116,8 @@ watch(autoResolveOptionId, (optionId) => {
 
 .overlay-panel {
   position: relative;
-  width: min(480px, calc(100vw - 2rem));
-  max-height: 85vh;
+  width: min(480px, calc(calc(100 * var(--vw, 1vw)) - 2rem));
+  max-height: calc(85 * var(--vh, 1vh));
   overflow: hidden;
   display: flex;
   flex-direction: column;

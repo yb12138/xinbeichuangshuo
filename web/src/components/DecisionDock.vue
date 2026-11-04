@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { stageViewport, toStagePx } from '../composables/useStageScale'
 /**
  * 浮动决策面板：所有"需要我做选择"的提示都在这里作答（行动选择枢纽除外，仍在右下角坞）。
  *
@@ -173,16 +174,19 @@ const dockEl = ref<HTMLElement | null>(null)
 function clampOffset(x: number, y: number): { x: number; y: number } {
   const el = dockEl.value
   if (!el || typeof window === 'undefined') return { x, y }
-  const rect = el.getBoundingClientRect()
+  // 全部换算到舞台布局像素：偏移量作用在舞台内
+  const r = el.getBoundingClientRect()
+  const rect = { left: toStagePx(r.left), top: toStagePx(r.top), width: toStagePx(r.width), height: toStagePx(r.height) }
+  const view = stageViewport.value
   const cur = uiStore.decisionDockOffset
   // 当前元素在 0 偏移时的位置
   const baseLeft = rect.left - cur.x
   const baseTop = rect.top - cur.y
   const margin = 8
   const minX = margin - baseLeft
-  const maxX = window.innerWidth - margin - rect.width - baseLeft
+  const maxX = view.width - margin - rect.width - baseLeft
   const minY = margin - baseTop
-  const maxY = window.innerHeight - margin - rect.height - baseTop
+  const maxY = view.height - margin - rect.height - baseTop
   return { x: Math.min(maxX, Math.max(minX, x)), y: Math.min(maxY, Math.max(minY, y)) }
 }
 
@@ -198,7 +202,7 @@ function onGripDown(event: PointerEvent) {
 function onGripMove(event: PointerEvent) {
   const d = drag.value
   if (!d) return
-  const next = clampOffset(d.baseX + event.clientX - d.startX, d.baseY + event.clientY - d.startY)
+  const next = clampOffset(d.baseX + toStagePx(event.clientX - d.startX), d.baseY + toStagePx(event.clientY - d.startY))
   uiStore.decisionDockOffset = next
 }
 function onGripUp() {

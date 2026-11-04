@@ -1,4 +1,4 @@
-import { skillResult, skillResultSummary } from './skillResult'
+import { handTransfers, skillResult, skillResultSummary, type HandTransfer } from './skillResult'
 import { defineStore } from 'pinia'
 import { computed, ref, toRaw } from 'vue'
 import type { Card } from '../types/game'
@@ -74,7 +74,7 @@ export type AtomicStep = StepTiming &
     | { type: 'clear-stage'; summary?: string }
     | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill; special?: NarrationSpecial; effect?: NarrationEffect }
     /** 同一技能因果的结果后到（如茧在结算后才放置）：就地更新已有技能行。 */
-    | { type: 'skill-result'; causeId: string; outcome: string; cost: string; revealed?: NarrationSkill['revealed'] }
+    | { type: 'skill-result'; causeId: string; outcome: string; cost: string; revealed?: NarrationSkill['revealed']; transfers?: HandTransfer[] }
     /** 自身形态型（模板 5）：座位包裹光焰 + 形态名横幅。form 为空 = 脱离形态。 */
     | { type: 'form-change'; playerId: string; form: string; label: string; element?: string }
     /** 资源型（模板 4）：count 张牌背从中央牌堆飞入座位（盖牌放置：茧、充能……）。 */
@@ -84,6 +84,11 @@ export type AtomicStep = StepTiming &
      * toCamp = 座位 → 阵营栏（阵营获得星石）；否则阵营栏 → 座位（提炼等）。
      */
     | { type: 'stone-flight'; playerId: string; camp: string; stone: 'gem' | 'crystal'; count: number; toCamp: boolean }
+    /**
+     * 手牌流动：count 张牌背沿弧线飞行。fromPlayerId / toPlayerId 为空表示牌库 / 弃牌堆端
+     * （天使祝福：交牌人 → 天使；被迫弃牌：座位 → 弃牌堆；替他人摸牌：牌库 → 座位）。
+     */
+    | { type: 'hand-flight'; fromPlayerId: string; toPlayerId: string; count: number }
   )
 
 /** Structured form of a skill row, rendered as a skill node of the combat chain. */
@@ -107,6 +112,8 @@ export interface NarrationSkill {
   causeId?: string
   /** 技能公开展示的牌（圣屑飓暴弃置并展示的同系牌等）；暗弃不包含。 */
   revealed?: Pick<Card, 'name' | 'element' | 'type' | 'faction'>[]
+  /** 手牌流动（天使祝福：每名交牌人 → 天使一条），战斗链节点里画成头像行。 */
+  transfers?: HandTransfer[]
 }
 
 /** 特殊行动（购买 / 合成 / 提炼）：战斗链里画成一个以行动者为主的节点。 */
@@ -222,6 +229,14 @@ export interface DeckFlightState {
   expiresAt: number
 }
 
+export interface HandFlightState {
+  id: number
+  fromPlayerId: string
+  toPlayerId: string
+  count: number
+  expiresAt: number
+}
+
 export interface StoneFlightState {
   id: number
   playerId: string
@@ -267,6 +282,7 @@ const FORM_CHANGE_LIFETIME_MS = 1800
 const DECK_FLIGHT_LIFETIME_MS = 1300
 /** 一次最多飞几张牌背（茧 ×4 全飞，更多则截断，避免刷屏）。 */
 const MAX_DECK_FLIGHT_CARDS = 5
+const HAND_FLIGHT_LIFETIME_MS = 1400
 
 /** Default time the queue waits after applying a step, at 1x speed. */
 const DEFAULT_HOLD_MS: Record<AtomicStepType, number> = {
@@ -280,6 +296,7 @@ const DEFAULT_HOLD_MS: Record<AtomicStepType, number> = {
   'skill-result': 0,
   'form-change': 650,
   'deck-to-seat': 500,
+  'hand-flight': 550,
   'stone-flight': 400,
   'mark-previous': 200,
   'clear-stage': 0,
@@ -317,6 +334,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
   const statusChanges = ref<StatusChangeState[]>([])
   const formChanges = ref<FormChangeState[]>([])
   const deckFlights = ref<DeckFlightState[]>([])
+  const handFlights = ref<HandFlightState[]>([])
   const stoneFlights = ref<StoneFlightState[]>([])
   const stageRows = ref<NarrationRow[]>([])
   const previousAction = ref<PreviousActionState | null>(null)
@@ -403,6 +421,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     statusChanges.value = []
     formChanges.value = []
     deckFlights.value = []
+    handFlights.value = []
     stoneFlights.value = []
   }
 
@@ -501,7 +520,16 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
         if (index < 0) break
         const row = stageRows.value[index]!
         const next = stageRows.value.slice()
-        next[index] = { ...row, skill: { ...row.skill!, outcome: step.outcome, cost: step.cost, ...(step.revealed?.length ? { revealed: step.revealed } : {}) } }
+        next[index] = {
+          ...row,
+          skill: {
+            ...row.skill!,
+            outcome: step.outcome,
+            cost: step.cost,
+            ...(step.revealed?.length ? { revealed: step.revealed } : {}),
+            ...(step.transfers?.length ? { transfers: step.transfers } : {}),
+          },
+        }
         stageRows.value = next
         break
       }
@@ -527,6 +555,18 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
             count: Math.max(1, Math.min(step.count, MAX_DECK_FLIGHT_CARDS)),
             coverKey: step.coverKey,
             expiresAt: at + DECK_FLIGHT_LIFETIME_MS * scale,
+          },
+        ]
+        break
+      case 'hand-flight':
+        handFlights.value = [
+          ...handFlights.value,
+          {
+            id: ++seq,
+            fromPlayerId: step.fromPlayerId,
+            toPlayerId: step.toPlayerId,
+            count: Math.max(1, Math.min(step.count, MAX_DECK_FLIGHT_CARDS)),
+            expiresAt: at + HAND_FLIGHT_LIFETIME_MS * scale,
           },
         ]
         break
@@ -571,6 +611,9 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     }
     if (formChanges.value.some((change) => at >= change.expiresAt)) {
       formChanges.value = formChanges.value.filter((change) => at < change.expiresAt)
+    }
+    if (handFlights.value.some((flight) => at >= flight.expiresAt)) {
+      handFlights.value = handFlights.value.filter((flight) => at < flight.expiresAt)
     }
     if (deckFlights.value.some((flight) => at >= flight.expiresAt)) {
       deckFlights.value = deckFlights.value.filter((flight) => at < flight.expiresAt)
@@ -649,6 +692,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     statusChanges.value = []
     formChanges.value = []
     deckFlights.value = []
+    handFlights.value = []
     stoneFlights.value = []
     stageRows.value = []
     previousAction.value = null
@@ -669,6 +713,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     statusChanges,
     formChanges,
     deckFlights,
+    handFlights,
     stoneFlights,
     stageRows,
     previousAction,
@@ -809,10 +854,12 @@ export function nodeSteps(
       })
     }
     const result = skillResult(node, (id) => playerLabel(id, playerNameFn, roleNameFn))
-    const outcome = skillResultSummary(result)
+    const outcome = skillResultSummary(result, { skipTransfers: true })
     const cost = result.costs.map((item) => item.text).join(' · ')
+    // 叙事行文字仍写全（含“暗杀者 交来 1 张”），节点上的流动另画头像行
+    const narrated = skillResultSummary(result)
     const toward = targets ? ` → ${targets}` : ''
-    const detail = outcome ? `：${escapeHtml(outcome)}` : node.effect_text ? `：${escapeHtml(node.effect_text)}` : ''
+    const detail = narrated ? `：${escapeHtml(narrated)}` : node.effect_text ? `：${escapeHtml(node.effect_text)}` : ''
     steps.push({
       type: 'narration-row',
       html: `${actor} 发动【${escapeHtml(skillName)}】${toward}${detail}`.trim(),
@@ -830,6 +877,7 @@ export function nodeSteps(
         cost,
         effectText: node.effect_text || '',
         causeId: node.cause_id || '',
+        ...(result.transfers.length ? { transfers: result.transfers } : {}),
         ...(revealedCards(node).length ? { revealed: revealedCards(node) } : {}),
       },
     })
@@ -858,15 +906,32 @@ export function nodeSteps(
 }
 
 /** 技能节点的结果文案（供结果后到时就地更新）。 */
+/**
+ * 技能节点上新出现的手牌流动 → 飞牌步骤。shown 记录每条流动已经飞过的张数
+ * （交牌人逐个确认，同一节点的结果分几次到达），只飞增量。
+ */
+export function handFlightSteps(node: ActionFlowNodeDTO, shown: Map<string, number>): AtomicStep[] {
+  const steps: AtomicStep[] = []
+  for (const transfer of handTransfers(node)) {
+    const key = `${transfer.from}>${transfer.to}`
+    const already = shown.get(key) ?? 0
+    if (transfer.count <= already) continue
+    shown.set(key, transfer.count)
+    steps.push({ type: 'hand-flight', fromPlayerId: transfer.from, toPlayerId: transfer.to, count: transfer.count - already })
+  }
+  return steps
+}
+
 export function nodeSkillResult(
   node: ActionFlowNodeDTO,
   playerNameFn: (id: string) => string,
   roleNameFn: (id: string) => string,
-): { outcome: string; cost: string; revealed?: NarrationSkill['revealed'] } {
+): { outcome: string; cost: string; revealed?: NarrationSkill['revealed']; transfers?: HandTransfer[] } {
   const result = skillResult(node, (id) => playerLabel(id, playerNameFn, roleNameFn))
   const revealed = revealedCards(node)
   return {
-    outcome: skillResultSummary(result),
+    outcome: skillResultSummary(result, { skipTransfers: true }),
+    ...(result.transfers.length ? { transfers: result.transfers } : {}),
     cost: result.costs.map((item) => item.text).join(' · '),
     // 展示的牌常晚于技能宣言到达（先宣言、后弃牌展示），随结果一起就地更新到技能节点上
     ...(revealed.length ? { revealed } : {}),

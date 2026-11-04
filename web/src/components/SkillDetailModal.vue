@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { stagePortalTarget, stageViewport } from '../composables/useStageScale'
 /**
  * 角色技能详情面板（所有角色通用）：头部（头像 / 名字 / 命格）、资源行（在座时）、技能列表。
  * 技能条目：左侧类型色带 + 类型图标；名字 + 类型 / 标签胶囊；消耗靠右；描述中数字高亮、①② 分支分行；
  * 当前回合我自己不可发动的主动技降亮并显示服务端给出的原因。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { CharacterView, PlayerView, SkillView } from '../types/game'
 import { characterArtSrc } from '../constants/characterArt'
 import { seatTokenMarks } from '../constants/seatMarks'
@@ -33,28 +34,8 @@ const emit = defineEmits<{
 const snapshotStore = useSnapshotStore()
 const sessionStore = useSessionStore()
 
-const viewport = ref({
-  width: typeof window !== 'undefined' ? window.innerWidth : 1280,
-  height: typeof window !== 'undefined' ? window.innerHeight : 720,
-})
-
-function syncViewport() {
-  if (typeof window === 'undefined') return
-  viewport.value = {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  }
-}
-
-onMounted(() => {
-  if (typeof window === 'undefined') return
-  window.addEventListener('resize', syncViewport)
-})
-
-onBeforeUnmount(() => {
-  if (typeof window === 'undefined') return
-  window.removeEventListener('resize', syncViewport)
-})
+// 弹窗在缩放舞台内定位，用舞台逻辑尺寸而不是真实视口
+const viewport = stageViewport
 
 const isAnchored = computed(() => !!props.anchor)
 
@@ -208,7 +189,7 @@ const panelStyle = computed(() => {
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport :to="stagePortalTarget()" defer>
     <Transition name="modal">
       <div
         v-if="visible && character"
@@ -339,7 +320,7 @@ const panelStyle = computed(() => {
   z-index: 13051 !important;
   display: flex;
   flex-direction: column;
-  max-height: 85vh;
+  max-height: calc(85 * var(--vh, 1vh));
   overflow: hidden;
   border-radius: 6px;
   background:
@@ -356,12 +337,12 @@ const panelStyle = computed(() => {
   --skill-camp: rgba(192, 48, 60, 0.42);
 }
 .skill-card--centered {
-  width: min(480px, calc(100vw - 2rem));
+  width: min(480px, calc(calc(100 * var(--vw, 1vw)) - 2rem));
 }
 .skill-card--anchored {
   position: fixed;
   pointer-events: auto;
-  max-height: min(85vh, 720px);
+  max-height: min(calc(85 * var(--vh, 1vh)), 720px);
 }
 
 .skill-corner {

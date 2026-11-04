@@ -10,6 +10,7 @@ import {
   flowLinkId,
   isSelfResolveEdge,
   flowLogSteps,
+  handFlightSteps,
   linkColorForPhase,
   nodeDamageSteps,
   nodeSkillResult,
@@ -53,6 +54,8 @@ interface FlowMemory {
   nodes: Map<string, number>
   /** node id -> skill result text already shown (cause-backed skill nodes). */
   results: Map<string, string>
+  /** node id -> 已经飞过的手牌流动张数（from>to → count）。 */
+  handFlights: Map<string, Map<string, number>>
   logOrders: Set<number>
   /** Acting player of the flow; state deltas carry no actor, so status icons fly from here. */
   actorId: string
@@ -132,6 +135,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
       edges: new Map(),
       nodes: new Map(),
       results: new Map(),
+      handFlights: new Map(),
       logOrders: new Set(),
       actorId: '',
       narrated: false,
@@ -152,14 +156,21 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
     const shownDamage = memory.nodes.get(node.id)
     const damage = node.damage ?? 0
     const resultKey = node.cause_id ? JSON.stringify(nodeSkillResult(node, playerName, roleName)) : ''
+    let shownFlights = memory.handFlights.get(node.id)
+    if (!shownFlights) {
+      shownFlights = new Map()
+      memory.handFlights.set(node.id, shownFlights)
+    }
     if (shownDamage === undefined) {
       memory.nodes.set(node.id, damage)
       if (resultKey) memory.results.set(node.id, resultKey)
-      return nodeSteps(node, playerName, roleName)
+      return [...nodeSteps(node, playerName, roleName), ...handFlightSteps(node, shownFlights)]
     }
     const steps: AtomicStep[] = []
     if (resultKey && resultKey !== memory.results.get(node.id)) {
       memory.results.set(node.id, resultKey)
+      // 牌先飞、结果文案随后落定
+      steps.push(...handFlightSteps(node, shownFlights))
       steps.push({ type: 'skill-result', causeId: node.cause_id!, ...nodeSkillResult(node, playerName, roleName) })
     }
     if (damage > 0 && damage !== shownDamage) {

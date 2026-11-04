@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toStagePx } from '../composables/useStageScale'
 import { campPersistentEffects, seatPersistentEffects } from '../constants/persistentEffects'
 import { FORM_DISPLAY } from '../constants/forms'
 import { storeToRefs } from 'pinia'
@@ -163,6 +164,7 @@ const {
   selectedSkill,
   skillTargetIds,
   skillDiscardHandIndexes,
+  counterFlowStage,
 } = storeToRefs(interruptStore)
 /** 作用于整个阵营的持续效果（凋零：士气最低为 1），显示在该阵营士气旁。 */
 const blueCampEffects = computed(() => campPersistentEffects(players.value, 'Blue'))
@@ -510,10 +512,10 @@ function rebuildLinkLines() {
 
       const srcRect = srcEl.getBoundingClientRect()
       const tgtRect = tgtEl.getBoundingClientRect()
-      const x1 = srcRect.left + srcRect.width / 2 - rootRect.left
-      const y1 = srcRect.top + srcRect.height / 2 - rootRect.top
-      const x2 = tgtRect.left + tgtRect.width / 2 - rootRect.left
-      const y2 = tgtRect.top + tgtRect.height / 2 - rootRect.top
+      const x1 = toStagePx(srcRect.left + srcRect.width / 2 - rootRect.left)
+      const y1 = toStagePx(srcRect.top + srcRect.height / 2 - rootRect.top)
+      const x2 = toStagePx(tgtRect.left + tgtRect.width / 2 - rootRect.left)
+      const y2 = toStagePx(tgtRect.top + tgtRect.height / 2 - rootRect.top)
 
       const info = LINK_EFFECT_INFO[fc.effect]
       const stroke = LINK_EFFECT_STROKE[fc.effect] ?? { opacity: 0.22, strokeWidth: 1.5 }
@@ -665,7 +667,12 @@ function openMySkillModal(event: MouseEvent) {
     return
   }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-  uiStore.openSkillModal(roleId, { x: rect.left, y: rect.top, width: rect.width, height: rect.height })
+  uiStore.openSkillModal(roleId, {
+    x: toStagePx(rect.left),
+    y: toStagePx(rect.top),
+    width: toStagePx(rect.width),
+    height: toStagePx(rect.height),
+  })
 }
 
 function portraitSrcForPlayer(player: PlayerView): string {
@@ -1450,7 +1457,7 @@ const promptNeedsTargetGuide = computed(() => {
   if (!p) return false
   if (p.presentation?.kind === 'target_picker') return true
   if (p.type === 'choose_target') return true
-  if ((p.counter_target_ids?.length ?? 0) > 0) return true
+  if ((p.counter_target_ids?.length ?? 0) > 0) return counterFlowStage.value === 'target'
   return Object.keys(players.value).some((playerId) => promptOptionIndexForPlayer(playerId) >= 0)
 })
 
@@ -1569,6 +1576,8 @@ function playerSelectState(playerId: string): PlayerSelectState {
 function isPromptCounterTargetSelectable(playerId: string): boolean {
   const ids = currentPrompt.value?.counter_target_ids
   if (!currentPrompt.value || !isPromptForMe.value || !ids?.length) return false
+  // 应战两步流程：只有第二步（已选应战牌）才能点目标
+  if (counterFlowStage.value !== 'target') return false
   return ids.includes(playerId)
 }
 
@@ -1860,6 +1869,15 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
     const cardID = String(playableCard.id || '').trim()
     const counterIDs = new Set(prompt.counter_card_ids || [])
     const defendIDs = new Set(prompt.defend_card_ids || [])
+    // 应战两步流程中只允许选应战牌（防御要先返回响应面板）
+    if (counterFlowStage.value !== 'none') {
+      if (hasCounter && counterIDs.has(cardID)) return { selectable: true, reason: 'prompt_counter_flow_card_valid' }
+      return {
+        selectable: false,
+        reason: 'prompt_counter_flow_card_invalid',
+        error: isMagicMissilePrompt ? '传递只能使用【魔弹】' : '应战需同系攻击牌或暗灭',
+      }
+    }
     if ((hasCounter && counterIDs.has(cardID)) || (hasDefend && defendIDs.has(cardID))) {
       return { selectable: true, reason: 'prompt_counter_defend_valid' }
     }
@@ -2373,16 +2391,16 @@ function rebuildDrawFlights() {
 
   const rootRect = root.getBoundingClientRect()
   const deckRect = deck.getBoundingClientRect()
-  const startX = deckRect.left + deckRect.width / 2 - rootRect.left
-  const startY = deckRect.top + deckRect.height / 2 - rootRect.top
+  const startX = toStagePx(deckRect.left + deckRect.width / 2 - rootRect.left)
+  const startY = toStagePx(deckRect.top + deckRect.height / 2 - rootRect.top)
   const visuals: DrawFlightVisual[] = []
 
   for (const burst of drawBursts.value) {
     const anchor = root.querySelector<HTMLElement>(`[data-player-anchor="${burst.playerId}"]`)
     if (!anchor) continue
     const targetRect = anchor.getBoundingClientRect()
-    const targetX = targetRect.left + targetRect.width / 2 - rootRect.left
-    const targetY = targetRect.top + targetRect.height / 2 - rootRect.top
+    const targetX = toStagePx(targetRect.left + targetRect.width / 2 - rootRect.left)
+    const targetY = toStagePx(targetRect.top + targetRect.height / 2 - rootRect.top)
     const visibleCount = Math.min(6, Math.max(1, burst.count))
 
     for (let i = 0; i < visibleCount; i++) {
@@ -3493,8 +3511,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .game-end-card {
-  width: min(96vw, 920px);
-  max-height: 84vh;
+  width: min(calc(96 * var(--vw, 1vw)), 920px);
+  max-height: calc(84 * var(--vh, 1vh));
   overflow: hidden;
   border-radius: 16px;
   border: 1px solid rgba(181, 145, 90, 0.56);
@@ -3683,10 +3701,10 @@ const fighterHundredDragonByPlayer = computed(() => {
   transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .game-end-card {
-    width: min(96vw, 640px);
-    max-height: 88vh;
+    width: min(calc(96 * var(--vw, 1vw)), 640px);
+    max-height: calc(88 * var(--vh, 1vh));
   }
 
   .game-end-layout {
@@ -3727,7 +3745,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   gap: 12px;
   min-width: 260px;
   /* 两侧阵营分数约占到 30% / 70%，中间 40% 是空白段 */
-  max-width: min(440px, 38vw);
+  max-width: min(440px, calc(38 * var(--vw, 1vw)));
   height: 60px;
   padding: 0 34px 0 8px;
   pointer-events: none;
@@ -3794,7 +3812,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .turn-banner__text {
   color: #f4ecd8;
-  font-size: clamp(16px, 1.5vw, 20px);
+  font-size: clamp(16px, calc(1.5 * var(--vw, 1vw)), 20px);
   font-weight: 800;
   letter-spacing: 0.12em;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
@@ -3968,7 +3986,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .board-shell {
   width: 100%;
-  max-width: 1760px;
+  /* 舞台已按 1920×1080 等比放大，这里只限制超宽屏时座位间距不过大 */
+  max-width: 1920px;
   margin: 0 auto;
   overflow: hidden;
   /* clip 而非仅 hidden：hidden 容器仍可被聚焦/点击滚动，扇形手牌的变换会把超出右侧的 ambient 层拉进视口 */
@@ -3979,12 +3998,12 @@ const fighterHundredDragonByPlayer = computed(() => {
   --battle-player-card-fit-height: min(30cqh, calc(54cqw / 1.04), var(--battle-player-card-max-height));
   --battle-player-card-width: clamp(126px, calc(var(--battle-player-card-fit-height) * 1.04), var(--battle-player-card-max-width));
   --battle-player-card-height: clamp(122px, var(--battle-player-card-fit-height), var(--battle-player-card-max-height));
-  --battle-seat-edge-inset: clamp(22px, 2.78vw, 40px);
-  --battle-seat-vertical-inset: clamp(12px, 2.95vh, 20px);
-  --self-status-card-width: clamp(126px, 9.72vw, 140px);
-  --self-status-card-height: clamp(190px, 14.58vw, 210px);
-  --active-popout-width: clamp(170px, 13.2vw, 190px);
-  --active-popout-height: clamp(242px, 18.75vw, 270px);
+  --battle-seat-edge-inset: clamp(22px, calc(2.78 * var(--vw, 1vw)), 40px);
+  --battle-seat-vertical-inset: clamp(12px, calc(2.95 * var(--vh, 1vh)), 20px);
+  --self-status-card-width: clamp(126px, calc(9.72 * var(--vw, 1vw)), 140px);
+  --self-status-card-height: clamp(190px, calc(14.58 * var(--vw, 1vw)), 210px);
+  --active-popout-width: clamp(170px, calc(13.2 * var(--vw, 1vw)), 190px);
+  --active-popout-height: clamp(242px, calc(18.75 * var(--vw, 1vw)), 270px);
   --bottom-hud-height: 240px;
   padding-top: max(8px, var(--safe-top));
   padding-right: 0;
@@ -3995,7 +4014,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   box-shadow: none;
 }
 
-@media (min-width: 1800px) {
+@container stage (min-width: 1800px) {
   .board-shell {
     --self-status-card-width: 150px;
     --self-status-card-height: 224px;
@@ -4112,49 +4131,49 @@ const fighterHundredDragonByPlayer = computed(() => {
 .rose-courtyard-vfx__edge--top-right,
 .rose-courtyard-vfx__edge--bottom-left,
 .rose-courtyard-vfx__edge--bottom-right {
-  width: clamp(132px, 14vw, 238px);
-  height: clamp(34px, 5.4vh, 72px);
+  width: clamp(132px, calc(14 * var(--vw, 1vw)), 238px);
+  height: clamp(34px, calc(5.4 * var(--vh, 1vh)), 72px);
 }
 
 .rose-courtyard-vfx__edge--top-left,
 .rose-courtyard-vfx__edge--top-right {
-  top: clamp(8px, 2.2vh, 28px);
+  top: clamp(8px, calc(2.2 * var(--vh, 1vh)), 28px);
 }
 
 .rose-courtyard-vfx__edge--top-left,
 .rose-courtyard-vfx__edge--bottom-left {
-  left: clamp(12px, 2vw, 34px);
+  left: clamp(12px, calc(2 * var(--vw, 1vw)), 34px);
 }
 
 .rose-courtyard-vfx__edge--top-right,
 .rose-courtyard-vfx__edge--bottom-right {
-  right: clamp(12px, 2vw, 34px);
+  right: clamp(12px, calc(2 * var(--vw, 1vw)), 34px);
 }
 
 .rose-courtyard-vfx__edge--bottom-left,
 .rose-courtyard-vfx__edge--bottom-right {
-  bottom: clamp(12px, 2.4vh, 34px);
+  bottom: clamp(12px, calc(2.4 * var(--vh, 1vh)), 34px);
   transform: rotate(180deg);
 }
 
 .rose-courtyard-vfx__edge--left,
 .rose-courtyard-vfx__edge--right {
-  top: clamp(96px, 17vh, 178px);
-  bottom: clamp(128px, 20vh, 238px);
-  width: clamp(34px, 4.8vw, 72px);
+  top: clamp(96px, calc(17 * var(--vh, 1vh)), 178px);
+  bottom: clamp(128px, calc(20 * var(--vh, 1vh)), 238px);
+  width: clamp(34px, calc(4.8 * var(--vw, 1vw)), 72px);
 }
 
 .rose-courtyard-vfx__edge--left {
-  left: clamp(10px, 1.8vw, 30px);
+  left: clamp(10px, calc(1.8 * var(--vw, 1vw)), 30px);
 }
 
 .rose-courtyard-vfx__edge--right {
-  right: clamp(10px, 1.8vw, 30px);
+  right: clamp(10px, calc(1.8 * var(--vw, 1vw)), 30px);
 }
 
 .rose-courtyard-vfx__corner {
-  width: clamp(76px, 8vw, 128px);
-  height: clamp(76px, 8vw, 128px);
+  width: clamp(76px, calc(8 * var(--vw, 1vw)), 128px);
+  height: clamp(76px, calc(8 * var(--vw, 1vw)), 128px);
   border-radius: 999px;
   opacity: 0.46;
   background:
@@ -4165,25 +4184,25 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .rose-courtyard-vfx__corner--tl {
-  top: clamp(58px, 8vh, 96px);
-  left: clamp(16px, 2vw, 36px);
+  top: clamp(58px, calc(8 * var(--vh, 1vh)), 96px);
+  left: clamp(16px, calc(2 * var(--vw, 1vw)), 36px);
 }
 
 .rose-courtyard-vfx__corner--tr {
-  top: clamp(58px, 8vh, 96px);
-  right: clamp(16px, 2vw, 36px);
+  top: clamp(58px, calc(8 * var(--vh, 1vh)), 96px);
+  right: clamp(16px, calc(2 * var(--vw, 1vw)), 36px);
   animation-delay: -1.4s;
 }
 
 .rose-courtyard-vfx__corner--bl {
-  bottom: clamp(78px, 10vh, 132px);
-  left: clamp(16px, 2vw, 36px);
+  bottom: clamp(78px, calc(10 * var(--vh, 1vh)), 132px);
+  left: clamp(16px, calc(2 * var(--vw, 1vw)), 36px);
   animation-delay: -2.7s;
 }
 
 .rose-courtyard-vfx__corner--br {
-  right: clamp(16px, 2vw, 36px);
-  bottom: clamp(78px, 10vh, 132px);
+  right: clamp(16px, calc(2 * var(--vw, 1vw)), 36px);
+  bottom: clamp(78px, calc(10 * var(--vh, 1vh)), 132px);
   animation-delay: -4s;
 }
 
@@ -4647,14 +4666,14 @@ const fighterHundredDragonByPlayer = computed(() => {
   min-width: 0;
 }
 
-@media (min-width: 1600px) {
+@container stage (min-width: 1600px) {
   .bottom-hud {
     --hand-max-width: 940px;
     --action-dock-width: 320px;
   }
 }
 
-@media (min-width: 2000px) {
+@container stage (min-width: 2000px) {
   .board-shell {
     max-width: 2080px;
   }
@@ -4817,8 +4836,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .table-decor-base {
   width: min(98%, 1220px);
-  height: clamp(310px, 58vh, 610px);
-  top: clamp(34px, 6.2vh, 82px);
+  height: clamp(310px, calc(58 * var(--vh, 1vh)), 610px);
+  top: clamp(34px, calc(6.2 * var(--vh, 1vh)), 82px);
   transform: translateX(-50%);
   background:
     radial-gradient(110% 76% at 50% 54%, rgba(76, 120, 168, 0.34), rgba(38, 59, 92, 0.22) 58%, rgba(14, 21, 32, 0.15) 100%);
@@ -4830,8 +4849,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .table-decor-edge {
   width: min(90%, 1020px);
-  height: clamp(54px, 8vh, 86px);
-  bottom: clamp(150px, 20.5vh, 254px);
+  height: clamp(54px, calc(8 * var(--vh, 1vh)), 86px);
+  bottom: clamp(150px, calc(20.5 * var(--vh, 1vh)), 254px);
   transform: translateX(-50%);
   background:
     linear-gradient(180deg, rgba(111, 141, 168, 0.64), rgba(51, 67, 88, 0.84));
@@ -4870,7 +4889,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 .stage-main::after {
   content: '';
   position: absolute;
-  inset: clamp(28px, 5vw, 62px) clamp(58px, 8vw, 118px) clamp(44px, 7vw, 88px);
+  inset: clamp(28px, calc(5 * var(--vw, 1vw)), 62px) clamp(58px, calc(8 * var(--vw, 1vw)), 118px) clamp(44px, calc(7 * var(--vw, 1vw)), 88px);
   pointer-events: none;
   border-radius: 50%;
   border: 1px solid rgba(232, 200, 133, 0.2);
@@ -4901,7 +4920,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .battle-table-surface {
   position: absolute;
-  inset: clamp(30px, 5.4vw, 68px) clamp(62px, 8.5vw, 126px) clamp(48px, 7.2vw, 96px);
+  inset: clamp(30px, calc(5.4 * var(--vw, 1vw)), 68px) clamp(62px, calc(8.5 * var(--vw, 1vw)), 126px) clamp(48px, calc(7.2 * var(--vw, 1vw)), 96px);
   border-radius: 50%;
   pointer-events: none;
   display: none;
@@ -4931,7 +4950,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   position: absolute;
   left: 50%;
   top: 48%;
-  width: clamp(72px, 7vw, 104px);
+  width: clamp(72px, calc(7 * var(--vw, 1vw)), 104px);
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   border-radius: 999px;
@@ -4957,7 +4976,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .battle-table-orb__count {
   color: #f6dba2;
-  font-size: clamp(22px, 2.6vw, 34px);
+  font-size: clamp(22px, calc(2.6 * var(--vw, 1vw)), 34px);
   font-weight: 900;
   line-height: 1;
 }
@@ -5326,11 +5345,11 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 1180px) {
+@container stage (max-width: 1180px) {
   .board-shell {
-    --battle-player-card-width: clamp(116px, 12.5vw, 148px);
-    --battle-seat-edge-inset: clamp(6px, 1vw, 12px);
-    --battle-seat-vertical-inset: clamp(3px, 0.8vh, 8px);
+    --battle-player-card-width: clamp(116px, calc(12.5 * var(--vw, 1vw)), 148px);
+    --battle-seat-edge-inset: clamp(6px, calc(1 * var(--vw, 1vw)), 12px);
+    --battle-seat-vertical-inset: clamp(3px, calc(0.8 * var(--vh, 1vh)), 8px);
   }
 
   .battle-seat-ring {
@@ -5338,7 +5357,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
+@container stage (max-width: 900px) and (orientation: portrait) {
   .battle-table-scene {
     position: relative;
     inset: auto;
@@ -5388,8 +5407,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: calc(100% - var(--battle-player-card-width) * 2 - clamp(40px, 4vw, 80px));
-  height: calc(100% - clamp(8px, 1.8vh, 24px));
+  width: calc(100% - var(--battle-player-card-width) * 2 - clamp(40px, calc(4 * var(--vw, 1vw)), 80px));
+  height: calc(100% - clamp(8px, calc(1.8 * var(--vh, 1vh)), 24px));
   transform: translate(-50%, -50%);
   min-height: 0;
   min-width: 0;
@@ -5419,11 +5438,11 @@ const fighterHundredDragonByPlayer = computed(() => {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
-  column-gap: clamp(6px, 0.8vw, 12px);
+  column-gap: clamp(6px, calc(0.8 * var(--vw, 1vw)), 12px);
   overflow: visible;
   padding: 0;
-  --hand-card-width: clamp(84px, 7.3vw, 112px);
-  --hand-card-height: clamp(120px, min(10.6vw, calc(var(--self-status-card-height) - 52px)), 162px);
+  --hand-card-width: clamp(84px, calc(7.3 * var(--vw, 1vw)), 112px);
+  --hand-card-height: clamp(120px, min(calc(10.6 * var(--vw, 1vw)), calc(var(--self-status-card-height) - 52px)), 162px);
   --hand-card-row-gap: 0px;
   background: transparent;
   border: 0;
@@ -5437,13 +5456,13 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .hand-rail--prompt-guide {
-  --hand-card-width: clamp(76px, 6.6vw, 102px);
-  --hand-card-height: clamp(108px, min(9.9vw, calc(var(--self-status-card-height) - 84px)), 150px);
+  --hand-card-width: clamp(76px, calc(6.6 * var(--vw, 1vw)), 102px);
+  --hand-card-height: clamp(108px, min(calc(9.9 * var(--vw, 1vw)), calc(var(--self-status-card-height) - 84px)), 150px);
 }
 
 .hand-rail--overflow-discard {
-  --hand-card-width: clamp(72px, 6.2vw, 98px);
-  --hand-card-height: clamp(102px, min(9.3vw, calc(var(--self-status-card-height) - 92px)), 144px);
+  --hand-card-width: clamp(72px, calc(6.2 * var(--vw, 1vw)), 98px);
+  --hand-card-height: clamp(102px, min(calc(9.3 * var(--vw, 1vw)), calc(var(--self-status-card-height) - 92px)), 144px);
 }
 
 .my-status-strip {
@@ -6003,7 +6022,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   height: 100%;
   gap: 0;
   /* 底部留白 ≥ 外沿下沉量，保证两端旋转的牌不出屏 */
-  padding: 0 calc(var(--hand-card-width) * 0.2) clamp(18px, 2.4vh, 26px);
+  padding: 0 calc(var(--hand-card-width) * 0.2) clamp(18px, calc(2.4 * var(--vh, 1vh)), 26px);
 }
 
 .hand-fan-slot {
@@ -6073,7 +6092,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   left: 4%;
   right: 4%;
   bottom: 0;
-  height: clamp(26px, 3.4vh, 40px);
+  height: clamp(26px, calc(3.4 * var(--vh, 1vh)), 40px);
   z-index: 0;
   border-top: 2px solid var(--bt-chrome);
   border-radius: 50% 50% 0 0 / 100% 100% 0 0;
@@ -6110,28 +6129,28 @@ const fighterHundredDragonByPlayer = computed(() => {
   height: var(--hand-card-height);
   max-width: min(var(--hand-card-width), 100%);
   max-height: calc(100% - 1px);
-  font-size: clamp(10px, 0.92vw, 14px);
+  font-size: clamp(10px, calc(0.92 * var(--vw, 1vw)), 14px);
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-title-text) {
-  font-size: clamp(7.6px, 0.66vw, 10px) !important;
+  font-size: clamp(7.6px, calc(0.66 * var(--vw, 1vw)), 10px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-element-medal > span) {
-  font-size: clamp(6.8px, 0.59vw, 9px) !important;
+  font-size: clamp(6.8px, calc(0.59 * var(--vw, 1vw)), 9px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-ribbon-text) {
-  font-size: clamp(5.4px, 0.45vw, 7px) !important;
+  font-size: clamp(5.4px, calc(0.45 * var(--vw, 1vw)), 7px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-desc-btn) {
-  font-size: clamp(6px, 0.5vw, 7.5px) !important;
-  padding: clamp(1px, 0.18vw, 2px) clamp(3px, 0.32vw, 5px);
+  font-size: clamp(6px, calc(0.5 * var(--vw, 1vw)), 7.5px) !important;
+  padding: clamp(1px, calc(0.18 * var(--vw, 1vw)), 2px) clamp(3px, calc(0.32 * var(--vw, 1vw)), 5px);
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-exclusive-corner) {
-  font-size: clamp(7px, 0.59vw, 9px) !important;
+  font-size: clamp(7px, calc(0.59 * var(--vw, 1vw)), 9px) !important;
 }
 
 /* 扩展区：贴在立绘右侧，无边框。
@@ -6254,7 +6273,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   flex-direction: column;
   gap: 6px;
   width: max-content;
-  max-width: min(900px, calc(100vw - 240px));
+  max-width: min(900px, calc(calc(100 * var(--vw, 1vw)) - 240px));
   padding: 10px 18px 10px 14px;
   isolation: isolate;
 }
@@ -6620,16 +6639,16 @@ const fighterHundredDragonByPlayer = computed(() => {
   box-shadow: none !important;
 }
 
-@media (max-width: 1200px) {
+@container stage (max-width: 1200px) {
   .bottom-hud {
     --hand-max-width: 700px;
     --action-dock-width: 248px;
   }
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .board-shell {
-    --self-status-card-width: clamp(112px, 15vw, 132px);
+    --self-status-card-width: clamp(112px, calc(15 * var(--vw, 1vw)), 132px);
     --self-status-card-height: 198px;
   }
 
@@ -6638,25 +6657,25 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .board-shell {
-    --self-status-card-width: min(112px, 29vw);
+    --self-status-card-width: min(112px, calc(29 * var(--vw, 1vw)));
     --self-status-card-height: 176px;
   }
 
   .bottom-hud {
-    --action-dock-width: min(176px, 48vw);
+    --action-dock-width: min(176px, calc(48 * var(--vw, 1vw)));
   }
 }
 
-@media (min-width: 640px) {
+@container stage (min-width: 640px) {
   .bottom-hud {
     --hand-max-width: 860px;
   }
 }
 
 /* 针对 1440x678 这类“宽屏但高度较矮”的桌面，收紧高度避免侧边座位互相压叠。 */
-@media (min-width: 1360px) and (max-width: 1599px) and (max-height: 760px) {
+@container stage (min-width: 1360px) and (max-width: 1599px) and (max-height: 760px) {
   .board-shell {
     --battle-player-card-max-width: 190px;
     --battle-player-card-max-height: 183px;
@@ -6681,7 +6700,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 1024px) {
+@container stage (max-width: 1024px) {
   .main-grid {
     grid-template-columns: 132px minmax(0, 1fr) 132px;
   }
@@ -6701,17 +6720,17 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .table-decor-base {
     width: min(104%, 1040px);
-    height: clamp(280px, 54vh, 520px);
-    top: clamp(24px, 5vh, 60px);
+    height: clamp(280px, calc(54 * var(--vh, 1vh)), 520px);
+    top: clamp(24px, calc(5 * var(--vh, 1vh)), 60px);
   }
 
   .table-decor-edge {
     width: min(94%, 900px);
-    bottom: clamp(138px, 20vh, 214px);
+    bottom: clamp(138px, calc(20 * var(--vh, 1vh)), 214px);
   }
 }
 
-@media (max-width: 1024px) and (orientation: landscape) and (pointer: coarse) {
+@container stage (max-width: 1024px) and (orientation: landscape) { /* @media (pointer: coarse) */
   .board-shell {
     width: 100%;
     max-width: none;
@@ -6807,13 +6826,13 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .table-decor-base {
     width: min(104%, 920px);
-    height: clamp(238px, 58vh, 420px);
-    top: clamp(18px, 4.2vh, 42px);
+    height: clamp(238px, calc(58 * var(--vh, 1vh)), 420px);
+    top: clamp(18px, calc(4.2 * var(--vh, 1vh)), 42px);
   }
 
   .table-decor-edge {
     width: min(92%, 760px);
-    bottom: clamp(118px, 18vh, 176px);
+    bottom: clamp(118px, calc(18 * var(--vh, 1vh)), 176px);
   }
 
   .bottom-hud {
@@ -6832,7 +6851,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 760px) and (orientation: landscape) and (pointer: coarse) {
+@container stage (max-width: 760px) and (orientation: landscape) { /* @media (pointer: coarse) */
   .main-grid {
     grid-template-columns: 108px minmax(0, 1fr) 108px;
   }
@@ -6843,13 +6862,13 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .table-decor-base {
     width: min(106%, 780px);
-    height: clamp(210px, 62vh, 360px);
-    top: clamp(16px, 4vh, 34px);
+    height: clamp(210px, calc(62 * var(--vh, 1vh)), 360px);
+    top: clamp(16px, calc(4 * var(--vh, 1vh)), 34px);
   }
 
   .table-decor-edge {
     width: min(94%, 640px);
-    bottom: clamp(100px, 18vh, 154px);
+    bottom: clamp(100px, calc(18 * var(--vh, 1vh)), 154px);
   }
 
   .bottom-hud {
@@ -6857,7 +6876,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
+@container stage (max-width: 900px) and (orientation: portrait) {
   .board-shell {
     overflow-y: auto;
     overflow-x: hidden;
@@ -6901,15 +6920,15 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .player-anchor-wrap--focus-slot-left.player-anchor-wrap--focus-active {
-    transform: translate(clamp(16px, 3.2vw, 28px), 0) scale(1.03);
+    transform: translate(clamp(16px, calc(3.2 * var(--vw, 1vw)), 28px), 0) scale(1.03);
   }
 
   .player-anchor-wrap--focus-slot-right.player-anchor-wrap--focus-active {
-    transform: translate(clamp(-28px, -3.2vw, -16px), 0) scale(1.03);
+    transform: translate(clamp(-28px, calc(-3.2 * var(--vw, 1vw)), -16px), 0) scale(1.03);
   }
 
   .player-anchor-wrap--focus-slot-bottom.player-anchor-wrap--focus-active {
-    transform: translate(0, clamp(-52px, -6.4vh, -34px)) scale(1.04);
+    transform: translate(0, clamp(-52px, calc(-6.4 * var(--vh, 1vh)), -34px)) scale(1.04);
   }
 
   .center-stage {
@@ -6917,25 +6936,25 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .stage-main {
-    min-height: clamp(300px, 44vh, 520px);
+    min-height: clamp(300px, calc(44 * var(--vh, 1vh)), 520px);
   }
 
   .table-decor-base {
     width: min(108%, 920px);
-    height: clamp(310px, 46vh, 520px);
-    top: clamp(44px, 9vh, 96px);
+    height: clamp(310px, calc(46 * var(--vh, 1vh)), 520px);
+    top: clamp(44px, calc(9 * var(--vh, 1vh)), 96px);
   }
 
   .table-decor-edge {
     width: min(98%, 720px);
-    bottom: clamp(188px, 24vh, 310px);
+    bottom: clamp(188px, calc(24 * var(--vh, 1vh)), 310px);
   }
 
   .bottom-hud {
     width: 100%;
     gap: 6px;
     --hand-max-width: 100%;
-    --action-dock-width: min(198px, 42vw);
+    --action-dock-width: min(198px, calc(42 * var(--vw, 1vw)));
     --hud-main-gap: 6px;
   }
 
@@ -6954,7 +6973,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .board-shell {
     border-left: none;
     border-right: none;
@@ -6991,13 +7010,13 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .table-decor-base {
     width: min(112%, 720px);
-    height: clamp(280px, 42vh, 420px);
-    top: clamp(38px, 8.8vh, 72px);
+    height: clamp(280px, calc(42 * var(--vh, 1vh)), 420px);
+    top: clamp(38px, calc(8.8 * var(--vh, 1vh)), 72px);
   }
 
   .table-decor-edge {
     width: min(100%, 580px);
-    bottom: clamp(178px, 23vh, 254px);
+    bottom: clamp(178px, calc(23 * var(--vh, 1vh)), 254px);
     opacity: 0.9;
   }
 
@@ -7031,7 +7050,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 480px) {
+@container stage (max-width: 480px) {
   .camp-side-label {
     display: none;
   }
@@ -7083,14 +7102,14 @@ const fighterHundredDragonByPlayer = computed(() => {
   filter: brightness(1.04);
 }
 
-@media (max-width: 1024px) {
+@container stage (max-width: 1024px) {
   .main-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
 }
 
-@media (max-width: 1024px) and (orientation: landscape) and (pointer: coarse) {
+@container stage (max-width: 1024px) and (orientation: landscape) { /* @media (pointer: coarse) */
   .main-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
@@ -7103,8 +7122,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   .board-shell {
     --battle-player-card-max-width: 160px;
     --battle-player-card-max-height: 154px;
-    --battle-seat-edge-inset: clamp(4px, 0.8vw, 8px);
-    --battle-seat-vertical-inset: clamp(2px, 0.6vh, 6px);
+    --battle-seat-edge-inset: clamp(4px, calc(0.8 * var(--vw, 1vw)), 8px);
+    --battle-seat-vertical-inset: clamp(2px, calc(0.6 * var(--vh, 1vh)), 6px);
   }
 
   .battle-seat-ring {
@@ -7117,7 +7136,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
+@container stage (max-width: 900px) and (orientation: portrait) {
   .main-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;

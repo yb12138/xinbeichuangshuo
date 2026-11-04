@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { stagePortalTarget } from '../composables/useStageScale'
 import { computed, ref, useAttrs, watch } from 'vue'
 import type { Card } from '../types/game'
 import ElementGlyph from './card/ElementGlyph.vue'
@@ -240,7 +241,7 @@ function handleClick() {
     </template>
   </div>
 
-  <Teleport to="body">
+  <Teleport :to="stagePortalTarget()" defer>
     <div v-if="showDescModal" class="card-desc-modal-overlay" @click="closeDescriptionModal">
       <div class="card-desc-modal" role="dialog" aria-modal="true" :aria-label="`${card.name} 卡面描述`" @click.stop>
         <div class="card-desc-modal-title">{{ card.name }} · 卡面描述</div>
@@ -667,8 +668,8 @@ function handleClick() {
 }
 
 .card-desc-modal {
-  width: min(560px, calc(100vw - 32px));
-  max-height: min(82vh, 760px);
+  width: min(560px, calc(calc(100 * var(--vw, 1vw)) - 32px));
+  max-height: min(calc(82 * var(--vh, 1vh)), 760px);
   overflow: hidden;
   border-radius: var(--bt-radius);
   background: var(--bt-panel-raised);

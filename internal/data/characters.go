@@ -758,8 +758,8 @@ func GetCharacters() []model.Character {
 		{
 			ID:      "arbiter",
 			Name:    "仲裁者",
-			Title:   "幻",
-			Faction: "幻",
+			Title:   "血",
+			Faction: "血",
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
@@ -824,8 +824,8 @@ func GetCharacters() []model.Character {
 		{
 			ID:      "adventurer",
 			Name:    "冒险家",
-			Title:   "技",
-			Faction: "技",
+			Title:   "幻",
+			Faction: "幻",
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
@@ -951,8 +951,8 @@ func GetCharacters() []model.Character {
 		{
 			ID:      "elf_archer",
 			Name:    "精灵射手",
-			Title:   "灵",
-			Faction: "灵",
+			Title:   "技",
+			Faction: "技",
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
@@ -1010,8 +1010,8 @@ func GetCharacters() []model.Character {
 		{
 			ID:      "plague_mage",
 			Name:    "瘟疫法师",
-			Title:   "灾",
-			Faction: "灾",
+			Title:   "幻",
+			Faction: "幻",
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
@@ -1064,8 +1064,8 @@ func GetCharacters() []model.Character {
 		{
 			ID:      "magic_swordsman",
 			Name:    "魔剑士",
-			Title:   "影",
-			Faction: "影",
+			Title:   "幻",
+			Faction: "幻",
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
@@ -1362,8 +1362,8 @@ func GetCharacters() []model.Character {
 		{
 			ID:      "war_homunculus",
 			Name:    "英灵人形",
-			Title:   "幻",
-			Faction: "幻",
+			Title:   "咏",
+			Faction: "咏",
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{
@@ -1506,8 +1506,8 @@ func GetCharacters() []model.Character {
 		{
 			ID:      "onmyoji",
 			Name:    "阴阳师",
-			Title:   "咏",
-			Faction: "咏",
+			Title:   "幻",
+			Faction: "幻",
 			MaxHand: 6,
 			Skills: []model.SkillDefinition{
 				{

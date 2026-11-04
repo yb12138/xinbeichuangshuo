@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { stagePortalTarget, stageViewport, toStagePx } from '../composables/useStageScale'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { PlayerView } from '../types/game'
@@ -20,7 +21,7 @@ const battleReviewStore = useBattleReviewStore()
 const interruptStore = useInterruptStore()
 const uiStore = useUiStore()
 const { damageEffects } = storeToRefs(battleFxStore)
-const { currentPrompt, actionMode, selectedHandIndexForAction, skillMode } = storeToRefs(interruptStore)
+const { currentPrompt, actionMode, selectedHandIndexForAction, skillMode, counterFlowStage } = storeToRefs(interruptStore)
 const { skillModalCharacterId } = storeToRefs(uiStore)
 const { getCharacter, getRoleDisplayName, isPromptForMe } = useBattleInteractionState()
 
@@ -83,16 +84,15 @@ function openSkillModal(event?: MouseEvent) {
   }
   const anchorEl = event?.currentTarget as HTMLElement | null
   if (anchorEl) {
-    const rect = anchorEl.getBoundingClientRect()
-    uiStore.openSkillModal(props.player.role, {
-      x: rect.left,
-      y: rect.top,
-      width: rect.width,
-      height: rect.height,
-    })
+    uiStore.openSkillModal(props.player.role, stageRect(anchorEl.getBoundingClientRect()))
     return
   }
   uiStore.openSkillModal(props.player.role)
+}
+
+/** 视觉坐标的元素矩形 → 舞台布局坐标（技能弹窗锚点用）。 */
+function stageRect(rect: DOMRect) {
+  return { x: toStagePx(rect.left), y: toStagePx(rect.top), width: toStagePx(rect.width), height: toStagePx(rect.height) }
 }
 
 const campClass = computed(() => {
@@ -218,7 +218,7 @@ const isTargetingContext = computed(() => {
   if (!prompt || !isPromptForMe.value) return false
   if (prompt.presentation?.kind === 'target_picker') return true
   if (prompt.type === 'choose_target') return true
-  if ((prompt.counter_target_ids?.length ?? 0) > 0) return true
+  if ((prompt.counter_target_ids?.length ?? 0) > 0) return counterFlowStage.value === 'target'
   return (prompt.options ?? []).some((option: any) => !!option?.target_id)
 })
 
@@ -300,12 +300,13 @@ const coverPopoverStyle = ref<Record<string, string>>({})
 function showCoverPopover(key: string, event: Event) {
   const el = event.currentTarget as HTMLElement | null
   if (el) {
-    const rect = el.getBoundingClientRect()
+    const rect = stageRect(el.getBoundingClientRect())
+    const viewWidth = stageViewport.value.width
     // 左半屏的座位往右弹，右半屏的往左弹，都与标记垂直居中
-    const toRight = rect.left + rect.width / 2 < window.innerWidth / 2
+    const toRight = rect.x + rect.width / 2 < viewWidth / 2
     coverPopoverStyle.value = {
-      top: `${rect.top + rect.height / 2}px`,
-      ...(toRight ? { left: `${rect.right + 10}px` } : { right: `${window.innerWidth - rect.left + 10}px` }),
+      top: `${rect.y + rect.height / 2}px`,
+      ...(toRight ? { left: `${rect.x + rect.width + 10}px` } : { right: `${viewWidth - rect.x + 10}px` }),
     }
   }
   hoveredCoverKey.value = key
@@ -644,7 +645,7 @@ function handleClick(e: MouseEvent) {
       </div>
     </div>
     <!-- 悬停盖牌标记：浮出该种盖牌。他人视角牌面已由服务端遮蔽，画种类牌背 -->
-    <Teleport to="body">
+    <Teleport :to="stagePortalTarget()" defer>
       <div
         v-if="hoveredCoverKey && hoveredCoverCards.length"
         class="seat-cover-popover"
@@ -1436,7 +1437,7 @@ function handleClick(e: MouseEvent) {
 }
 
 /* ===== 尺寸断点（保持原有高度） ===== */
-@media (min-width: 1800px) {
+@container stage (min-width: 1800px) {
   .player-area--compact {
     height: 150px;
   }
@@ -1446,7 +1447,7 @@ function handleClick(e: MouseEvent) {
   }
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .player-area--compact {
     height: 128px;
   }
@@ -1464,7 +1465,7 @@ function handleClick(e: MouseEvent) {
   }
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .player-area--compact {
     height: 118px;
   }

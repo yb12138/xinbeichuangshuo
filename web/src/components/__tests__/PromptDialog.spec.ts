@@ -1165,4 +1165,78 @@ describe('PromptDialog', () => {
     expect(screen.getAllByText('烈焰突刺：造成2点火焰伤害').length).toBeGreaterThan(0)
     expect(screen.queryByText(/^烈焰突刺$/)).not.toBeInTheDocument()
   })
+
+  describe('应战两步流程', () => {
+    function counterPrompt(): Prompt {
+      return {
+        ...responsePrompt(),
+        counter_card_ids: ['h0'],
+        counter_target_ids: ['p1', 'p3'],
+      }
+    }
+
+    function setup() {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+      useSnapshotStore().updateGameState(buildState())
+      useInterruptStore().setPrompt(counterPrompt())
+      render(PromptDialog, { global: { plugins: [pinia] } })
+      return useInterruptStore()
+    }
+
+    it('clicking 应战 enters step ① instead of erroring for a missing card', async () => {
+      const store = setup()
+      await userEvent.click(screen.getByTestId('response-counter'))
+
+      expect(store.counterFlowStage).toBe('card')
+      expect(screen.getByTestId('counter-flow')).toBeInTheDocument()
+      expect(screen.getByTestId('counter-step-card')).toHaveClass('on')
+      expect(screen.queryByTestId('response-take')).not.toBeInTheDocument()
+      expect(store.errorMessage).toBe('')
+      expect(submitRespondCounterMock).not.toHaveBeenCalled()
+    })
+
+    it('picking a card advances to step ②, picking a target submits the counter', async () => {
+      submitRespondCounterMock.mockReturnValue(true)
+      const store = setup()
+      await userEvent.click(screen.getByTestId('response-counter'))
+
+      store.setSelectedHandIndexes([0])
+      await nextTick()
+      expect(store.counterFlowStage).toBe('target')
+      expect(screen.getByTestId('counter-step-card')).toHaveClass('done')
+      expect(screen.getByTestId('counter-step-target')).toHaveClass('on')
+      expect(submitRespondCounterMock).not.toHaveBeenCalled()
+
+      store.setPromptCounterTarget('p3')
+      await nextTick()
+      expect(submitRespondCounterMock).toHaveBeenCalledOnce()
+    })
+
+    it('back from step ② returns to step ①, back from step ① returns to the response buttons', async () => {
+      const store = setup()
+      await userEvent.click(screen.getByTestId('response-counter'))
+      store.setSelectedHandIndexes([0])
+      await nextTick()
+
+      await userEvent.click(screen.getByTestId('counter-flow-back'))
+      expect(store.counterFlowStage).toBe('card')
+      expect(store.selectedHandIndexes).toEqual([])
+
+      await userEvent.click(screen.getByTestId('counter-flow-back'))
+      expect(store.counterFlowStage).toBe('none')
+      expect(screen.getByTestId('response-take')).toBeInTheDocument()
+    })
+
+    it('a counter card picked before clicking 应战 skips straight to step ②', async () => {
+      const store = setup()
+      store.setSelectedHandIndexes([0])
+      await nextTick()
+      await userEvent.click(screen.getByTestId('response-counter'))
+
+      expect(store.counterFlowStage).toBe('target')
+      expect(store.selectedHandIndexes).toEqual([0])
+    })
+  })
 })

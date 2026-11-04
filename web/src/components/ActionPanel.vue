@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { stagePortalTarget } from '../composables/useStageScale'
 import { computed, ref, watch } from 'vue'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
@@ -1672,7 +1673,7 @@ function elementName(el: string): string {
         </button>
     </div>
 
-    <Teleport to="body">
+    <Teleport :to="stagePortalTarget()" defer>
         <Transition name="special-modal-fade">
             <div
                 v-if="specialActionModalVisible"
@@ -2141,11 +2142,11 @@ function elementName(el: string): string {
     flex-wrap: wrap;
     justify-content: center;
     align-items: flex-start;
-    gap: 6px clamp(8px, 1vw, 16px);
+    gap: 6px clamp(8px, calc(1 * var(--vw, 1vw)), 16px);
 }
 
 .dock-medal {
-    --medal-size: clamp(52px, 4.6vw, 72px);
+    --medal-size: clamp(52px, calc(4.6 * var(--vw, 1vw)), 72px);
     display: inline-flex;
     flex-direction: column;
     align-items: center;
@@ -2158,7 +2159,7 @@ function elementName(el: string): string {
 }
 
 .dock-medal-row:has(> :nth-child(4)) .dock-medal {
-    --medal-size: clamp(44px, 3.6vw, 58px);
+    --medal-size: clamp(44px, calc(3.6 * var(--vw, 1vw)), 58px);
 }
 
 .dock-medal-ring {
@@ -2762,7 +2763,7 @@ function elementName(el: string): string {
 }
 
 .special-modal-card {
-    width: min(430px, calc(100vw - 28px));
+    width: min(430px, calc(calc(100 * var(--vw, 1vw)) - 28px));
     border-radius: var(--bt-radius);
     background: linear-gradient(180deg, var(--bt-bg-1), var(--bt-bg-0));
     box-shadow: var(--bt-frame-shadow), inset 0 1px 0 var(--bt-hairline-soft);
@@ -2899,8 +2900,8 @@ function elementName(el: string): string {
 }
 
 .debug-modal-card {
-    width: min(980px, 94vw);
-    max-height: 88vh;
+    width: min(980px, calc(94 * var(--vw, 1vw)));
+    max-height: calc(88 * var(--vh, 1vh));
     background: linear-gradient(180deg, var(--bt-bg-1), var(--bt-bg-0));
     border-radius: var(--bt-radius);
     box-shadow: var(--bt-frame-shadow);
@@ -2996,7 +2997,7 @@ function elementName(el: string): string {
 }
 
 /* ================= 响应式 ================= */
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
     .dock-hd {
         padding-left: 8px;
     }
@@ -3025,7 +3026,7 @@ function elementName(el: string): string {
     }
 
     .special-modal-card {
-        width: min(360px, calc(100vw - 20px));
+        width: min(360px, calc(calc(100 * var(--vw, 1vw)) - 20px));
         padding: 12px 10px 10px;
     }
 }
