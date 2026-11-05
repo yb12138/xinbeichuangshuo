@@ -21,6 +21,8 @@ describe('stageQueue fastForward（后台标签页切回来）', () => {
     vi.spyOn(performance, 'now').mockReturnValue(0)
     setActivePinia(createPinia())
     store = useStageQueueStore()
+    // 下面的 tick 时间按 1x 时长写死
+    store.setSpeed(1)
   })
 
   afterEach(() => {

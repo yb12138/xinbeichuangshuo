@@ -6,6 +6,8 @@ import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO, TimelineDelta
 import { SKILL_ANIMATION_MAP, type SkillEffectTemplate, type SkillOpening } from '../constants/skillAnimationMap'
 import { COVER_MARKS, STATUS_MARKS, TOKEN_MARKS } from '../constants/battleMarks'
 import { formLabel } from '../constants/forms'
+import { playSfx } from '../audio/sfx'
+import { cueForStep } from '../audio/stepCues'
 
 /**
  * Unified battle-stage playback queue.
@@ -72,7 +74,19 @@ export type AtomicStep = StepTiming &
     | { type: 'turn-banner'; text: string; duration: number }
     | { type: 'mark-previous' }
     | { type: 'clear-stage'; summary?: string }
-    | { type: 'narration-row'; html: string; tag: string; tagColor: LinkColor; chain?: NarrationChain; skill?: NarrationSkill; special?: NarrationSpecial; effect?: NarrationEffect }
+    | {
+        type: 'narration-row'
+        html: string
+        tag: string
+        tagColor: LinkColor
+        chain?: NarrationChain
+        skill?: NarrationSkill
+        special?: NarrationSpecial
+        effect?: NarrationEffect
+        take?: NarrationTake
+      }
+    /** 承受结算的伤害后到：就地更新对应的承受行。 */
+    | { type: 'take-result'; linkId: string; damage: number; heal: boolean }
     /** 同一技能因果的结果后到（如茧在结算后才放置）：就地更新已有技能行。 */
     | { type: 'skill-result'; causeId: string; outcome: string; cost: string; revealed?: NarrationSkill['revealed']; transfers?: HandTransfer[] }
     /** 自身形态型（模板 5）：座位包裹光焰 + 形态名横幅。form 为空 = 脱离形态。 */
@@ -102,6 +116,8 @@ export interface NarrationSkill {
   effects: SkillEffectTemplate[]
   /** Link drawn for this skill (actor → first target), whose result the node shows. */
   linkId?: string
+  /** 服务端把技能节点挂靠在哪条边上（被动技能据此挂到正确的那一步下）。 */
+  anchorLinkId?: string
   /** 结算结果短语（"蛹 +1 · 茧 ×4"、"伤害 +1"、"代为应战 → X"）；空串 = 尚无可见结果。 */
   outcome?: string
   /** 发动代价（"宝石 1"），与结果分开展示。 */
@@ -144,7 +160,8 @@ export interface NarrationChain {
   fromPlayerId: string
   toPlayerId: string
   verb: string
-  card?: Pick<Card, 'name' | 'element' | 'type' | 'faction'>
+  /** damage = 牌面基础伤害，战斗链用来写"2 +1 = 3"的伤害算式。 */
+  card?: Pick<Card, 'name' | 'element' | 'type' | 'faction'> & { damage?: number }
 }
 
 export type AtomicStepType = AtomicStep['type']
@@ -257,6 +274,17 @@ export interface NarrationRow {
   skill?: NarrationSkill
   special?: NarrationSpecial
   effect?: NarrationEffect
+  take?: NarrationTake
+}
+
+/** "X 承受"：承受结算，战斗链把最终伤害标在这次攻击那一行的行尾。 */
+export interface NarrationTake {
+  playerId: string
+  sourceId: string
+  /** 承受边的 link id，伤害后到时据此就地更新。 */
+  linkId: string
+  damage: number
+  heal: boolean
 }
 
 export interface PreviousActionState {
@@ -266,7 +294,12 @@ export interface PreviousActionState {
 
 const PREVIOUS_LABEL = '上一手'
 const MAX_HISTORY_CHIPS = 20
-const AUTO_ACCELERATE_THRESHOLD = 3
+/** 战斗链回放：保留最近几条已结束的战斗链。 */
+const MAX_CHAIN_ARCHIVE = 5
+/** 积压超过这么多步才自动加速。一手攻击本身就有 5~10 步，阈值太低会让每一手都在倍速播放。 */
+const AUTO_ACCELERATE_THRESHOLD = 16
+/** 默认播放速度：略慢于原始时长，给玩家看清战斗链的时间。 */
+const DEFAULT_SPEED = 0.8
 /** 切回标签页时，入队超过这么久的积压视为已过时，直接结算不再播放。 */
 const STALE_BACKLOG_MS = 3000
 const VALUE_CHIP_LIFETIME_MS = 2000
@@ -294,6 +327,7 @@ const DEFAULT_HOLD_MS: Record<AtomicStepType, number> = {
   'status-change': 300,
   'turn-banner': DEFAULT_TURN_BANNER_MS,
   'skill-result': 0,
+  'take-result': 0,
   'form-change': 650,
   'deck-to-seat': 500,
   'hand-flight': 550,
@@ -339,9 +373,11 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
   const stageRows = ref<NarrationRow[]>([])
   const previousAction = ref<PreviousActionState | null>(null)
   const historyChips = ref<string[]>([])
+  /** 已退出"上一手"的战斗链（旧 → 新），供回放向前翻看。 */
+  const chainArchive = ref<NarrationRow[][]>([])
   const turnBanner = ref<{ text: string } | null>(null)
   const isPlaying = ref(false)
-  const speedMultiplier = ref(1)
+  const speedMultiplier = ref(DEFAULT_SPEED)
 
   let nextReadyAt = 0
   let turnBannerExpiresAt = 0
@@ -356,7 +392,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
 
   /** Scale factor applied to every duration: speed setting plus auto-acceleration on backlog. */
   function timeScale(): number {
-    const speed = speedMultiplier.value > 0 ? speedMultiplier.value : 1
+    const speed = speedMultiplier.value > 0 ? speedMultiplier.value : DEFAULT_SPEED
     const backlog = queue.value.length > AUTO_ACCELERATE_THRESHOLD ? 0.5 : 1
     return backlog / speed
   }
@@ -365,6 +401,11 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     const chip = text.trim()
     if (!chip) return
     historyChips.value = [...historyChips.value, chip].slice(-MAX_HISTORY_CHIPS)
+  }
+
+  function archiveChain(rows: NarrationRow[]) {
+    if (rows.length === 0) return
+    chainArchive.value = [...chainArchive.value, rows].slice(-MAX_CHAIN_ARCHIVE)
   }
 
   function summarizeRows(rows: NarrationRow[]): string {
@@ -387,6 +428,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
   function archiveCurrentAction(summaryText: string) {
     if (previousAction.value) {
       pushHistoryChip(previousSummary || summarizeRows(previousAction.value.rows))
+      archiveChain(previousAction.value.rows)
       previousAction.value = null
       previousSummary = ''
     }
@@ -407,9 +449,11 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
   function clearStage(summary?: string) {
     if (previousAction.value) {
       pushHistoryChip(previousSummary || summarizeRows(previousAction.value.rows))
+      archiveChain(previousAction.value.rows)
     }
     if (stageRows.value.length > 0) {
       pushHistoryChip(summary || summarizeRows(stageRows.value))
+      archiveChain(stageRows.value)
     }
     previousAction.value = null
     previousSummary = ''
@@ -587,9 +631,28 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
       case 'narration-row':
         stageRows.value = [
           ...stageRows.value,
-          { id: ++seq, html: step.html, tag: step.tag, tagColor: step.tagColor, chain: step.chain, skill: step.skill, special: step.special, effect: step.effect },
+          {
+            id: ++seq,
+            html: step.html,
+            tag: step.tag,
+            tagColor: step.tagColor,
+            chain: step.chain,
+            skill: step.skill,
+            special: step.special,
+            effect: step.effect,
+            take: step.take,
+          },
         ]
         break
+      case 'take-result': {
+        const index = stageRows.value.findIndex((row) => row.take?.linkId === step.linkId)
+        if (index < 0) break
+        const row = stageRows.value[index]!
+        const next = stageRows.value.slice()
+        next[index] = { ...row, take: { ...row.take!, damage: step.damage, heal: step.heal } }
+        stageRows.value = next
+        break
+      }
     }
   }
 
@@ -641,6 +704,9 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     const scale = timeScale()
     queue.value.shift()
     applyStep(step, at, scale)
+    // 只有真正播放的步骤出声；fastForward 直接 applyStep，不会补放积压的音效
+    const cue = cueForStep(step)
+    if (cue) playSfx(cue)
     nextReadyAt = at + stepHoldMs(step) * scale
     isPlaying.value = true
   }
@@ -697,6 +763,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     stageRows.value = []
     previousAction.value = null
     historyChips.value = []
+    chainArchive.value = []
     turnBanner.value = null
     isPlaying.value = false
     nextReadyAt = 0
@@ -718,6 +785,7 @@ export const useStageQueueStore = defineStore('stageQueue', () => {
     stageRows,
     previousAction,
     historyChips,
+    chainArchive,
     turnBanner,
     isPlaying,
     speedMultiplier,
@@ -1130,8 +1198,20 @@ export function edgeStartSteps(
     // A self skill edge is only the anchor of the skill node, which narrates itself.
     if (normalizePhase(edge.phase) === 'skill') return []
     // 承受结算只记一行叙事，不画线；结果（伤害数值）由 edgeResolveSteps 标到目标身上
-    const who = playerHtml(edge.to_user_id || edge.from_user_id, playerNameFn, roleNameFn)
-    return who ? [{ type: 'narration-row', html: `${who} ${phaseVerb(edge.phase)}`, tag: phaseVerb(edge.phase), tagColor: 'grey' }] : []
+    const victim = edge.to_user_id || edge.from_user_id
+    const who = playerHtml(victim, playerNameFn, roleNameFn)
+    if (!who) return []
+    const take: NarrationTake | undefined =
+      normalizePhase(edge.phase) === 'take'
+        ? {
+            playerId: victim,
+            sourceId: edge.from_user_id || '',
+            linkId: flowLinkId(flowId, edge.id),
+            damage: edge.damage ?? 0,
+            heal: (edge.damage_type || '').toLowerCase() === 'heal',
+          }
+        : undefined
+    return [{ type: 'narration-row', html: `${who} ${phaseVerb(edge.phase)}`, tag: phaseVerb(edge.phase), tagColor: 'grey', ...(take ? { take } : {}) }]
   }
   const linkId = flowLinkId(flowId, edge.id)
   const color = linkColorForPhase(edge.phase, edge.damage_type)
@@ -1172,7 +1252,15 @@ export function edgeStartSteps(
         fromPlayerId: edge.from_user_id,
         toPlayerId: edge.to_user_id,
         verb,
-        card: firstCard ? { name: firstCard.name, element: firstCard.element, type: firstCard.type, faction: firstCard.faction } : undefined,
+        card: firstCard
+          ? {
+              name: firstCard.name,
+              element: firstCard.element,
+              type: firstCard.type,
+              faction: firstCard.faction,
+              ...(typeof firstCard.damage === 'number' ? { damage: firstCard.damage } : {}),
+            }
+          : undefined,
       },
     },
   ]
@@ -1193,7 +1281,9 @@ export function edgeResolveSteps(flowId: string, edge: ActionFlowEdgeDTO): Atomi
   const heal = (edge.damage_type || '').toLowerCase() === 'heal'
   if (isSelfResolveEdge(edge)) {
     if (damage > 0 && edge.to_user_id) {
-      return [{ type: 'value-chip', playerId: edge.to_user_id, text: heal ? `+${damage}` : `-${damage}`, color: heal ? 'heal' : 'damage' }]
+      const steps: AtomicStep[] = [{ type: 'value-chip', playerId: edge.to_user_id, text: heal ? `+${damage}` : `-${damage}`, color: heal ? 'heal' : 'damage' }]
+      if (normalizePhase(edge.phase) === 'take') steps.push({ type: 'take-result', linkId: flowLinkId(flowId, edge.id), damage, heal })
+      return steps
     }
     return []
   }

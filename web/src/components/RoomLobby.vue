@@ -32,9 +32,34 @@ const PAGE_SIZE = 12
 
 const IMAGE_EXTS = ['png', 'webp', 'jpg', 'jpeg']
 
+/**
+ * 复制到剪贴板。navigator.clipboard 只在安全上下文（https / localhost）存在，
+ * 局域网 IP 打开时退回到隐藏 textarea + execCommand('copy')。
+ */
+async function writeClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // 权限被拒或窗口未聚焦：走下面的兜底
+    }
+  }
+  const area = document.createElement('textarea')
+  area.value = text
+  area.setAttribute('readonly', '')
+  area.style.position = 'fixed'
+  area.style.opacity = '0'
+  document.body.appendChild(area)
+  area.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(area)
+  if (!ok) throw new Error('copy failed')
+}
+
 async function copyRoomCode() {
   try {
-    await navigator.clipboard.writeText(sessionStore.roomCode)
+    await writeClipboard(sessionStore.roomCode)
     copyFeedback.value = true
     setTimeout(() => {
       copyFeedback.value = false
@@ -332,7 +357,7 @@ function confirmPreview() {
 async function copyInviteLink() {
   const url = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(sessionStore.roomCode)}`
   try {
-    await navigator.clipboard.writeText(url)
+    await writeClipboard(url)
     inviteFeedback.value = true
     setTimeout(() => {
       inviteFeedback.value = false
@@ -426,10 +451,11 @@ async function copyInviteLink() {
       <div class="draft-info-row">
         <div class="room-box ornate-panel">
           <div class="room-box-label">房间码</div>
-          <button type="button" class="room-code-btn" @click="copyRoomCode">
+          <!-- 房间码本身可选中复制；按钮只包“复制”字样（按钮内的文字浏览器不让选中） -->
+          <div class="room-code-btn">
             <span class="room-code" data-testid="room-code">{{ sessionStore.roomCode }}</span>
-            <span class="room-copy-hint">{{ copyFeedback ? '✓ 已复制' : '复制' }}</span>
-          </button>
+            <button type="button" class="room-copy-hint" @click="copyRoomCode">{{ copyFeedback ? '✓ 已复制' : '复制' }}</button>
+          </div>
         </div>
 
         <div class="status-box ornate-panel" :class="{ 'status-ready': allReadyToStart }">
@@ -1102,6 +1128,8 @@ select:focus-visible {
 }
 
 .room-code {
+  user-select: all;
+  cursor: text;
   color: #f3d389;
   font-size: 24px;
   font-weight: 700;
@@ -1109,8 +1137,17 @@ select:focus-visible {
 }
 
 .room-copy-hint {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
   font-size: 13px;
   color: #c3cbe0;
+}
+.room-copy-hint:hover,
+.room-copy-hint:focus-visible {
+  color: #f3d389;
 }
 
 .status-box {

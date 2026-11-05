@@ -163,7 +163,9 @@ func (b *actionFlowBuilder) rememberEventMetadata(event TimelineEvent) {
 	for _, targetID := range event.TargetUserIDs {
 		b.addActor(targetID)
 	}
-	if event.ActorUserID != "" && len(event.TargetUserIDs) > 0 && !isExtraActionFlowEvent(event) {
+	// 只以自己为目标的事件（剑魂守护、佯攻等自身技能）不改写目标提示：否则同一行动里
+	// 不带目标的出牌事件会落到“自己 → 自己”的边上，边编号随事件到达而错位，前端重复画节点。
+	if event.ActorUserID != "" && len(event.TargetUserIDs) > 0 && !isExtraActionFlowEvent(event) && !targetsOnlySelf(event) {
 		b.targetHintsByActor[event.ActorUserID] = uniqueFlowStrings(event.TargetUserIDs)
 	}
 }
@@ -494,6 +496,11 @@ func preferredSkillAnchorPhases(actionType string) []string {
 
 func (b *actionFlowBuilder) applyEffectEvent(event TimelineEvent) {
 	targets := uniqueFlowStrings(event.TargetUserIDs)
+	// 只作用于自身的场上效果（剑魂盖牌等）由对应技能节点展示结果；没有自身边可挂时
+	// 不退回“最近的边”，否则会把“剑魂”标签写到别人的承受边上。
+	if targetsOnlySelf(event) && b.findEdgeForResolution(event.ActorUserID, event.ActorUserID, event.CombatID) == "" {
+		return
+	}
 	anchorEdgeID := b.findAnchorEdge(event.ActorUserID, targets, event.CombatID)
 	if anchorEdgeID == "" && event.ActorUserID != "" && len(targets) > 0 && (b.flow.ActionType == "skill" || b.flow.ActionType == "magic") {
 		anchorEdgeID = b.ensureEdge(event.ActorUserID, targets[0], "effect", event.CombatID)
@@ -922,6 +929,11 @@ func (b *actionFlowBuilder) buildLogs() {
 			Text:  candidate.text,
 		})
 	}
+}
+
+func targetsOnlySelf(event TimelineEvent) bool {
+	targets := uniqueFlowStrings(event.TargetUserIDs)
+	return len(targets) == 1 && targets[0] == event.ActorUserID
 }
 
 func isExtraActionFlowEvent(event TimelineEvent) bool {

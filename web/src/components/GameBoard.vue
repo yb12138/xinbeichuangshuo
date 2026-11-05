@@ -28,6 +28,7 @@ import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
 import StageOverlay from './StageOverlay.vue'
 import DecisionDock from './DecisionDock.vue'
+import SoundToggle from './SoundToggle.vue'
 import { characterArtSrc } from '../constants/characterArt'
 import { useInteractionController } from '../composables/useInteractionController'
 import {
@@ -2596,6 +2597,9 @@ const fighterHundredDragonByPlayer = computed(() => {
         :class="`rose-courtyard-vfx__petal--${idx}`"
       />
     </div>
+    <div class="board-corner-tools" :class="{ 'board-corner-tools--host': isHostInRoom }">
+      <SoundToggle />
+    </div>
     <button
       v-if="isHostInRoom"
       type="button"
@@ -4049,7 +4053,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   z-index: 0;
 }
 
-.board-shell > *:not(.link-lines-layer):not(.stage-overlay):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock):not(.decision-dock-layer):not(.decision-skill-slot) {
+.board-shell > *:not(.link-lines-layer):not(.stage-overlay):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.board-corner-tools):not(.right-action-dock):not(.decision-dock-layer):not(.decision-skill-slot) {
   position: relative;
   z-index: 2;
 }
@@ -4269,6 +4273,18 @@ const fighterHundredDragonByPlayer = computed(() => {
   font-weight: 700;
   letter-spacing: 0.02em;
   box-shadow: 0 8px 18px rgba(12, 3, 3, 0.45);
+}
+
+.board-corner-tools {
+  position: absolute;
+  top: max(8px, var(--safe-top));
+  right: 10px;
+  z-index: 9;
+}
+
+/* 房主的「解散房间」占着右上角，音效按钮让到它左边 */
+.board-corner-tools--host {
+  right: 100px;
 }
 
 .host-dissolve-btn:hover {
