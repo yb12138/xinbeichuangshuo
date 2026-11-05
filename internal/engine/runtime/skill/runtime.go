@@ -5,6 +5,7 @@ package skill
 import (
 	"fmt"
 
+	skillhandlers "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 	"starcup-engine/internal/types"
 )
@@ -270,22 +271,29 @@ func (r *Runtime) ConfirmResponseSkillAction(h Host, playerID, skillID string) (
 	switch skillDef.InteractionType {
 	case model.InteractionDiscard:
 		remaining := r.elig.FilterRemainingUsable(skillID, player, ctx, h.PendingInterrupt().SkillIDs)
+		discardCtx := map[string]interface{}{
+			"choice_type":      "system_discard_cards",
+			"discard_subflow":  true,
+			"discard_reason":   "skill_cost",
+			"skill_id":         skillID,
+			"user_ctx":         ctx,
+			"min":              skillDef.InteractionConfig.MinSelect,
+			"max":              skillDef.InteractionConfig.MaxSelect,
+			"prompt":           skillDef.InteractionConfig.Prompt,
+			"discard_type":     skillDef.DiscardType,
+			"discard_element":  skillDef.DiscardElement,
+			"remaining_skills": remaining,
+		}
+		// 技能可声明合法弃牌候选（如水影：水系牌；潜行时额外允许法术牌），弃牌框只展示这些牌。
+		if provider, ok := skillhandlers.GetHandler(ResolveHandlerID(*skillDef)).(model.DiscardCandidateProvider); ok {
+			if candidates := provider.DiscardCandidateIndices(ctx); len(candidates) > 0 {
+				discardCtx["remaining_indices"] = candidates
+			}
+		}
 		h.SetPendingInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: playerID,
-			Context: map[string]interface{}{
-				"choice_type":      "system_discard_cards",
-				"discard_subflow":  true,
-				"discard_reason":   "skill_cost",
-				"skill_id":         skillID,
-				"user_ctx":         ctx,
-				"min":              skillDef.InteractionConfig.MinSelect,
-				"max":              skillDef.InteractionConfig.MaxSelect,
-				"prompt":           skillDef.InteractionConfig.Prompt,
-				"discard_type":     skillDef.DiscardType,
-				"discard_element":  skillDef.DiscardElement,
-				"remaining_skills": remaining,
-			},
+			Context:  discardCtx,
 		})
 		h.EnterDiscardSelection()
 		h.NotifyInterruptPrompt()

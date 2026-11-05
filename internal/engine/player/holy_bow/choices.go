@@ -146,6 +146,9 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxDa
 	switch choiceType {
 	case "hb_holy_shard_miss_x":
 		return true, declineHolyShardMissBranch(rt)
+	case "hb_auto_fill_resource":
+		userID, _ := ctxData["user_id"].(string)
+		return true, declineAutoFill(rt, rt.GetPlayers()[userID])
 	default:
 		return false, nil
 	}
@@ -435,6 +438,8 @@ func buildAutoFillResourcePrompt(playerID string, data map[string]interface{}) *
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "分支②：消耗1红宝石并获得1蓝水晶"})
 		}
 	}
+	// 自动填充为"可选择"发动：最后一项为不发动
+	options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", len(options)), Label: "不发动"})
 	return &model.Prompt{
 		Type:         model.PromptConfirm,
 		PlayerID:     playerID,
@@ -1056,6 +1061,14 @@ func handleMeteorBulletTarget(rt engineplayer.ChoiceRuntime, selectionIndex int,
 	return nil
 }
 
+// radiantCannonHandSize 圣煌辉光炮将所有角色手牌调整到的张数。
+const radiantCannonHandSize = 4
+
+type radiantCannonDiscardNeed struct {
+	playerID string
+	count    int
+}
+
 func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
@@ -1075,9 +1088,6 @@ func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 	if Cannon(user) <= 0 {
 		return fmt.Errorf("圣煌辉光炮指示物不足")
 	}
-	if skillMoraleGap(rt, user) <= 0 {
-		return fmt.Errorf("我方士气未落后敌方，无法发动圣煌辉光炮")
-	}
 	if Faith(user) < requiredFaith {
 		return fmt.Errorf("信仰不足，需要%d点", requiredFaith)
 	}
@@ -1087,19 +1097,17 @@ func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 	user.Tokens["hb_cannon"] = Cannon(user) - 1
 	AddFaith(user, -requiredFaith)
 
-	// Adjust all players' hands to 4 cards
+	// 所有角色将手牌调整为4张：不足的摸到4张；超出的由该角色自己选择弃置（暗弃，不展示）。
+	discardNeeds := make([]radiantCannonDiscardNeed, 0)
 	for _, pid := range rt.GetPlayerOrder() {
 		p := rt.GetPlayers()[pid]
 		if p == nil {
 			continue
 		}
-		if len(p.Hand) > 4 {
-			discarded := append([]model.Card{}, p.Hand[4:]...)
-			p.Hand = append([]model.Card{}, p.Hand[:4]...)
-			rt.NotifyCardRevealed(p.ID, discarded, "discard")
-			rt.AppendToDiscard(discarded)
-		} else if len(p.Hand) < 4 {
-			drawN := 4 - len(p.Hand)
+		if len(p.Hand) > radiantCannonHandSize {
+			discardNeeds = append(discardNeeds, radiantCannonDiscardNeed{playerID: p.ID, count: len(p.Hand) - radiantCannonHandSize})
+		} else if len(p.Hand) < radiantCannonHandSize {
+			drawN := radiantCannonHandSize - len(p.Hand)
 			rt.DrawCardsDirect(p.ID, drawN, "hb_radiant_cannon_adjust")
 		}
 	}
@@ -1115,6 +1123,22 @@ func handleRadiantCannonSide(rt engineplayer.ChoiceRuntime, selectionIndex int, 
 	}
 	rt.Log(fmt.Sprintf("%s 发动 [圣煌辉光炮]：全员手牌调整至4，我方星杯+1，并完成士气对齐", user.Name))
 	rt.PopInterrupt()
+	if len(discardNeeds) > 0 {
+		// 弃牌中断结束后由系统弃牌流程恢复到额外行动阶段（is_damage_resolution 优先结算待处理伤害）。
+		for _, need := range discardNeeds {
+			rt.PushInterrupt(newDiscardChoiceInterrupt(need.playerID, map[string]interface{}{
+				"discard_count":        need.count,
+				"discard_reason":       "skill_effect",
+				"discard_forced":       true,
+				"forced_reason":        "圣煌辉光炮的手牌调整为强制步骤，不能取消",
+				"no_morale_loss":       true,
+				"prompt":               fmt.Sprintf("【圣煌辉光炮】请将手牌调整为%d张：弃置%d张牌", radiantCannonHandSize, need.count),
+				"stay_in_turn":         true,
+				"is_damage_resolution": true,
+			}))
+		}
+		return nil
+	}
 	if rt.GetPendingInterrupt() == nil {
 		if !rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction) {
 			rt.EnterExtraActionStage()
@@ -1130,7 +1154,10 @@ func handleAutoFillResource(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 		return fmt.Errorf("玩家不存在")
 	}
 	modes := runtimeutil.ParseStringSliceContextValue(ctxData["resource_modes"])
-	if selectionIndex < 0 || selectionIndex >= len(modes) {
+	if selectionIndex == len(modes) {
+		return declineAutoFill(rt, user)
+	}
+	if selectionIndex < 0 || selectionIndex > len(modes) {
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	branch := modes[selectionIndex]
@@ -1151,6 +1178,18 @@ func handleAutoFillResource(rt engineplayer.ChoiceRuntime, selectionIndex int, c
 	ctxData["branch"] = branch
 	ctxData["choice_type"] = "hb_auto_fill_gain"
 	engineplayer.NotifyChoiceContext(rt, ctxData)
+	return nil
+}
+
+// declineAutoFill 放弃发动自动填充，继续回合结束流程。
+func declineAutoFill(rt engineplayer.ChoiceRuntime, user *model.Player) error {
+	if user != nil {
+		rt.Log(fmt.Sprintf("%s 选择不发动 [自动填充]", user.Name))
+	}
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.EnterTurnEndStage()
+	}
 	return nil
 }
 

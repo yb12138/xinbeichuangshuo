@@ -48,7 +48,8 @@ var (
 		{ID: dissonanceStepX, ChoiceType: "bd_dissonance_x", CancelPolicy: model.CancelPolicyAbort},
 		{ID: dissonanceStepMode, ChoiceType: "bd_dissonance_mode", CancelPolicy: model.CancelPolicyBack},
 		{ID: dissonanceStepTarget, ChoiceType: "bd_dissonance_target", CancelPolicy: model.CancelPolicyBack},
-		{ID: dissonanceStepDiscard, ChoiceType: "bd_dissonance_discard_step", CancelPolicy: model.CancelPolicyAbort},
+		// 弃牌步骤已进入强制结算（灵感已扣、分支已定），被弃牌者不能取消逃过弃牌。
+		{ID: dissonanceStepDiscard, ChoiceType: "bd_dissonance_discard_step", CancelPolicy: model.CancelPolicyDeny},
 	})
 	hopeFlowRuntime = model.MustNewPromptFlowRuntime(hopeFlowID, []model.PromptFlowStepSpec{
 		{ID: hopeStepDraw, ChoiceType: "bd_hope_draw_confirm", CancelPolicy: model.CancelPolicyDeny},
@@ -191,7 +192,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			PlayerID: playerID,
 			Message:  "【胜利交响诗】请选择效果：",
 			Options: []model.PromptOption{
-				{ID: "0", Label: "将我方战绩区1个星石提炼为你的能量"},
+				victoryExtractOption(rt, victoryHolderFromData(rt, player, data)),
 				{ID: "1", Label: "我方战绩区+1宝石，你+1治疗"},
 				{ID: "2", Label: "取消"},
 			},
@@ -200,7 +201,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
 		}
 	case "bd_victory_mode":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【胜利交响诗】请选择效果：", Options: []model.PromptOption{{ID: "0", Label: "将我方战绩区1个星石提炼为你的能量"}, {ID: "1", Label: "我方战绩区+1宝石，你+1治疗"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【胜利交响诗】请选择效果：", Options: []model.PromptOption{victoryExtractOption(rt, victoryHolderFromData(rt, player, data)), {ID: "1", Label: "我方战绩区+1宝石，你+1治疗"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
 	case "bd_victory_extract_stone":
 		options := make([]model.PromptOption, 0, 2)
 		if player != nil {
@@ -294,10 +295,39 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	if choiceType != "bd_victory_confirm" {
-		return false, nil
+	switch choiceType {
+	case "bd_victory_confirm":
+		return true, cancelVictorySymphony(rt, ctxData)
+	case "bd_dissonance_mode":
+		// 退回选 X 之前先撤销选 X 时的结算，避免再次确认时重复扣灵感。
+		// 返回 false 交给通用 prompt flow 处理退回上一步。
+		return false, rollbackDissonanceX(rt, ctxData)
 	}
-	return true, cancelVictorySymphony(rt, ctxData)
+	return false, nil
+}
+
+// rollbackDissonanceX 撤销不谐和弦选 X 时已执行的扣灵感和脱离永恒囚徒形态。
+func rollbackDissonanceX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	flow, err := model.RequirePromptFlow(ctxData, dissonanceFlowID, "不谐和弦")
+	if err != nil {
+		return err
+	}
+	xValue := flow.Selection(dissonanceStepX).Count
+	if xValue > 0 {
+		addBardInspiration(user, xValue)
+	}
+	if left, _ := ctxData["dissonance_left_prisoner"].(bool); left {
+		EnterEternalPrisonerForm(user)
+	}
+	delete(ctxData, "dissonance_left_prisoner")
+	flow.PutSelection(dissonanceStepX, model.PromptFlowSelection{})
+	rt.Log(fmt.Sprintf("%s 退回 [不谐和弦] 选择X：返还%d点灵感", user.Name, xValue))
+	return nil
 }
 
 // ---- 沉沦协奏曲 ----
@@ -372,11 +402,17 @@ func handleDescentCards(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 	selected = append(selected, cardIdx)
+	// 选完第 1 张后，候选只保留与第 1 张同系的牌（手牌下标在弃牌前不变）。
+	firstElement := user.Hand[selected[0]].Element
 	nextRemaining := make([]int, 0, len(remaining))
 	for _, idx := range remaining {
-		if idx != cardIdx {
-			nextRemaining = append(nextRemaining, idx)
+		if idx == cardIdx || idx < 0 || idx >= len(user.Hand) {
+			continue
 		}
+		if user.Hand[idx].Element != firstElement {
+			continue
+		}
+		nextRemaining = append(nextRemaining, idx)
 	}
 	if len(selected) < 2 {
 		flow.PutSelection(descentStepCards, model.PromptFlowSelection{
@@ -484,8 +520,10 @@ func handleDissonanceX(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 		Count:         xValue,
 	})
 	addBardInspiration(user, -xValue)
+	ctxData["dissonance_left_prisoner"] = false
 	if InEternalPrisonerForm(user) {
 		LeaveEternalPrisonerForm(user)
+		ctxData["dissonance_left_prisoner"] = true
 		rt.Log(fmt.Sprintf("%s 发动 [不谐和弦]：脱离永恒囚徒形态", user.Name))
 	}
 	return engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, dissonanceFlowRuntime, flow, dissonanceStepMode)
@@ -847,6 +885,42 @@ func handleRousingDiscardCards(rt engineplayer.ChoiceRuntime, ctxData map[string
 
 // ---- 胜利交响诗 ----
 
+// victoryExtractUnavailableReason 返回"提炼星石"分支当前不可用的原因；可用时返回空串。
+// 提示构建与选择处理共用同一判定，保证置灰的选项与服务端拒绝一致。
+func victoryExtractUnavailableReason(rt engineplayer.ChoiceRuntime, holder *model.Player) string {
+	if holder == nil {
+		return "永恒乐章持有者不存在"
+	}
+	camp := string(holder.Camp)
+	if rt.GetCampGems(camp)+rt.GetCampCrystals(camp) <= 0 {
+		return "我方战绩区没有可提炼的星石"
+	}
+	if engineplayer.PlayerEnergyRoom(holder, rt.GetPlayerEnergyCap(holder)) <= 0 {
+		return "能量已达上限，无法提炼"
+	}
+	return ""
+}
+
+// victoryHolderFromData 取胜利交响诗的持有者（user_id），缺省回退为提示接收者。
+func victoryHolderFromData(rt engineplayer.ChoiceRuntime, fallback *model.Player, data map[string]interface{}) *model.Player {
+	if holderID, _ := data["user_id"].(string); holderID != "" {
+		if holder := rt.GetPlayers()[holderID]; holder != nil {
+			return holder
+		}
+	}
+	return fallback
+}
+
+// victoryExtractOption 构建"提炼星石"选项：不满足条件时置灰并写明原因。
+func victoryExtractOption(rt engineplayer.ChoiceRuntime, holder *model.Player) model.PromptOption {
+	opt := model.PromptOption{ID: "0", Label: "将我方战绩区1个星石提炼为你的能量"}
+	if reason := victoryExtractUnavailableReason(rt, holder); reason != "" {
+		opt.Disabled = true
+		opt.DisabledReason = reason
+	}
+	return opt
+}
+
 func handleVictoryConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	bardID, _ := ctxData["bard_id"].(string)
 	bard := rt.GetPlayers()[bardID]
@@ -891,13 +965,8 @@ func handleVictoryMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interfa
 	}
 	switch selectionIndex {
 	case 0:
-		camp := string(holder.Camp)
-		if rt.GetCampGems(camp)+rt.GetCampCrystals(camp) <= 0 {
-			return fmt.Errorf("我方战绩区没有可提炼的星石")
-		}
-		maxEnergy := rt.GetPlayerEnergyCap(holder)
-		if engineplayer.PlayerEnergyRoom(holder, maxEnergy) <= 0 {
-			return fmt.Errorf("能量已达上限，无法提炼")
+		if reason := victoryExtractUnavailableReason(rt, holder); reason != "" {
+			return fmt.Errorf("%s", reason)
 		}
 		ctxData["choice_type"] = "bd_victory_extract_stone"
 		intr := rt.GetPendingInterrupt()

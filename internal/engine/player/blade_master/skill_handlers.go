@@ -107,6 +107,17 @@ func (h *SwordShadowHandler) Execute(ctx *model.Context) error {
 
 type GaleSkillHandler struct{ BaseHandler }
 
+// CanUse 疾风技只在作为主动攻击打出时发动，应战时不触发。
+func (h *GaleSkillHandler) CanUse(ctx *model.Context) bool {
+	if ctx == nil || ctx.EventCtx == nil {
+		return false
+	}
+	if ai := ctx.EventCtx.AttackInfo; ai != nil && ai.CounterInitiator != "" {
+		return false
+	}
+	return true
+}
+
 func (h *GaleSkillHandler) Execute(ctx *model.Context) error {
 	model.AppendAttackAction(ctx.User, "疾风技")
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [疾风技]，额外获得1次攻击行动", ctx.User.Name))

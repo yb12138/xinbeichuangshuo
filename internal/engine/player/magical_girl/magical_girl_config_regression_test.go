@@ -153,121 +153,6 @@ func TestMagicalGirl_MagicBulletFusion_RejectsNonFireEarthCard(t *testing.T) {
 	}
 }
 
-func TestMagicalGirl_MagicBulletFusionChain_ResponseSkillPassesAlongDirection(t *testing.T) {
-	game := buildMagicBulletFusionChainGame(t, "magical_girl")
-	p1 := game.State.Players["p1"]
-	p2 := game.State.Players["p2"]
-	p1.Hand = []model.Card{
-		{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
-	}
-	p2.Hand = []model.Card{
-		{ID: "fire-attack", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire},
-	}
-
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
-		t.Fatalf("cast magic bullet failed: %v", err)
-	}
-	assertResponseSkillInterrupt(t, game, "p2", "magic_bullet_fusion_chain")
-
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdSelect, Selections: []int{0}}); err != nil {
-		t.Fatalf("select fusion chain response skill failed: %v", err)
-	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
-		t.Fatalf("expected discard choice after selecting chain fusion, got %+v", game.State.PendingInterrupt)
-	}
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdSelect, Selections: []int{0}}); err != nil {
-		t.Fatalf("discard fusion chain card failed: %v", err)
-	}
-
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicMissile {
-		t.Fatalf("expected magic missile interrupt after chain fusion, got %+v", game.State.PendingInterrupt)
-	}
-	if game.State.PendingInterrupt.PlayerID != "p3" {
-		t.Fatalf("expected original direction to continue from p2 to p3, got %s", game.State.PendingInterrupt.PlayerID)
-	}
-	if game.State.PendingInterrupt.Type == model.InterruptMagicBulletDirection {
-		t.Fatalf("chain fusion must not trigger magic bullet direction")
-	}
-	chain := game.State.MagicBulletChain
-	if chain == nil {
-		t.Fatalf("expected magic bullet chain to continue")
-	}
-	if got := chain.CurrentDamage; got != 3 {
-		t.Fatalf("expected chain damage +1 after fusion, got %d", got)
-	}
-	if chain.SourcePlayerID != "p2" {
-		t.Fatalf("expected chain source to become p2, got %s", chain.SourcePlayerID)
-	}
-	if chain.IsFusion || chain.FusionCard != nil {
-		t.Fatalf("chain response fusion should not rewrite active fusion metadata, got %+v", chain)
-	}
-	if len(p2.Hand) != 0 {
-		t.Fatalf("expected fusion card consumed from hand, got %+v", p2.Hand)
-	}
-	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "fire-attack" {
-		t.Fatalf("expected fusion card in discard pile, got %+v", game.State.DiscardPile)
-	}
-}
-
-func TestMagicalGirl_MagicBulletFusionChain_SkipRestoresNormalMissilePrompt(t *testing.T) {
-	game := buildMagicBulletFusionChainGame(t, "magical_girl")
-	p1 := game.State.Players["p1"]
-	p2 := game.State.Players["p2"]
-	p1.Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
-	p2.Hand = []model.Card{{ID: "earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth}}
-
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
-		t.Fatalf("cast magic bullet failed: %v", err)
-	}
-	assertResponseSkillInterrupt(t, game, "p2", "magic_bullet_fusion_chain")
-
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdCancel}); err != nil {
-		t.Fatalf("skip fusion chain response skill failed: %v", err)
-	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicMissile {
-		t.Fatalf("expected original missile prompt after skip, got %+v", game.State.PendingInterrupt)
-	}
-	if game.State.PendingInterrupt.PlayerID != "p2" {
-		t.Fatalf("expected missile prompt to remain on p2 after skip, got %s", game.State.PendingInterrupt.PlayerID)
-	}
-}
-
-func TestMagicalGirl_MagicBulletFusionChain_HiddenAfterParticipated(t *testing.T) {
-	game := buildMagicBulletFusionChainGame(t, "magical_girl")
-	p1 := game.State.Players["p1"]
-	p2 := game.State.Players["p2"]
-	p3 := game.State.Players["p3"]
-	p1.Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
-	p2.Hand = []model.Card{
-		{ID: "earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth},
-		{ID: "mb-p2", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
-	}
-	p3.Hand = []model.Card{{ID: "mb-p3", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
-
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
-		t.Fatalf("cast magic bullet failed: %v", err)
-	}
-	assertResponseSkillInterrupt(t, game, "p2", "magic_bullet_fusion_chain")
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdCancel}); err != nil {
-		t.Fatalf("skip fusion chain response skill failed: %v", err)
-	}
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p2", 1)}); err != nil {
-		t.Fatalf("p2 counter magic bullet failed: %v", err)
-	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicMissile || game.State.PendingInterrupt.PlayerID != "p3" {
-		t.Fatalf("expected missile to pass to p3, got %+v", game.State.PendingInterrupt)
-	}
-	if err := game.HandleAction(model.PlayerAction{PlayerID: "p3", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: testutils.PlayableCardID(t, game, "p3", 0)}); err != nil {
-		t.Fatalf("p3 counter magic bullet failed: %v", err)
-	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptMagicMissile {
-		t.Fatalf("expected normal missile prompt for already participated magical girl, got %+v", game.State.PendingInterrupt)
-	}
-	if game.State.PendingInterrupt.PlayerID != "p2" {
-		t.Fatalf("expected p2 to be targeted again, got %s", game.State.PendingInterrupt.PlayerID)
-	}
-}
-
 func TestMagicalGirl_MagicBulletFusionChain_NonMagicalGirlDoesNotOfferSkill(t *testing.T) {
 	game := buildMagicBulletFusionChainGame(t, "berserker")
 	p1 := game.State.Players["p1"]
@@ -288,7 +173,12 @@ func TestMagicalGirl_MagicBulletFusionChain_NonMagicalGirlDoesNotOfferSkill(t *t
 
 func buildMagicBulletFusionChainGame(t *testing.T, targetRole string) *engine.GameEngine {
 	t.Helper()
-	game := engine.NewGameEngine(testutils.NoopObserver{})
+	return buildMagicBulletFusionChainGameWithObs(t, targetRole, testutils.NoopObserver{})
+}
+
+func buildMagicBulletFusionChainGameWithObs(t *testing.T, targetRole string, obs model.GameObserver) *engine.GameEngine {
+	t.Helper()
+	game := engine.NewGameEngine(obs)
 	if err := game.AddPlayer("p1", "Caster", "berserker", model.RedCamp); err != nil {
 		t.Fatalf("add p1 failed: %v", err)
 	}
@@ -344,6 +234,8 @@ func TestMagicalGirl_MagicBlast_DiscardsAfterEachFailedTarget(t *testing.T) {
 		t.Fatalf("add p3 failed: %v", err)
 	}
 
+	// 座位 p1,p3,p2：从 p1 起逆时针为 p2→p3（魔爆冲击按逆时针结算目标）。
+	game.State.PlayerOrder = []string{"p1", "p3", "p2"}
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -359,6 +251,9 @@ func TestMagicalGirl_MagicBlast_DiscardsAfterEachFailedTarget(t *testing.T) {
 		{ID: "a1", Name: "弃牌1", Type: model.CardTypeAttack, Element: model.ElementFire},
 		{ID: "m1", Name: "弃牌2", Type: model.CardTypeMagic, Element: model.ElementEarth},
 	}
+	// 目标手里有法术牌才会弹出选择（没有法术牌会自动按不弃牌处理）。
+	p2.Hand = []model.Card{{ID: "p2m", Name: "雷鸣术", Type: model.CardTypeMagic, Element: model.ElementThunder}}
+	p3.Hand = []model.Card{{ID: "p3m", Name: "雷鸣术", Type: model.CardTypeMagic, Element: model.ElementThunder}}
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID:   "p1",
@@ -419,10 +314,10 @@ func TestMagicalGirl_MagicBlast_DiscardsAfterEachFailedTarget(t *testing.T) {
 	game.Drive()
 	game.Drive()
 
-	if got := len(p2.Hand); got != 2 {
+	if got := len(p2.Hand); got != 3 {
 		t.Fatalf("expected p2 draw 2 after taking magic damage, got %d", got)
 	}
-	if got := len(p3.Hand); got != 2 {
+	if got := len(p3.Hand); got != 3 {
 		t.Fatalf("expected p3 draw 2 after taking magic damage, got %d", got)
 	}
 }
@@ -439,6 +334,8 @@ func TestMagicalGirl_MagicBlast_TargetCanSelectMagicByHandIndex(t *testing.T) {
 		t.Fatalf("add p3 failed: %v", err)
 	}
 
+	// 座位 p1,p3,p2：从 p1 起逆时针为 p2→p3（魔爆冲击按逆时针结算目标）。
+	game.State.PlayerOrder = []string{"p1", "p3", "p2"}
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -449,6 +346,9 @@ func TestMagicalGirl_MagicBlast_TargetCanSelectMagicByHandIndex(t *testing.T) {
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
 		{ID: "cost", Name: "法术代价", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+	game.State.Players["p3"].Hand = []model.Card{
+		{ID: "p3m", Name: "雷鸣术", Type: model.CardTypeMagic, Element: model.ElementThunder},
 	}
 	p2.Hand = []model.Card{
 		{ID: "a1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire},
@@ -506,6 +406,8 @@ func TestMagicalGirl_MagicBlast_TargetCanSelectMagicByCardID(t *testing.T) {
 		t.Fatalf("add p3 failed: %v", err)
 	}
 
+	// 座位 p1,p3,p2：从 p1 起逆时针为 p2→p3（魔爆冲击按逆时针结算目标）。
+	game.State.PlayerOrder = []string{"p1", "p3", "p2"}
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -516,6 +418,9 @@ func TestMagicalGirl_MagicBlast_TargetCanSelectMagicByCardID(t *testing.T) {
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{
 		{ID: "cost", Name: "法术代价", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+	game.State.Players["p3"].Hand = []model.Card{
+		{ID: "p3m", Name: "雷鸣术", Type: model.CardTypeMagic, Element: model.ElementThunder},
 	}
 	p2.Hand = []model.Card{
 		{ID: "a1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire},
@@ -636,4 +541,167 @@ func TestMagicalGirl_DestructionStorm_RequiresTwoTargetsAndCostsOneGem(t *testin
 			t.Fatalf("expected p3 draw 2 after destruction storm, got %d", got)
 		}
 	})
+}
+
+// 魔法少女-4：目标没有法术牌时不弹选择框，直接按"不弃牌（受到2点伤害）"结算。
+func TestMagicalGirl_MagicBlast_TargetWithoutMagicCardAutoRefuses(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	game.State.Deck = rules.InitDeck()
+	if err := game.AddPlayer("p1", "Girl", "magical_girl", model.RedCamp); err != nil {
+		t.Fatalf("add p1 failed: %v", err)
+	}
+	if err := game.AddPlayer("p2", "Enemy1", "berserker", model.BlueCamp); err != nil {
+		t.Fatalf("add p2 failed: %v", err)
+	}
+	if err := game.AddPlayer("p3", "Enemy2", "angel", model.BlueCamp); err != nil {
+		t.Fatalf("add p3 failed: %v", err)
+	}
+	// 座位 p1,p3,p2：从 p1 起逆时针为 p2→p3（魔爆冲击按逆时针结算目标）。
+	game.State.PlayerOrder = []string{"p1", "p3", "p2"}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "cost", Name: "法术代价", Type: model.CardTypeMagic, Element: model.ElementWater},
+	}
+	// p2 只有攻击牌，p3 有法术牌
+	p2.Hand = []model.Card{{ID: "a1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire}}
+	p3.Hand = []model.Card{{ID: "m1", Name: "雷鸣术", Type: model.CardTypeMagic, Element: model.ElementThunder}}
+
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "magic_blast",
+		TargetIDs:  []string{"p2", "p3"},
+		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("magic blast failed: %v", err)
+	}
+	// 施法者此时没有手牌，不需要强制弃牌；直接轮到 p3 选择。
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.PlayerID != "p3" {
+		t.Fatalf("expected p2 auto-refused and prompt moves to p3, got %+v", game.State.PendingInterrupt)
+	}
+	found := false
+	for _, pd := range game.State.PendingDamageQueue {
+		if pd.TargetID == "p2" && pd.Damage == 2 && pd.DamageType == model.MagicAttack {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected 2 magic damage queued for p2, queue=%+v", game.State.PendingDamageQueue)
+	}
+}
+
+// 审计 魔法少女-3：魔爆冲击的两名目标按"从当前回合角色开始逆时针"结算，与点选顺序无关。
+func TestMagicalGirl_MagicBlast_TargetsResolveCounterclockwise(t *testing.T) {
+	for _, picked := range [][]string{{"p2", "p3"}, {"p3", "p2"}} {
+		game := engine.NewGameEngine(testutils.NoopObserver{})
+		for _, p := range []struct {
+			id, role string
+			camp     model.Camp
+		}{{"p1", "magical_girl", model.RedCamp}, {"p2", "berserker", model.BlueCamp}, {"p3", "angel", model.BlueCamp}} {
+			if err := game.AddPlayer(p.id, p.id, p.role, p.camp); err != nil {
+				t.Fatal(err)
+			}
+		}
+		game.State.PlayerOrder = []string{"p1", "p2", "p3"} // 逆时针：p1→p3→p2
+		game.State.CurrentTurn = 0
+		game.State.TurnStage = model.TurnStageActionExecution
+		p1 := game.State.Players["p1"]
+		p1.IsActive = true
+		p1.TurnState = model.NewPlayerTurnState()
+		p1.Hand = []model.Card{{ID: "cost", Name: "法术代价", Type: model.CardTypeMagic, Element: model.ElementWater}}
+		game.State.Players["p2"].Hand = []model.Card{{ID: "p2m", Name: "雷鸣术", Type: model.CardTypeMagic, Element: model.ElementThunder}}
+		game.State.Players["p3"].Hand = []model.Card{{ID: "p3m", Name: "雷鸣术", Type: model.CardTypeMagic, Element: model.ElementThunder}}
+		testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "magic_blast", TargetIDs: picked, Selections: []int{0}})
+		if intr := game.State.PendingInterrupt; intr == nil || intr.PlayerID != "p3" {
+			t.Fatalf("picked %v: expected p3 (counterclockwise first) to respond first, got %+v", picked, intr)
+		}
+	}
+}
+
+func missilePromptCounterIDs(t *testing.T, game *engine.GameEngine, playerID string) map[string]bool {
+	t.Helper()
+	intr := game.State.PendingInterrupt
+	if intr == nil || intr.Type != model.InterruptMagicMissile || intr.PlayerID != playerID {
+		t.Fatalf("expected magic missile prompt for %s, got %+v", playerID, intr)
+	}
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatalf("expected missile prompt")
+	}
+	ids := map[string]bool{}
+	for _, id := range prompt.CounterCardIDs {
+		ids[id] = true
+	}
+	return ids
+}
+
+// 审计 魔法少女-2：被魔弹指向时，地/火系牌直接作为"传递"牌出现在魔弹响应面板里，一步完成魔弹融合。
+func TestMagicalGirl_MagicBulletFusionChain_CounterInMissilePanel(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := buildMagicBulletFusionChainGameWithObs(t, "magical_girl", obs)
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
+	p2.Hand = []model.Card{{ID: "fire-attack", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire}}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	if ids := missilePromptCounterIDs(t, game, "p2"); !ids["fire-attack"] {
+		t.Fatalf("expected fire card offered as missile counter, got %v", ids)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: "fire-attack"})
+
+	intr := game.State.PendingInterrupt
+	if intr == nil || intr.Type != model.InterruptMagicMissile || intr.PlayerID != "p3" {
+		t.Fatalf("expected missile passed along original direction to p3, got %+v", intr)
+	}
+	chain := game.State.MagicBulletChain
+	if chain == nil || chain.CurrentDamage != 3 || chain.SourcePlayerID != "p2" {
+		t.Fatalf("expected chain damage 3 from p2, got %+v", chain)
+	}
+	if len(p2.Hand) != 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "fire-attack" {
+		t.Fatalf("expected fusion card discarded, hand=%+v", p2.Hand)
+	}
+	testutils.RequireSingleSkillActivation(t, obs, "magic_bullet_fusion_chain", "p2", "p3")
+}
+
+func TestMagicalGirl_MagicBulletFusionChain_NotOfferedAfterParticipated(t *testing.T) {
+	game := buildMagicBulletFusionChainGame(t, "magical_girl")
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p3 := game.State.Players["p3"]
+	p1.Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
+	p2.Hand = []model.Card{
+		{ID: "earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth},
+		{ID: "mb-p2", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2},
+	}
+	p3.Hand = []model.Card{{ID: "mb-p3", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	missilePromptCounterIDs(t, game, "p2")
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: "mb-p2"})
+	missilePromptCounterIDs(t, game, "p3")
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p3", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: "mb-p3"})
+	if ids := missilePromptCounterIDs(t, game, "p2"); ids["earth"] {
+		t.Fatalf("already participated magical girl must not fuse again, got %v", ids)
+	}
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: "earth"}); err == nil {
+		t.Fatalf("expected fusion rejected after participating")
+	}
+}
+
+func TestMagicalGirl_MagicBulletFusionChain_NonMagicalGirlCannotFuse(t *testing.T) {
+	game := buildMagicBulletFusionChainGame(t, "berserker")
+	game.State.Players["p1"].Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
+	game.State.Players["p2"].Hand = []model.Card{{ID: "earth", Name: "地裂斩", Type: model.CardTypeAttack, Element: model.ElementEarth}}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	if ids := missilePromptCounterIDs(t, game, "p2"); ids["earth"] {
+		t.Fatalf("non magical girl must not fuse, got %v", ids)
+	}
 }

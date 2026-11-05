@@ -83,10 +83,11 @@ func (h *ValkyrieMilitaryGloryHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type": "valkyrie_military_glory_mode",
-			"user_id":     ctx.User.ID,
-			"camp":        camp,
-			"max_x":       minInt(2, energy),
+			"choice_type":              "valkyrie_military_glory_mode",
+			"user_id":                  ctx.User.ID,
+			"camp":                     camp,
+			"max_x":                    minInt(2, energy),
+			model.PromptFlowContextKey: militaryGloryFlowRuntime.Begin(),
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 的 [军威神光] 触发，等待选择效果", ctx.User.Name))

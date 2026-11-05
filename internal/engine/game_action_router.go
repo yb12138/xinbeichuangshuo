@@ -118,7 +118,9 @@ func (e *GameEngine) HandleInterruptAction(act model.PlayerAction) error {
 	}
 	var err error
 	e.withCause(e.pendingInterruptCause(), func() {
-		err = e.interruptOrchestrator.DispatchAction(act)
+		err = e.handleInterruptActionWithRefund(act, func() error {
+			return e.interruptOrchestrator.DispatchAction(act)
+		})
 	})
 	return err
 }

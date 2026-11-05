@@ -71,7 +71,6 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 		"sage_arcane_cards":          types.ChoiceRouteRole("sage").WithSkill("sage_arcane_codex"),
 		"sage_arcane_target":         types.ChoiceRouteRole("sage"),
 		"sage_holy_cards":            types.ChoiceRouteRole("sage").WithSkill("sage_holy_codex"),
-		"sage_holy_target_count":     types.ChoiceRouteRole("sage").WithSkill("sage_holy_codex"),
 		"sage_holy_targets":          types.ChoiceRouteRole("sage").WithSkill("sage_holy_codex"),
 	}
 }

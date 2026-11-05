@@ -11,8 +11,17 @@ import (
 // RoleEntry 导出角色统一入口定义。
 func RoleEntry() player.RoleEntry {
 	return player.RoleEntry{
-		ID:               "arbiter",
-		Defaults:         ApplyDefaults,
+		ID:       "arbiter",
+		Defaults: ApplyDefaults,
+		// 仲裁仪式：审判形态下手牌上限恒定为5，不受其他改上限效果影响。
+		HandLimit: player.HandLimitRuleFuncs{
+			Hard: func(p *model.Player) (int, bool) {
+				if player.HasForm(p, model.FormArbiterJudgment) {
+					return 5, true
+				}
+				return 0, false
+			},
+		},
 		Choices:          NewChoiceHandler(),
 		Skills:           SkillEntries(),
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),

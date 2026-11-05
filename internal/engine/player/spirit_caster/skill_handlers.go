@@ -57,7 +57,7 @@ func (h *SpiritCasterTalismanThunderHandler) Execute(ctx *model.Context) error {
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-雷鸣]，等待选择是否念咒", user.Name))
-	} else {
+	} else if ctx.Game.CanPayCrystalCost(user.ID, 1) {
 		ctx.Game.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: user.ID,
@@ -69,6 +69,10 @@ func (h *SpiritCasterTalismanThunderHandler) Execute(ctx *model.Context) error {
 			},
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-雷鸣]，无手牌可念咒，直接进入灵力崩解选择", user.Name))
+	} else {
+		// 无手牌且付不起灵力崩解：不询问，直接结算雷鸣伤害（行动结束阶段统一路由伤害）。
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-雷鸣]，无手牌可念咒、无水晶可发动灵力崩解", user.Name))
+		queueThunderDamages(ctx.Game.PlayerOrder(), ctx.Game.AddPendingDamage, ctx.Game.Log, user, targetIDs, 0)
 	}
 	return nil
 }
@@ -99,17 +103,9 @@ func (h *SpiritCasterTalismanWindHandler) Execute(ctx *model.Context) error {
 		})
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-风行]，等待选择是否念咒", user.Name))
 	} else {
-		ctx.Game.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: user.ID,
-			Context: map[string]interface{}{
-				"choice_type": "sc_incant_confirm_no_hand",
-				"user_id":     user.ID,
-				"skill_id":    "sc_talisman_wind",
-				"target_ids":  targetIDs,
-			},
-		})
+		// 无手牌可念咒：与雷鸣一致，不再额外确认，直接进入风行弃牌。
 		ctx.Game.Log(fmt.Sprintf("%s 发动 [灵符-风行]，无手牌可念咒，直接进入风行弃牌", user.Name))
+		startWindDiscardFlowWith(ctx.Game.PlayerOrder(), ctx.Game.GetPlayers(), ctx.Game.Log, ctx.Game.PushInterrupt, user, targetIDs)
 	}
 	return nil
 }

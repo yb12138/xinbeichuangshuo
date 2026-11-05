@@ -33,7 +33,7 @@ func TestOnmyojiDarkRitual_EmitsSkillActivatedWithTarget(t *testing.T) {
 	if got := len(obs.SkillActivated("onmyoji_dark_ritual")); got != 0 {
 		t.Fatalf("expected no dark ritual event before target choice, got %d", got)
 	}
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose dark ritual target failed: %v", err)
 	}
 

@@ -36,6 +36,18 @@ func (o *actionPromptObserver) OnGameEvent(event model.GameEvent) {
 	o.lastPrompt = &copied
 }
 
+// lockHundredDragon 直接把百式幻龙拳锁定卡放到目标面前（锁定目标以锁定卡为准）。
+func lockHundredDragon(fighter, target *model.Player) {
+	target.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "fighter_hundred_dragon_lock", Name: "百式幻龙拳锁定", Type: model.CardTypeMagic, Element: model.ElementLight},
+		OwnerID:  target.ID,
+		SourceID: fighter.ID,
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectFighterHundredDragonLock,
+		Hook:     model.FieldHookManual,
+	})
+}
+
 func fighterTestCard(id, name string, cardType model.CardType, element model.Element, damage int) model.Card {
 	if damage <= 0 && cardType == model.CardTypeAttack {
 		damage = 2
@@ -363,9 +375,6 @@ func TestFighterHundredDragon_StartupLocksTargetImmediately(t *testing.T) {
 	if got := p1.Form; got != model.FormFighterHundredDragon {
 		t.Fatalf("expected hundred dragon form active after startup, got %q", got)
 	}
-	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 2 {
-		t.Fatalf("expected hundred dragon lock target p2(order=2), got %d", got)
-	}
 	if fc := testutils.GetFieldEffectCard(p2, model.EffectFighterHundredDragonLock); fc == nil || fc.SourceID != p1.ID {
 		t.Fatalf("expected hundred dragon lock field effect on p2 from p1, got %+v", fc)
 	}
@@ -438,7 +447,7 @@ func TestFighterHundredDragon_BonusesAndTargetLockReleaseStillContinuesAttack(t 
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = []model.Card{fighterTestCard("a1", "火斩", model.CardTypeAttack, model.ElementFire, 2)}
 	p1.Form = model.FormFighterHundredDragon
-	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2 // 锁定 p2
+	lockHundredDragon(p1, game.State.Players["p2"])
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -449,8 +458,8 @@ func TestFighterHundredDragon_BonusesAndTargetLockReleaseStillContinuesAttack(t 
 	if got := p1.Form; got != "" {
 		t.Fatalf("expected hundred dragon form cleared after violating lock, got %q", got)
 	}
-	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
-		t.Fatalf("expected hundred dragon target lock cleared after violating lock, got %d", got)
+	if fc := testutils.GetFieldEffectCard(game.State.Players["p2"], model.EffectFighterHundredDragonLock); fc != nil {
+		t.Fatalf("expected hundred dragon target lock cleared after violating lock, got %+v", fc)
 	}
 	if game.State.TurnStage == model.TurnStageActionExecution &&
 		game.State.CombatStage == model.CombatStageNone &&
@@ -459,7 +468,8 @@ func TestFighterHundredDragon_BonusesAndTargetLockReleaseStillContinuesAttack(t 
 	}
 }
 
-func TestFighterHundredDragon_CannotActEndsFormAtActionPhaseEnd(t *testing.T) {
+// 格斗家-2：无法行动不属于法术/特殊行动，也没有更换攻击目标，百式状态保持。
+func TestFighterHundredDragon_CannotActKeepsForm(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -473,21 +483,22 @@ func TestFighterHundredDragon_CannotActEndsFormAtActionPhaseEnd(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = nil
 	p1.Form = model.FormFighterHundredDragon
-	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
+	lockHundredDragon(p1, game.State.Players["p2"])
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdCannotAct})
 
-	if got := p1.Form; got != "" {
-		t.Fatalf("expected hundred dragon form cleared when action phase ends, got %q", got)
+	if got := p1.Form; got != model.FormFighterHundredDragon {
+		t.Fatalf("expected hundred dragon form kept after cannot-act, got %q", got)
 	}
-	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
-		t.Fatalf("expected hundred dragon target lock cleared when action phase ends, got %d", got)
+	if fc := testutils.GetFieldEffectCard(game.State.Players["p2"], model.EffectFighterHundredDragonLock); fc == nil {
+		t.Fatalf("expected hundred dragon lock card kept after cannot-act")
 	}
 }
 
-func TestFighterHundredDragon_MagicAttemptCancelsFormAndAction(t *testing.T) {
+// 格斗家-3：百式状态下点法术行动只报错，不取消形态。
+func TestFighterHundredDragon_MagicAttemptRejectedKeepsForm(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -503,7 +514,7 @@ func TestFighterHundredDragon_MagicAttemptCancelsFormAndAction(t *testing.T) {
 		fighterTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	p1.Form = model.FormFighterHundredDragon
-	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
+	lockHundredDragon(p1, game.State.Players["p2"])
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -517,11 +528,11 @@ func TestFighterHundredDragon_MagicAttemptCancelsFormAndAction(t *testing.T) {
 		t.Fatalf("expected hundred dragon magic attempt be canceled, got %v", err)
 	}
 
-	if got := p1.Form; got != "" {
-		t.Fatalf("expected hundred dragon form cleared after canceled magic attempt, got %q", got)
+	if got := p1.Form; got != model.FormFighterHundredDragon {
+		t.Fatalf("expected hundred dragon form kept after rejected magic attempt, got %q", got)
 	}
-	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
-		t.Fatalf("expected hundred dragon target lock cleared after canceled magic attempt, got %d", got)
+	if fc := testutils.GetFieldEffectCard(game.State.Players["p2"], model.EffectFighterHundredDragonLock); fc == nil {
+		t.Fatalf("expected hundred dragon lock kept after rejected magic attempt")
 	}
 	if got := len(p1.Hand); got != 1 {
 		t.Fatalf("expected canceled magic attempt not consume hand, got %d", got)
@@ -531,7 +542,8 @@ func TestFighterHundredDragon_MagicAttemptCancelsFormAndAction(t *testing.T) {
 	}
 }
 
-func TestFighterHundredDragon_SpecialAttemptCancelsFormAndAction(t *testing.T) {
+// 格斗家-3：百式状态下点特殊行动只报错，不取消形态。
+func TestFighterHundredDragon_SpecialAttemptRejectedKeepsForm(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -545,7 +557,7 @@ func TestFighterHundredDragon_SpecialAttemptCancelsFormAndAction(t *testing.T) {
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Hand = nil
 	p1.Form = model.FormFighterHundredDragon
-	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
+	lockHundredDragon(p1, game.State.Players["p2"])
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -554,15 +566,16 @@ func TestFighterHundredDragon_SpecialAttemptCancelsFormAndAction(t *testing.T) {
 		t.Fatalf("expected hundred dragon special attempt be canceled, got %v", err)
 	}
 
-	if got := p1.Form; got != "" {
-		t.Fatalf("expected hundred dragon form cleared after canceled special attempt, got %q", got)
+	if got := p1.Form; got != model.FormFighterHundredDragon {
+		t.Fatalf("expected hundred dragon form kept after rejected special attempt, got %q", got)
 	}
-	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
-		t.Fatalf("expected hundred dragon target lock cleared after canceled special attempt, got %d", got)
+	if fc := testutils.GetFieldEffectCard(game.State.Players["p2"], model.EffectFighterHundredDragonLock); fc == nil {
+		t.Fatalf("expected hundred dragon lock kept after rejected special attempt")
 	}
 }
 
-func TestFighterHundredDragon_EndsWhenActionPhaseFinishes(t *testing.T) {
+// 格斗家-2：百式状态跨回合持续，回合结束不退场。
+func TestFighterHundredDragon_PersistsThroughTurnEnd(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -575,17 +588,17 @@ func TestFighterHundredDragon_EndsWhenActionPhaseFinishes(t *testing.T) {
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Form = model.FormFighterHundredDragon
-	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
+	lockHundredDragon(p1, game.State.Players["p2"])
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageTurnEnd
 
 	game.Drive()
 
-	if got := p1.Form; got != "" {
-		t.Fatalf("expected hundred dragon form end when action phase finishes, got %q", got)
+	if got := p1.Form; got != model.FormFighterHundredDragon {
+		t.Fatalf("expected hundred dragon form persist through turn end, got %q", got)
 	}
-	if got := p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"]; got != 0 {
-		t.Fatalf("expected hundred dragon target lock cleared when action phase finishes, got %d", got)
+	if fc := testutils.GetFieldEffectCard(game.State.Players["p2"], model.EffectFighterHundredDragonLock); fc == nil {
+		t.Fatalf("expected hundred dragon lock card persist through turn end")
 	}
 }
 
@@ -606,7 +619,7 @@ func TestFighterHundredDragon_ActionPromptOnlyKeepsAttackEntry(t *testing.T) {
 		fighterTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
 	}
 	p1.Form = model.FormFighterHundredDragon
-	p1.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = 2
+	lockHundredDragon(p1, game.State.Players["p2"])
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
@@ -751,5 +764,212 @@ func TestFighterWarGodDrive_DiscardToThreeAndHeal(t *testing.T) {
 	}
 	if got := game.State.TurnStage; got != model.TurnStageActionExecution {
 		t.Fatalf("expected action execution window after war_god_drive continuation, got %s", got)
+	}
+}
+
+// 格斗家-1/2：百式状态跨回合保持（含锁定卡与禁用蓄力一击门控）；
+// 下回合攻击其他目标而取消状态时，锁定卡与门控一并清理。
+func TestFighterHundredDragon_PersistsAcrossTurnsAndClearsLockOnViolation(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "EnemyB", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["fighter_qi"] = 3
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	game.Drive()
+	if err := game.ConfirmStartupSkill("p1", "fighter_hundred_dragon"); err != nil {
+		t.Fatalf("confirm fighter_hundred_dragon failed: %v", err)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "fighter_hundred_dragon_target")
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	if testutils.GetFieldEffectCard(p2, model.EffectFighterHundredDragonLock) == nil {
+		t.Fatalf("expected lock card on p2 after hundred dragon")
+	}
+
+	game.State.PendingInterrupt = nil
+	game.State.TurnStage = model.TurnStageTurnEnd
+	game.Drive()
+	// 模拟新回合：TurnState 重置。
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	game.State.PendingInterrupt = nil
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if p1.Form != model.FormFighterHundredDragon {
+		t.Fatalf("expected hundred dragon form persist into next turn, got %q", p1.Form)
+	}
+	if testutils.GetFieldEffectCard(p2, model.EffectFighterHundredDragonLock) == nil {
+		t.Fatalf("expected lock card persist into next turn")
+	}
+	if !game.IsSkillBlocked("p1", "fighter_charge_strike") {
+		t.Fatalf("expected charge strike still blocked while in hundred dragon")
+	}
+
+	p1.Hand = []model.Card{fighterTestCard("a1", "火斩", model.CardTypeAttack, model.ElementFire, 2)}
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p3", CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
+		t.Fatalf("attack other target failed: %v", err)
+	}
+	if p1.Form != "" {
+		t.Fatalf("expected hundred dragon cleared after switching target, got %q", p1.Form)
+	}
+	if fc := testutils.GetFieldEffectCard(p2, model.EffectFighterHundredDragonLock); fc != nil {
+		t.Fatalf("expected lock card removed when form cleared, got %+v", fc)
+	}
+	if game.IsSkillBlocked("p1", "fighter_charge_strike") {
+		t.Fatalf("expected charge strike gate cleared with form")
+	}
+}
+
+// 格斗家-5：气绝崩击先结算对目标的攻击伤害，再结算对自己的法术伤害。
+func TestFighterBurstCrash_AttackDamageBeforeSelfDamage(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Defender", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["fighter_qi"] = 2
+	p1.Hand = []model.Card{fighterTestCard("atk1", "火焰斩", model.CardTypeAttack, model.ElementFire, 2)}
+	game.State.Deck = []model.Card{
+		fighterTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire, 2),
+		fighterTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWater, 2),
+		fighterTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementThunder, 2),
+		fighterTestCard("d4", "补牌4", model.CardTypeAttack, model.ElementWind, 2),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	testutils.ChooseResponseSkillByID(t, game, "p1", "fighter_burst_crash")
+	for _, pd := range game.State.PendingDamageQueue {
+		if pd.TargetID == "p1" {
+			t.Fatalf("self damage should not be queued at attack declare, got %+v", game.State.PendingDamageQueue)
+		}
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
+
+	var order []string
+	for _, ev := range obs.Events {
+		if ev.Type == model.EventDamageDealt && ev.DamageDealt != nil {
+			order = append(order, ev.DamageDealt.TargetID)
+		}
+	}
+	if len(order) < 2 || order[0] != "p2" || order[1] != "p1" {
+		t.Fatalf("expected attack damage on p2 before self damage on p1, got %v", order)
+	}
+}
+
+// 格斗家-3：选锁定目标这一步可以取消；取消后斗气、形态、回合次数都不受影响，回到行动选择。
+func TestFighterHundredDragon_CancelTargetRefunds(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["fighter_qi"] = 3
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	game.Drive()
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	testutils.RequireChoicePrompt(t, game, "p1", "fighter_hundred_dragon_target")
+	if prompt := game.GetCurrentPrompt(); prompt == nil || prompt.Presentation == nil || prompt.Presentation.CancelPolicy != model.CancelPolicyAbort {
+		t.Fatalf("expected cancelable target prompt, got %+v", prompt)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdCancel})
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after cancel, got %+v", game.State.PendingInterrupt)
+	}
+	if got := p1.Tokens["fighter_qi"]; got != 3 {
+		t.Fatalf("expected qi kept at 3 after cancel, got %d", got)
+	}
+	if p1.Form != "" {
+		t.Fatalf("expected no form after cancel, got %q", p1.Form)
+	}
+	if testutils.GetFieldEffectCard(p2, model.EffectFighterHundredDragonLock) != nil {
+		t.Fatalf("expected no lock card after cancel")
+	}
+	if got := p1.TurnState.UsedSkillCounts["fighter_hundred_dragon"]; got != 0 {
+		t.Fatalf("expected use count refunded, got %d", got)
+	}
+	if game.IsSkillBlocked("p1", "fighter_charge_strike") {
+		t.Fatalf("expected charge strike not blocked after cancel")
+	}
+	if game.State.TurnStage != model.TurnStageActionExecution {
+		t.Fatalf("expected action execution window after cancel, got %s", game.State.TurnStage)
+	}
+}
+
+// 格斗家-2：已在百式状态下再次启动，只能指定上一个目标。
+func TestFighterHundredDragon_RestartOnlyPreviousTarget(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Fighter", "fighter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "EnemyA", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "EnemyB", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p3 := game.State.Players["p3"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["fighter_qi"] = 3
+	p1.Form = model.FormFighterHundredDragon
+	lockHundredDragon(p1, p3)
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	game.Drive()
+	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptStartupSkill {
+		t.Fatalf("expected startup prompt while already in hundred dragon, got %+v", game.State.PendingInterrupt)
+	}
+	if err := game.ConfirmStartupSkill("p1", "fighter_hundred_dragon"); err != nil {
+		t.Fatalf("confirm failed: %v", err)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "fighter_hundred_dragon_target")
+	prompt := game.GetCurrentPrompt()
+	targets := []string{}
+	for _, opt := range prompt.Options {
+		if opt.TargetID != "" {
+			targets = append(targets, opt.TargetID)
+		}
+	}
+	if len(targets) != 1 || targets[0] != "p3" {
+		t.Fatalf("expected only previous target p3, got %v", targets)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	if got := p1.Tokens["fighter_qi"]; got != 0 {
+		t.Fatalf("expected 3 qi consumed, got %d", got)
+	}
+	if testutils.GetFieldEffectCard(p3, model.EffectFighterHundredDragonLock) == nil {
+		t.Fatalf("expected lock kept on p3")
 	}
 }

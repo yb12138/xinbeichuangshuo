@@ -29,7 +29,8 @@ func BleedTick(rt engineplayer.ChoiceRuntime, player *model.Player) bool {
 	return true
 }
 
-// postActionEndBleedExitHook 行动结束后检查是否需要脱离流血形态。
+// postActionEndBleedExitHook 手牌<3 时立即脱离流血形态。
+// 挂在状态检查（每次推进流程前）和行动结束两个时点，保证手牌一少于 3 张就脱离。
 func postActionEndBleedExitHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	for _, pid := range rt.GetPlayerOrder() {
 		player := rt.GetPlayers()[pid]
@@ -42,10 +43,20 @@ func postActionEndBleedExitHook(rt engineplayer.HookRuntime, ctx engineplayer.Ti
 		if len(player.Hand) >= 3 {
 			continue
 		}
-		defer rt.PoseChangeGuard()
-		LeaveBleedingForm(player)
+		func() {
+			defer rt.PoseChangeGuard()()
+			LeaveBleedingForm(player)
+		}()
 		engineplayer.NotifySkillActivated(rt, player, player.ID, "bp_bleeding", player.ID)
-		rt.Log(fmt.Sprintf("%s 的 [流血·手牌不足脱离] 生效：行动结束时手牌<3，脱离流血形态", player.Name))
+		rt.Log(fmt.Sprintf("%s 的 [流血·手牌不足脱离] 生效：手牌<3，立即脱离流血形态", player.Name))
+		// 脱离流血后同生共死的上限修正由 +1 变为 -2，需要重新检查相关玩家的手牌上限（不打断当前回合）。
+		crt := rt.AsChoiceRuntime()
+		for _, otherID := range rt.GetPlayerOrder() {
+			other := rt.GetPlayers()[otherID]
+			if other != nil && len(other.Hand) > rt.GetMaxHand(other) && crt != nil {
+				crt.CheckHandLimit(other.ID, true)
+			}
+		}
 	}
 	return engineplayer.TimingHookResult{}
 }

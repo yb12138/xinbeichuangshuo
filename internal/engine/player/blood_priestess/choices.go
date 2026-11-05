@@ -79,7 +79,7 @@ func buildBloodSorrowModePrompt(playerID string) *model.Prompt {
 		},
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay", CancelPolicy: model.CancelPolicyAbort},
 	}
 }
 
@@ -99,7 +99,7 @@ func buildBloodSorrowTargetPrompt(rt engineplayer.ChoiceRuntime, playerID string
 		Options:      options,
 		Min:          1,
 		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"},
+		Presentation: &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom", CancelPolicy: model.CancelPolicyBack},
 	}
 }
 
@@ -157,6 +157,33 @@ func initBloodCurseDiscardFlow(discardNeed int) *model.PromptFlowState {
 	flow.PutSelection(bloodCurseDiscardNeedStep, model.PromptFlowSelection{Count: discardNeed})
 	flow.PutSelection(bloodCurseDiscardCardsStep, model.PromptFlowSelection{})
 	return flow
+}
+
+// --------------- HandleCancel ---------------
+
+// HandleCancel 血之哀伤：第一步取消=不发动（次数由引擎取消退费回滚），第二步返回第一步。
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	switch choiceType {
+	case "bp_blood_sorrow_mode":
+		if runtimeutil.ToBoolContextValue(ctxData["damage_queued"]) {
+			return true, fmt.Errorf("血之哀伤已结算自伤，不能取消")
+		}
+		rt.PopInterrupt()
+		if user := rt.GetPlayers()[playerID]; user != nil {
+			rt.Log(fmt.Sprintf("%s 取消了 [血之哀伤] 的发动", user.Name))
+		}
+		return true, nil
+	case "bp_blood_sorrow_target":
+		if runtimeutil.ToBoolContextValue(ctxData["damage_queued"]) {
+			return true, fmt.Errorf("血之哀伤已结算自伤，不能返回")
+		}
+		ctxData["choice_type"] = "bp_blood_sorrow_mode"
+		engineplayer.NotifyChoiceContext(rt, ctxData)
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 // --------------- HandleChoice ---------------
@@ -243,18 +270,17 @@ func handleBloodSorrowModeChoice(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
 
-	if !runtimeutil.ToBoolContextValue(ctxData["damage_queued"]) {
-		rt.AddPendingDamage(model.PendingDamage{
-			SourceID:   user.ID,
-			TargetID:   user.ID,
-			Damage:     2,
-			DamageType: model.MagicAttack,
-		})
-		ctxData["damage_queued"] = true
-	}
-
 	// mode 0: 移除同生共死
 	if selectionIndex == 0 {
+		if !runtimeutil.ToBoolContextValue(ctxData["damage_queued"]) {
+			rt.AddPendingDamage(model.PendingDamage{
+				SourceID:   user.ID,
+				TargetID:   user.ID,
+				Damage:     2,
+				DamageType: model.MagicAttack,
+			})
+			ctxData["damage_queued"] = true
+		}
 		rt.AppendFlowContinuation(model.FlowContinuation{
 			Kind:     model.FlowContinuationAfterDamage,
 			RoleID:   "blood_priestess",
@@ -272,7 +298,7 @@ func handleBloodSorrowModeChoice(rt engineplayer.ChoiceRuntime, ctxData map[stri
 		return nil
 	}
 
-	// mode 1: 转移 — 切换到目标选择子流程
+	// mode 1: 转移 — 切换到目标选择子流程（自伤在选定目标后再入队，便于返回上一步）
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("无可转移目标")

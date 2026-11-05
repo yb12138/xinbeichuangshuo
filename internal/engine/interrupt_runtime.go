@@ -47,7 +47,14 @@ func (e *GameEngine) handleInterruptResponseSkillAction(act model.PlayerAction) 
 		if idx == len(e.State.PendingInterrupt.SkillIDs) {
 			return e.skipResponseActionResult()
 		}
-		result, err := e.dispatcher.ConfirmResponseSkillAction(act.PlayerID, e.State.PendingInterrupt.SkillIDs[idx])
+		skillID := e.State.PendingInterrupt.SkillIDs[idx]
+		capture := e.beginSkillRefundCapture(e.State.Players[act.PlayerID], e.findSkillDefForRefund(act.PlayerID, skillID), false)
+		result, err := e.dispatcher.ConfirmResponseSkillAction(act.PlayerID, skillID)
+		if err != nil {
+			e.abortSkillRefundCapture(capture)
+		} else {
+			e.commitSkillRefundCapture(capture)
+		}
 		return intr.ActionResult{Consumed: result.Consumed, AfterPop: func(intr.EngineInterface) {
 			if result.AfterPop != nil {
 				result.AfterPop()
@@ -74,7 +81,14 @@ func (e *GameEngine) handleInterruptStartupSkillAction(act model.PlayerAction) (
 			result, err := e.dispatcher.SkipStartupSkillAction(act.PlayerID)
 			return intr.ActionResult{Consumed: result.Consumed}, err
 		}
-		result, err := e.dispatcher.ConfirmStartupSkillAction(act.PlayerID, e.State.PendingInterrupt.SkillIDs[idx])
+		skillID := e.State.PendingInterrupt.SkillIDs[idx]
+		capture := e.beginSkillRefundCapture(e.State.Players[act.PlayerID], e.findSkillDefForRefund(act.PlayerID, skillID), false)
+		result, err := e.dispatcher.ConfirmStartupSkillAction(act.PlayerID, skillID)
+		if err != nil {
+			e.abortSkillRefundCapture(capture)
+		} else {
+			e.commitSkillRefundCapture(capture)
+		}
 		return intr.ActionResult{Consumed: result.Consumed}, err
 	}
 	return intr.ActionResult{}, fmt.Errorf("当前中断类型不支持该指令")

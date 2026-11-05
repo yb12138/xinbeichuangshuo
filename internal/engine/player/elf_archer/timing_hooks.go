@@ -85,11 +85,20 @@ func turnEndHook(rt player.HookRuntime, ctx player.TimingHookContext) player.Tim
 	if CountBlessings(p) != 0 || p.TurnState.SkillFlowState["elf_ritual_release_waiting"] != 0 {
 		return player.TimingHookResult{}
 	}
-	targetIDs := rt.CampEnemyIDs(p.Camp)
+	// 文案为"目标角色"：可以指定包括自己在内的任意角色。
+	targetIDs := make([]string, 0, len(rt.GetPlayerOrder()))
+	for _, pid := range rt.GetPlayerOrder() {
+		if rt.GetPlayer(pid) != nil {
+			targetIDs = append(targetIDs, pid)
+		}
+	}
 	if len(targetIDs) == 0 {
-		rt.ClearForm(p, model.FormElfArcherRitual)
+		func() {
+			defer rt.PoseChangeGuard()()
+			rt.ClearForm(p, model.FormElfArcherRitual)
+		}()
 		p.TurnState.SkillFlowState["elf_ritual_release_waiting"] = 0
-		rt.Log(fmt.Sprintf("%s 的 [精灵密仪] 结束：无敌方目标，直接转正脱离精灵祝福形态", p.Name))
+		rt.Log(fmt.Sprintf("%s 的 [精灵密仪] 结束：无可选目标，直接转正脱离精灵祝福形态", p.Name))
 		return player.TimingHookResult{Interrupted: true}
 	}
 	p.TurnState.SkillFlowState["elf_ritual_release_waiting"] = 1

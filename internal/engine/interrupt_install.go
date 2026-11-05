@@ -279,6 +279,7 @@ func (e *GameEngine) PushInterrupt(interrupt *model.Interrupt) {
 		panic("engine: interrupt orchestrator not installed")
 	}
 	e.stampInterruptCause(interrupt)
+	e.noteInterruptPushedForRefund(interrupt)
 	e.interruptOrchestrator.PushInterrupt(interrupt)
 }
 

@@ -4,6 +4,7 @@ package moon
 
 import (
 	"fmt"
+	"strings"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/engine/hook/promptfmt"
@@ -94,7 +95,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for _, mode := range modes {
 			switch mode {
 			case "branch1":
-				options = append(options, model.PromptOption{ID: "branch1", Label: "分支①：移除1个闇月，令目标角色+1治疗"})
+				options = append(options, model.PromptOption{ID: "branch1", Label: "分支①：移除1个闇月，令目标角色+1治疗（移除闇月会让我方士气 -1）"})
 			case "branch2":
 				options = append(options, model.PromptOption{ID: "branch2", Label: "分支②：移除1点治疗，你+1新月"})
 			}
@@ -304,6 +305,13 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 
 func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
+	switch choiceType {
+	case "mg_pale_moon_mode", "mg_pale_moon_x", "mg_pale_moon_target", "mg_pale_moon_discard":
+		// 苍白之月：弃牌结算前的每一步都可以放弃整个技能。这几步只改中断上下文、不改局面，
+		// 放弃后由引擎的取消退费机制（skill_cancel_refund）退回宝石与发动次数，并回到行动选择。
+		rt.PopInterrupt()
+		return true, nil
+	}
 	if choiceType != "mg_moon_cycle_mode" {
 		return false, nil
 	}
@@ -565,7 +573,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("闇月不足，无法移除%d个", x)
 		}
 		rawCtx, _ := ctxData["user_ctx"].(*model.Context)
-		pd := moonGoddessFindPendingAttackDamage(rt, rawCtx)
+		pd := moonGoddessFindPendingAttackDamage(rt, user.ID, rawCtx)
 		if pd == nil {
 			return true, fmt.Errorf("未找到对应的攻击伤害结算")
 		}
@@ -845,12 +853,32 @@ func finishMoonGoddessMedusa(rt engineplayer.ChoiceRuntime, rawCtx *model.Contex
 	// enterResponseWindow is not exposed on ChoiceRuntime
 }
 
-func moonGoddessFindPendingAttackDamage(rt engineplayer.ChoiceRuntime, _ *model.Context) *model.PendingDamage {
+// moonGoddessFindPendingAttackDamage 找到闇月斩要加伤的"本次攻击伤害"：
+// 来源是月之女神、类型是攻击伤害、目标是本次攻击命中的目标（上下文给出时）。
+// 队列里其他来源或法术伤害一律跳过，避免加错对象。
+func moonGoddessFindPendingAttackDamage(rt engineplayer.ChoiceRuntime, userID string, rawCtx *model.Context) *model.PendingDamage {
+	targetID := ""
+	if rawCtx != nil {
+		if rawCtx.EventCtx != nil {
+			targetID = rawCtx.EventCtx.TargetID
+		}
+		if targetID == "" && rawCtx.Target != nil {
+			targetID = rawCtx.Target.ID
+		}
+	}
 	queue := rt.GetPendingDamageQueue()
 	for i := range queue {
-		if queue[i].Damage > 0 {
-			return &queue[i]
+		pd := &queue[i]
+		if pd.SourceID != userID || pd.IsCounter {
+			continue
 		}
+		if !strings.EqualFold(string(pd.DamageType), string(model.AttackDamage)) {
+			continue
+		}
+		if targetID != "" && pd.TargetID != targetID {
+			continue
+		}
+		return pd
 	}
 	return nil
 }

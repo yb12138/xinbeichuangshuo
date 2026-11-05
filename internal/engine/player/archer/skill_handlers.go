@@ -134,7 +134,7 @@ type FlashTrapHandler struct{ BaseHandler }
 
 func (h *FlashTrapHandler) Execute(ctx *model.Context) error {
 	if ctx.Target != nil {
-		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 2, "法术")
+		ctx.Game.InflictDamage(ctx.User.ID, ctx.Target.ID, 2, model.MagicAttack)
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 使用技能后回合结束", ctx.User.Name))
 	return nil

@@ -22,6 +22,9 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingPostDamageResolved, Priority: 600, Hook: postDamageResolvedHook, SkillID: "elf_animal_companion"},
 			{Timing: player.TimingTurnEndPreExtra, Priority: 300, Hook: turnEndHook, SkillID: "elf_ritual"},
 		},
+		FlowContinuationHandlers: map[model.FlowContinuationKind]player.FlowContinuationHandler{
+			model.FlowContinuationAfterDiscard: handleElfArcherAfterDiscard,
+		},
 		PlayableCoverEffects:   []model.EffectType{model.EffectElfBlessing},
 		ExcludeCardFromDiscard: IsBlessingCard,
 	}
@@ -62,9 +65,6 @@ func SkillEntries() []player.SkillEntry {
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"elf_archer_elemental_shot_pick": types.ChoiceRouteRole("elf_archer").WithSkill("elf_elemental_shot"),
-		"elf_archer_pet_pick":            types.ChoiceRouteRole("elf_archer"),
-		"elf_pet_empower_confirm":        types.ChoiceRouteRole("elf_archer").WithSkill("elf_pet_empower"),
-		"elf_pet_empower_target":         types.ChoiceRouteRole("elf_archer").WithSkill("elf_pet_empower"),
 		"elf_ritual_release_target":      types.ChoiceRouteRole("elf_archer").WithSkill("elf_ritual"),
 	}
 }

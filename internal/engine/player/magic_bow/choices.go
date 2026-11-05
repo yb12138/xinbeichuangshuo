@@ -86,7 +86,7 @@ func buildChargeRemovalPrompt(playerID string, player *model.Player, element mod
 	}
 	fieldIndices := magicBowChargeFieldIndices(player, element)
 	options := make([]model.PromptOption, 0, len(fieldIndices))
-	for _, fieldIndex := range fieldIndices {
+	for seq, fieldIndex := range fieldIndices {
 		if fieldIndex < 0 || fieldIndex >= len(player.Field) {
 			continue
 		}
@@ -95,8 +95,10 @@ func buildChargeRemovalPrompt(playerID string, player *model.Player, element mod
 			continue
 		}
 		fi := fieldIndex
+		// 选项 ID 与提交语义一致：是"同系充能列表中的序号"（removeSelectedMagicBowCharge 按序号解析），
+		// 场上位置单独放在 FieldIndex 里供前端定位盖牌。
 		options = append(options, model.PromptOption{
-			ID:         fmt.Sprintf("%d", fieldIndex),
+			ID:         fmt.Sprintf("%d", seq),
 			Label:      fc.Card.Name,
 			FieldIndex: &fi,
 		})
@@ -404,7 +406,9 @@ func handleMagicPierceCharge(rt engineplayer.ChoiceRuntime, ctxData map[string]i
 	}
 	user.TurnState.UsedSkillCounts["mb_magic_pierce_used_turn"]++
 	engineplayer.SetSkillFlowState(user, "mb_magic_pierce_pending", 1)
-	rawCtx.EventCtx.Card.Damage++
+	// 加伤记在本次攻击的规则修正上，由伤害计算时点消费；不能改实体攻击牌，
+	// 否则这张牌进弃牌堆、重洗回牌库后会永久多 1 点伤害。
+	rt.ApplyNextAttackDamageRule(user.ID, magicPierceDamageModifierID, "mb_magic_pierce", 1, model.RuleLifeUntilTurnEnd)
 	rt.Log(fmt.Sprintf("%s 发动 [魔贯冲击]：移除火系充能 %s，本次攻击伤害+1", user.Name, removed.Name))
 	rt.PopInterrupt()
 	return nil
@@ -694,15 +698,6 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 		return fmt.Errorf("无效的X值")
 	}
 
-	for _, targetID := range targetIDs {
-		rt.AddPendingDamage(model.PendingDamage{
-			SourceID:   user.ID,
-			TargetID:   targetID,
-			Damage:     1,
-			DamageType: model.MagicAttack,
-		})
-	}
-
 	actualExtra := 0
 	for i := 0; i < extraX; i++ {
 		if _, ok := RemoveChargeByElement(user, model.ElementThunder); !ok {
@@ -712,14 +707,9 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 	}
 
 	if actualExtra <= 0 {
+		addThunderScatterDamages(rt, user.ID, targetIDs, "", 0)
 		rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对所有对手各造成1点法术伤害", user.Name))
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
-			if len(rt.GetPendingDamageQueue()) > 0 {
-				rt.EnterDamageResolution(nil)
-			}
-		}
+		finishThunderScatter(rt)
 		return nil
 	}
 
@@ -739,23 +729,13 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 		if target == nil {
 			return fmt.Errorf("目标不存在")
 		}
-		rt.AddPendingDamage(model.PendingDamage{
-			SourceID:   user.ID,
-			TargetID:   lockedTargetID,
-			Damage:     actualExtra,
-			DamageType: model.MagicAttack,
-		})
-		rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对所有对手各1点，并对 %s 额外造成%d点法术伤害", user.Name, target.Name, actualExtra))
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
-			if len(rt.GetPendingDamageQueue()) > 0 {
-				rt.EnterDamageResolution(nil)
-			}
-		}
+		addThunderScatterDamages(rt, user.ID, targetIDs, lockedTargetID, actualExtra)
+		rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对 %s 造成%d点法术伤害，其余对手各1点", user.Name, target.Name, 1+actualExtra))
+		finishThunderScatter(rt)
 		return nil
 	}
 
+	// 尚未指定目标：先暂存所有对手列表，待选定后一次性按 1 / 1+X 入队。
 	ctxData["choice_type"] = "mb_thunder_scatter_target"
 	ctxData["extra_x"] = actualExtra
 	if intr := rt.GetPendingInterrupt(); intr != nil {
@@ -763,6 +743,33 @@ func handleThunderScatterExtra(rt engineplayer.ChoiceRuntime, ctxData map[string
 	}
 	rt.NotifyInterruptPrompt()
 	return nil
+}
+
+// addThunderScatterDamages 对所有对手各造成1点法术伤害；被指定的对手本次伤害额外+X，
+// 合并为一次 1+X 点伤害（而不是再单独结算一次 X 点）。
+func addThunderScatterDamages(rt engineplayer.ChoiceRuntime, userID string, targetIDs []string, boostedID string, extra int) {
+	for _, targetID := range targetIDs {
+		damage := 1
+		if boostedID != "" && targetID == boostedID && extra > 0 {
+			damage += extra
+		}
+		rt.AddPendingDamage(model.PendingDamage{
+			SourceID:   userID,
+			TargetID:   targetID,
+			Damage:     damage,
+			DamageType: model.MagicAttack,
+		})
+	}
+}
+
+func finishThunderScatter(rt engineplayer.ChoiceRuntime) {
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
+		if len(rt.GetPendingDamageQueue()) > 0 {
+			rt.EnterDamageResolution(nil)
+		}
+	}
 }
 
 func handleDemonEyeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -787,27 +794,34 @@ func handleDemonEyeMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 		return nil
 	case 1:
 		// Branch 2: Draw 3 cards
-		rt.DrawCards(user.ID, 3)
+		// 与充能同口径：摸牌允许超过上限，摸完立刻结算爆牌（每弃 1 张士气 -1），再放置充能。
+		rt.DrawCardsWithOptions(user.ID, 3, model.DrawOptions{PreventOverflow: true})
 		rt.Log(fmt.Sprintf("%s 的 [魔眼] 分支②生效：摸3张牌", user.Name))
-		if len(user.Hand) == 0 {
-			// No cards to charge: just grant +1 crystal
-			gained := engineplayer.AddPlayerCrystalWithCap(rt, user, 1)
-			rt.Log(fmt.Sprintf("%s 的 [魔眼]：无手牌可充能，改为仅获得%d点蓝水晶", user.Name, gained))
+		if overflow := len(user.Hand) - rt.GetMaxHand(user); overflow > 0 {
 			rt.PopInterrupt()
-			if rt.GetPendingInterrupt() == nil {
-				rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
-			}
+			rt.PushInterrupt(&model.Interrupt{
+				Type:     model.InterruptChoice,
+				PlayerID: user.ID,
+				Context: map[string]interface{}{
+					"choice_type":                 "system_discard_cards",
+					"discard_subflow":             true,
+					"discard_count":               overflow,
+					"discard_reason":              "hand_overflow",
+					"victim_id":                   user.ID,
+					"stay_in_turn":                true,
+					"discard_forced":              true,
+					"forced_reason":               "爆牌弃牌为强制步骤，不能取消",
+					"prompt":                      fmt.Sprintf("【魔眼】手牌超出上限，请弃置%d张牌：", overflow),
+					"flow_continuation_role_id":   "magic_bow",
+					"flow_continuation_player_id": user.ID,
+					"flow_continuation_skill_id":  "mb_demon_eye_charge",
+				},
+			})
+			rt.Log(fmt.Sprintf("%s 的 [魔眼] 摸3张后超出手牌上限%d张：先弃牌，再放置充能", user.Name, overflow))
 			return nil
 		}
-		// Push charge card selection
-		ctxData["choice_type"] = "mb_demon_eye_charge_card"
-		model.SetPromptFlowContext(ctxData, initMagicBowDemonEyeChargeFlow())
-		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = ctxData
-		}
-		rt.NotifyInterruptPrompt()
-		rt.Log(fmt.Sprintf("%s 的 [魔眼] 分支②：请选择1张手牌作为充能", user.Name))
+		rt.PopInterrupt()
+		demonEyeProceedToCharge(rt, user)
 		return nil
 	default:
 		return fmt.Errorf("无效的魔眼分支选择")
@@ -835,22 +849,12 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	switch choiceType {
 	case "mb_thunder_scatter_target":
 		extraX := runtimeutil.ToIntContextValue(ctxData["extra_x"])
-		if extraX > 0 {
-			rt.AddPendingDamage(model.PendingDamage{
-				SourceID:   user.ID,
-				TargetID:   targetID,
-				Damage:     extraX,
-				DamageType: model.MagicAttack,
-			})
+		if extraX < 0 {
+			extraX = 0
 		}
-		rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对所有对手各1点，并对 %s 额外造成%d点法术伤害", user.Name, target.Name, extraX))
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil {
-			rt.ApplyChoiceResumePoint(model.TurnStageExtraAction)
-			if len(rt.GetPendingDamageQueue()) > 0 {
-				rt.EnterDamageResolution(nil)
-			}
-		}
+		addThunderScatterDamages(rt, user.ID, targetIDs, targetID, extraX)
+		rt.Log(fmt.Sprintf("%s 的 [雷光散射] 生效：对 %s 造成%d点法术伤害，其余对手各1点", user.Name, target.Name, 1+extraX))
+		finishThunderScatter(rt)
 		return nil
 
 	case "mb_multi_shot_target":
@@ -906,18 +910,9 @@ func handleTargetChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 			rt.NotifyInterruptPrompt()
 			return nil
 		}
-		// Target has no cards: user draws 3 and places 1 as charge
-		rt.DrawCards(user.ID, 3)
-		ctxData["choice_type"] = "mb_demon_eye_charge_card"
-		model.SetPromptFlowContext(ctxData, initMagicBowDemonEyeChargeFlow())
-		ctxData["remaining_indices"] = engineplayer.AllHandIndices(user)
-		rt.PushInterrupt(&model.Interrupt{
-			Type:     model.InterruptChoice,
-			PlayerID: user.ID,
-			Context:  ctxData,
-		})
-		rt.NotifyInterruptPrompt()
-		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 无法弃牌，改为自己摸3张牌并选择1张作为充能", user.Name, target.Name))
+		// 目标没有手牌：弃牌这一步无事发生，没有替代效果；继续"将1张手牌作为充能，并获得1蓝水晶"。
+		rt.Log(fmt.Sprintf("%s 的 [魔眼]：%s 没有手牌，无牌可弃", user.Name, target.Name))
+		demonEyeProceedToCharge(rt, user)
 		return nil
 	}
 
@@ -938,6 +933,14 @@ func handleMagicBowAfterDiscard(rt engineplayer.ChoiceRuntime, cont model.FlowCo
 			return fmt.Errorf("充能后续执行者不存在: %s", cont.PlayerID)
 		}
 		return enterChargePlaceCards(rt, user, runtimeutil.ToIntContextValue(cont.Data["charge_x"]), nil)
+	}
+	if cont.SkillID == "mb_demon_eye_charge" {
+		user := rt.GetPlayers()[cont.PlayerID]
+		if user == nil {
+			return fmt.Errorf("魔眼后续执行者不存在: %s", cont.PlayerID)
+		}
+		demonEyeProceedToCharge(rt, user)
+		return nil
 	}
 	if cont.SkillID == "mb_demon_eye" {
 		discardPlayerID, _ := cont.Data["discard_player_id"].(string)
@@ -998,30 +1001,38 @@ func demonEyeAfterDiscardData(rt engineplayer.ChoiceRuntime, discardPlayer *mode
 		return false
 	}
 
+	rt.Log(fmt.Sprintf("%s 的 [魔眼]：%s 已弃置1张手牌", user.Name, discardPlayer.Name))
+	demonEyeProceedToCharge(rt, user)
+	return true
+}
+
+// demonEyeProceedToCharge 魔眼的后半段："然后将1张手牌作为充能，并获得1蓝水晶"。
+//   - 魔弓无手牌 → 获得1点蓝水晶，恢复行动阶段
+//   - 魔弓有手牌 → 推入 mb_demon_eye_charge_card 选择中断
+func demonEyeProceedToCharge(rt engineplayer.ChoiceRuntime, user *model.Player) {
 	if len(user.Hand) == 0 {
-		// 无手牌：获得1点蓝水晶
 		gained := engineplayer.AddPlayerCrystalWithCap(rt, user, 1)
-		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：已完成目标弃牌，但自己无手牌可充能，改为仅获得%d点蓝水晶", user.Name, gained))
+		rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：无手牌可充能，仅获得%d点蓝水晶", user.Name, gained))
 		if rt.GetPendingInterrupt() == nil {
 			rt.ApplyChoiceResumePoint(model.TurnStageActionStart)
 		}
-		return true
+		return
 	}
 
-	// 有手牌：推入充能选择中断（与分支②一致，需带上充能流程上下文，否则 BuildPrompt 返回 nil）
+	// 有手牌：推入充能选择中断（需带上充能流程上下文，否则 BuildPrompt 返回 nil）
 	chargeCtx := map[string]interface{}{
 		"choice_type":       "mb_demon_eye_charge_card",
-		"user_id":           demonEyeUserID,
+		"user_id":           user.ID,
 		"remaining_indices": engineplayer.AllHandIndices(user),
 	}
 	model.SetPromptFlowContext(chargeCtx, initMagicBowDemonEyeChargeFlow())
 	rt.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
-		PlayerID: demonEyeUserID,
+		PlayerID: user.ID,
 		Context:  chargeCtx,
 	})
-	rt.Log(fmt.Sprintf("%s 的 [魔眼] 生效：%s 已弃置1张手牌，请选择1张手牌作为充能", user.Name, discardPlayer.Name))
-	return true
+	rt.NotifyInterruptPrompt()
+	rt.Log(fmt.Sprintf("%s 的 [魔眼]：请选择1张手牌作为充能", user.Name))
 }
 
 // handleChargePlaceCardsMultiSelect 批量多选盖牌（充能技能简化交互）。

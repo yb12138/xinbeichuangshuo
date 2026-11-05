@@ -314,7 +314,7 @@ func finishCrimsonKnightBloodyPrayerSplit(rt engineplayer.ChoiceRuntime, ctxData
 		return fmt.Errorf("血腥祷言分配目标数量异常")
 	}
 	if firstHeal <= 0 || firstHeal >= xValue {
-		return fmt.Errorf("无效的治疗分配")
+		return fmt.Errorf("无效的治疗分配：每名队友至少 1 点")
 	}
 	secondHeal := xValue - firstHeal
 	flow.PutSelection(bloodyPrayerStepSplit, model.PromptFlowSelection{

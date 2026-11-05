@@ -564,7 +564,12 @@ func (r roleChoiceRuntime) ApplyCampMoraleLoss(camp model.Camp, wantLoss int) in
 	if r.GameEngine == nil {
 		return 0
 	}
-	return r.GameEngine.ApplyCampMoraleLoss(camp, wantLoss)
+	loss := r.GameEngine.ApplyCampMoraleLoss(camp, wantLoss)
+	// 技能直接扣士气（如暗月诅咒）不经过爆牌流程，这里补发士气下降后置钩子（灵魂吞噬等）。
+	if loss > 0 {
+		r.GameEngine.runAfterCampMoraleLossHooks(camp, loss)
+	}
+	return loss
 }
 
 // ---- GameOps 实现 ----

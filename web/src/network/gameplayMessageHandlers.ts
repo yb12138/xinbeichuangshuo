@@ -15,6 +15,7 @@ import { createStageQueueBridge } from './stageQueueBridge'
 import { cardArtSrc } from '../constants/cardArt'
 import { useUiStore } from '../stores/ui.store'
 import { playSfx } from '../audio/sfx'
+import { recoverFromRejectedSubmission } from './submissionRecovery'
 import { endCueFor } from '../audio/endCue'
 
 export interface GameplayMessageHandlerDeps {
@@ -190,6 +191,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
   function clearPromptGate() {
     gatedPrompt = null
+    interruptStore.setPromptGated(false)
     if (gateTimer) clearTimeout(gateTimer)
     gateTimer = null
     stopGateWatch?.()
@@ -220,6 +222,8 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     gatedPrompt = prompt
     interruptStore.setPrompt(null)
     interruptStore.setWaiting('')
+    // 压着期间界面角落提示"即将轮到你"，并压住行动枢纽
+    interruptStore.setPromptGated(true)
     stopGateWatch = watch(
       () => stageQueue.isPlaying,
       (playing) => {
@@ -292,6 +296,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
     if (payload.target_user_id === sessionStore.myPlayerId) {
       battleFxStore.startActingPlayerFocus(payload.target_user_id, 'skill')
+      interruptStore.endSubmit()
       interruptStore.setWaiting('')
     } else {
       clearPromptGate()
@@ -411,13 +416,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
         {
           const msg = event.message || '游戏错误'
           interruptStore.showError(msg)
-          if (msg.includes('技能发动失败')) {
-            interruptStore.clearSkillMode()
-            interruptStore.clearActionMode()
-          }
-          if (msg.includes('无效的卡牌索引')) {
-            interruptStore.clearActionMode()
-          }
+          recoverFromRejectedSubmission(interruptStore, msg)
         }
         break
 

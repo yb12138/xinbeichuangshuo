@@ -322,6 +322,53 @@ describe('createGameplayMessageHandlers', () => {
     expect(interruptStore.currentPrompt?.player_id).toBe('p1')
   })
 
+  it('flags the prompt gate while my prompt is held so the hub stays hidden', () => {
+    const { handlers, interruptStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    useStageQueueStore().enqueue({ type: 'narration-row', html: 'x', tag: '攻击', tagColor: 'attack' })
+
+    handlers.handleRequireAction({
+      interrupt_type: 'WaitChoice',
+      target_user_id: 'p1',
+      timeout: 0,
+      msg: '',
+      prompt: { type: 'confirm', player_id: 'p1', message: '应战？', options: [{ id: 'take', label: '承受', button_label: '承受' }], min: 1, max: 1, presentation: { kind: 'target_picker', numeric_base: 0 } },
+    })
+    expect(interruptStore.promptGated).toBe(true)
+    vi.advanceTimersByTime(8000)
+    expect(interruptStore.promptGated).toBe(false)
+    expect(interruptStore.currentPrompt?.player_id).toBe('p1')
+  })
+
+  it('restores skill selections when the server rejects a skill submission', () => {
+    const { handlers, interruptStore } = buildHandlers()
+    interruptStore.setSelectedSkill({ id: 's', title: 'S', description: '', min_targets: 1, max_targets: 1, target_type: 2, cost_gem: 0, cost_crystal: 0, cost_discards: 0 })
+    interruptStore.setSkillMode('choosing_target')
+    interruptStore.setSkillTargetIds(['p2'])
+    interruptStore.beginSubmit()
+
+    handlers.handleGameplayEvent({ event_type: 'error', message: '技能发动失败: 目标不合法' })
+
+    expect(interruptStore.isSubmitting).toBe(false)
+    expect(interruptStore.skillMode).toBe('choosing_target')
+    expect(interruptStore.skillTargetIds).toEqual(['p2'])
+    expect(interruptStore.errorMessage).toContain('技能发动失败')
+  })
+
+  it('clears a rejected counter target so another target can be picked', () => {
+    const { handlers, interruptStore } = buildHandlers()
+    interruptStore.setCounterFlowStage('target')
+    interruptStore.setSelectedHandIndexes([0])
+    interruptStore.setPromptCounterTarget('p3')
+    interruptStore.beginSubmit()
+
+    handlers.handleGameplayEvent({ event_type: 'error', message: '该目标不能被应战' })
+
+    expect(interruptStore.promptCounterTarget).toBe('')
+    expect(interruptStore.counterFlowStage).toBe('target')
+    expect(interruptStore.isSubmitting).toBe(false)
+  })
+
   it('releases a held prompt after the safety timeout', () => {
     const { handlers, interruptStore, sessionStore } = buildHandlers()
     sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')

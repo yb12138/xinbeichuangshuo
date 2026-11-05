@@ -40,20 +40,12 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		}
 		return &model.Prompt{Type: model.PromptChooseCards, PlayerID: playerID, Message: "【元素射击】请选择发动消耗（法术牌或祝福）：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_or_elf_blessing", CancelPolicy: "abort"}}
 
-	case "elf_animal_companion_confirm":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【动物伙伴】是否发动（摸1弃1）？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
-
-	case "elf_pet_empower_confirm":
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【宠物强化】是否消耗1蓝水晶，将效果改为任意角色摸1弃1？", Options: []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}}, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}}
-
 	case "elf_elemental_shot_water_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【水之矢】请选择+1治疗目标：", data, false)
 	case "elf_elemental_shot_earth_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【地之矢】请选择1点法术伤害目标：", data, false)
-	case "elf_pet_empower_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【宠物强化】请选择摸1弃1目标：", data, false)
 	case "elf_ritual_release_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【精灵密仪】你已无祝福，转正并请选择1名敌方角色承受2点法术伤害：", data, false)
+		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【精灵密仪】你已无祝福，转正并请选择1名角色承受2点法术伤害：", data, false)
 	}
 	return nil
 }
@@ -64,15 +56,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	switch choiceType {
 	case "elf_archer_elemental_shot_pick":
 		return true, handleElfElementalShotPick(rt, selectionIndex, ctxData)
-
-	case "elf_animal_companion_confirm":
-		return true, handleElfAnimalCompanionConfirm(rt, selectionIndex, ctxData)
-
-	case "elf_pet_empower_confirm":
-		return true, handleElfPetEmpowerConfirm(rt, selectionIndex, ctxData)
-
-	case "elf_pet_empower_target":
-		return true, handleElfPetEmpowerTarget(rt, selectionIndex, ctxData)
 
 	case "elf_elemental_shot_water_target", "elf_elemental_shot_earth_target", "elf_ritual_release_target":
 		return true, handleElfElementalShotOrRitualTarget(rt, selectionIndex, ctxData)
@@ -89,6 +72,10 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string
 
 	rt.PopInterrupt()
 	if user := rt.GetPlayers()[playerID]; user != nil {
+		// 回合限定次数在 Execute 前已计数；取消发动时退回，本回合仍可再用。
+		if user.TurnState.UsedSkillCounts["elf_elemental_shot"] > 0 {
+			user.TurnState.UsedSkillCounts["elf_elemental_shot"]--
+		}
 		rt.Log(fmt.Sprintf("%s 放弃发动 [元素射击]", user.Name))
 	}
 	if rt.GetPendingInterrupt() == nil {
@@ -162,98 +149,6 @@ func handleElfElementalShotPick(rt engineplayer.ChoiceRuntime, selectionIndex in
 	return nil
 }
 
-func handleElfAnimalCompanionConfirm(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-	if selectionIndex == 1 {
-		rt.PopInterrupt()
-		if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
-			rt.EnterDamageResolution(nil)
-		}
-		return nil
-	}
-	if selectionIndex != 0 {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-	if rt.CanPayCrystalCost(userID, 1) {
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = map[string]interface{}{
-				"choice_type": "elf_pet_empower_confirm",
-				"user_id":     userID,
-			}
-		}
-		rt.NotifyInterruptPrompt()
-		return nil
-	}
-	rt.DrawCards(userID, 1)
-	rt.PushInterrupt(newDiscardChoiceInterrupt(userID, map[string]interface{}{
-		"discard_count":     1,
-		"stay_in_turn":      true,
-		"prompt":            "【动物伙伴】请选择弃置1张牌：",
-		"exclude_blessings": true,
-	}))
-	rt.PopInterrupt()
-	return nil
-}
-
-func handleElfPetEmpowerConfirm(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-	if selectionIndex == 0 && rt.ConsumeCrystalCost(userID, 1) {
-		targetIDs := rt.GetPlayerOrder()
-		if intr := rt.GetPendingInterrupt(); intr != nil {
-			intr.Context = map[string]interface{}{
-				"choice_type": "elf_pet_empower_target",
-				"user_id":     userID,
-				"target_ids":  targetIDs,
-			}
-		}
-		rt.NotifyInterruptPrompt()
-		return nil
-	}
-	rt.DrawCards(userID, 1)
-	rt.PushInterrupt(newDiscardChoiceInterrupt(userID, map[string]interface{}{
-		"discard_count":     1,
-		"stay_in_turn":      true,
-		"prompt":            "【动物伙伴】请选择弃置1张牌：",
-		"exclude_blessings": true,
-	}))
-	rt.PopInterrupt()
-	return nil
-}
-
-func handleElfPetEmpowerTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
-	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-	targetID := targetIDs[selectionIndex]
-	target := rt.GetPlayers()[targetID]
-	if target == nil {
-		return fmt.Errorf("目标不存在")
-	}
-	rt.DrawCards(targetID, 1)
-	if len(target.Hand) > rt.GetMaxHand(target) {
-		rt.Log(fmt.Sprintf("[宠物强化] %s 摸牌后触发爆牌，本次弃1由爆牌弃牌结算承担", target.Name))
-		rt.PopInterrupt()
-		return nil
-	}
-	rt.PushInterrupt(newDiscardChoiceInterrupt(targetID, map[string]interface{}{
-		"discard_count":     1,
-		"stay_in_turn":      true,
-		"prompt":            fmt.Sprintf("【宠物强化】%s 请弃置1张牌：", target.Name),
-		"exclude_blessings": isElfArcher(target),
-	}))
-	rt.PopInterrupt()
-	return nil
-}
-
 func handleElfElementalShotOrRitualTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
@@ -272,7 +167,10 @@ func handleElfElementalShotOrRitualTarget(rt engineplayer.ChoiceRuntime, selecti
 	case "elf_elemental_shot_earth_target":
 		rt.AddPendingDamage(model.PendingDamage{SourceID: userID, TargetID: targetID, Damage: 1, DamageType: model.MagicAttack})
 	case "elf_ritual_release_target":
-		leaveElfArcherRitualForm(user)
+		func() {
+			defer rt.PoseChangeGuard()()
+			leaveElfArcherRitualForm(user)
+		}()
 		user.TurnState.SkillFlowState["elf_ritual_release_waiting"] = 0
 		rt.AddPendingDamage(model.PendingDamage{SourceID: userID, TargetID: targetID, Damage: 2, DamageType: model.MagicAttack})
 	}
@@ -360,21 +258,8 @@ func leaveElfArcherRitualForm(player *model.Player) bool {
 	if player == nil {
 		return false
 	}
-	if player.Form != model.FormElfArcherRitual {
-		return false
-	}
-	player.Form = ""
-	return true
-}
-
-func isElfArcher(player *model.Player) bool {
-	if player == nil {
-		return false
-	}
-	if player.Character != nil && player.Character.ID == "elf_archer" {
-		return true
-	}
-	return player.Role == "elf_archer"
+	// 用 ClearForm 同时恢复直立，配合 PoseChangeGuard 派发姿态变化。
+	return engineplayer.ClearForm(player, model.FormElfArcherRitual)
 }
 
 func getCardIndicesByType(player *model.Player, cardType model.CardType) []int {
@@ -432,14 +317,6 @@ func elfElementalShotCandidateIndices(player *model.Player, excludeCardIDs ...st
 	}
 	sort.Ints(out)
 	return out
-}
-
-func newDiscardChoiceInterrupt(playerID string, data map[string]interface{}) *model.Interrupt {
-	return &model.Interrupt{
-		Type:     model.InterruptChoice,
-		PlayerID: playerID,
-		Context:  data,
-	}
 }
 
 var _ engineplayer.CancelChoiceHandler = choiceHandler{}

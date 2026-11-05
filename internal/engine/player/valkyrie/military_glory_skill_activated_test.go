@@ -64,3 +64,67 @@ func TestValkyrie_MilitaryGlory_TargetBranchEmitsSkillActivated(t *testing.T) {
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{sel}})
 	testutils.RequireSingleSkillActivation(t, obs, "valkyrie_military_glory", "p1", "p2")
 }
+
+func chooseMilitaryGloryTarget(t *testing.T, game *engine.GameEngine, x int, targetID string) {
+	t.Helper()
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{x - 1}})
+	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_military_glory_target")
+	ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	targetIDs, _ := ctxData["target_ids"].([]string)
+	for i, id := range targetIDs {
+		if id == targetID {
+			testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{i}})
+			return
+		}
+	}
+	t.Fatalf("%s not in target list %v", targetID, targetIDs)
+}
+
+func TestValkyrie_MilitaryGlory_PlayerChoosesStoneType(t *testing.T) {
+	game := newMilitaryGloryGame(t, testutils.NoopObserver{})
+	game.State.RedGems = 1
+	game.State.RedCrystals = 1
+	chooseMilitaryGloryTarget(t, game, 1, "p2")
+	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_military_glory_pay")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || len(prompt.Options) != 2 {
+		t.Fatalf("expected 2 pay options, got %+v", prompt)
+	}
+	// 选项顺序：0=移除水晶（0宝石），1=移除宝石。选宝石。
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	if game.State.RedGems != 0 || game.State.RedCrystals != 1 {
+		t.Fatalf("expected gem removed, got gems=%d crystals=%d", game.State.RedGems, game.State.RedCrystals)
+	}
+	if got := game.State.Players["p2"].Heal; got != 1 {
+		t.Fatalf("expected p2 heal=1, got %d", got)
+	}
+}
+
+func TestValkyrie_MilitaryGlory_PayGemWhenChosen(t *testing.T) {
+	game := newMilitaryGloryGame(t, testutils.NoopObserver{})
+	game.State.RedGems = 2
+	game.State.RedCrystals = 2
+	chooseMilitaryGloryTarget(t, game, 2, "p2")
+	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_military_glory_pay")
+	// 0 宝石 / 1 宝石+1 水晶 / 2 宝石
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{2}})
+	if game.State.RedGems != 0 || game.State.RedCrystals != 2 {
+		t.Fatalf("expected 2 gems removed, got gems=%d crystals=%d", game.State.RedGems, game.State.RedCrystals)
+	}
+}
+
+func TestValkyrie_MilitaryGlory_SingleStoneTypeSkipsPayPrompt(t *testing.T) {
+	game := newMilitaryGloryGame(t, testutils.NoopObserver{})
+	game.State.RedGems = 0
+	game.State.RedCrystals = 2
+	chooseMilitaryGloryTarget(t, game, 1, "p2")
+	if game.State.PendingInterrupt != nil {
+		if ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok && ctxData["choice_type"] == "valkyrie_military_glory_pay" {
+			t.Fatalf("expected no pay prompt when only crystals available")
+		}
+	}
+	if game.State.RedCrystals != 1 {
+		t.Fatalf("expected 1 crystal removed, got crystals=%d", game.State.RedCrystals)
+	}
+}

@@ -210,7 +210,30 @@ func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxDa
 	switch choiceType {
 	case "hom_dual_echo_target":
 		// Cancel dual echo: clear interrupt without consuming cost or adding damage
+		// 回合限定次数在 Execute 前已计数；取消发动时退回。
+		userID, _ := ctxData["user_id"].(string)
+		if user := rt.GetPlayers()[userID]; user != nil && user.TurnState.UsedSkillCounts["hom_dual_echo"] > 0 {
+			user.TurnState.UsedSkillCounts["hom_dual_echo"]--
+		}
 		rt.PopInterrupt()
+		return true, nil
+	case "hom_glyph_fusion_cards":
+		// 魔纹融合从选牌步起步，没有上一步可退：取消即放弃发动（此前未扣任何资源），
+		// 继续攻击未命中的后续流程。
+		if flow := model.PromptFlowFromContext(ctxData); flow != nil && len(flow.History) > 0 {
+			return false, nil
+		}
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			if rawCtx, ok := ctxData["user_ctx"].(*model.Context); ok && rawCtx != nil && rawCtx.ResumeAttackMissPhase() {
+				if rt.ResumePendingAttackMiss(rawCtx) {
+					return true, nil
+				}
+			}
+			if len(rt.GetPendingDamageQueue()) > 0 {
+				rt.EnterDamageResolution(nil)
+			}
+		}
 		return true, nil
 	default:
 		return false, nil

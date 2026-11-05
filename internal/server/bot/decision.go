@@ -168,7 +168,7 @@ func decideActionSelection(playerID string, state StateSnapshot, prompt *model.P
 	if hasPromptOption(prompt, "synthesize") && campNeed < 0.45 {
 		return model.PlayerAction{PlayerID: playerID, Type: model.CmdSynthesize}, true
 	}
-	if hasPromptOption(prompt, "extract") && me.Gem+me.Crystal < estimateMaxEnergy(me.Role) {
+	if hasPromptOption(prompt, "extract") && (me.Gem+me.Crystal < estimateMaxEnergy(me.Role) || adventurerCanExtractForAlly(state, me)) {
 		return model.PlayerAction{PlayerID: playerID, Type: model.CmdExtract}, true
 	}
 	if hasPromptOption(prompt, "buy") && handPressure <= 0.6 {
@@ -1081,6 +1081,23 @@ func estimateMaxHand(role string) int {
 		return v
 	}
 	return 6
+}
+
+// adventurerCanExtractForAlly 冒险家自身能量已满时，若有队友能量未满，
+// 仍可提炼并通过【冒险者天堂】把星石交给队友（引擎侧由 ExtractAtFullEnergy 放行）。
+func adventurerCanExtractForAlly(state StateSnapshot, me PlayerSnapshot) bool {
+	if me.Role != "adventurer" {
+		return false
+	}
+	for _, ally := range state.Players {
+		if ally.ID == me.ID || ally.Camp != me.Camp {
+			continue
+		}
+		if ally.Gem+ally.Crystal < estimateMaxEnergy(ally.Role) {
+			return true
+		}
+	}
+	return false
 }
 
 func estimateMaxEnergy(role string) int {

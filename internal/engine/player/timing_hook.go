@@ -63,6 +63,7 @@ const (
 	TimingCampChanged    TimingPoint = "on_camp_changed"     // 阵营变化
 	TimingPlayerSetup    TimingPoint = "on_player_setup"     // 玩家设置（加入后初始化派生状态）
 	TimingCampCupChanged TimingPoint = "on_camp_cup_changed" // 阵营杯子变化（派生状态同步）
+	TimingStateCheck     TimingPoint = "on_state_check"      // 状态检查（每次推进流程前，用于"一旦满足条件立即生效"的强制效果）
 
 	// 新增 - 士气损失阶段
 	TimingMoraleLossApplied TimingPoint = model.TimingMoraleLossApplied // 士气损失应用后（伤害驱动的角色效果）
@@ -301,6 +302,7 @@ type HookRuntime interface {
 	NotifyDrawCards(playerID string, count int, reason string)
 	DrawCardsRaw(playerID string, count int) []model.Card
 	StartExtractForPlayer(playerID string) error
+	StartExtractToRecipient(extractorID, recipientID string, extractorEnergyCost int) error
 }
 
 // PoseSnapshot 记录玩家姿态快照（用于 orientation 变更前后对比）。

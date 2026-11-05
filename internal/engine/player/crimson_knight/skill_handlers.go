@@ -178,9 +178,6 @@ func (h *CrimsonKnightCrimsonCrossHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil {
 		return false
 	}
-	if ctx.Target.Camp == ctx.User.Camp {
-		return false
-	}
 	if engineplayer.GetToken(ctx.User, "crk_blood_mark") <= 0 {
 		return false
 	}
@@ -197,9 +194,7 @@ func (h *CrimsonKnightCrimsonCrossHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Target == nil || ctx.Game == nil {
 		return fmt.Errorf("腥红十字需要目标")
 	}
-	if ctx.Target.Camp == ctx.User.Camp {
-		return fmt.Errorf("腥红十字只能指定敌方角色")
-	}
+
 	if engineplayer.GetToken(ctx.User, "crk_blood_mark") <= 0 {
 		return fmt.Errorf("血印不足")
 	}

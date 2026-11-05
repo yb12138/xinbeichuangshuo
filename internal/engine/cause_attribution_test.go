@@ -115,8 +115,6 @@ func TestCauseAttribution_PilgrimageAcrossInterrupts(t *testing.T) {
 	}
 
 	game.Drive()
-	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_confirm")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
 	for i := 0; i < 10 && (game.State.PendingInterrupt != nil || len(game.State.PendingDamageQueue) > 0); i++ {

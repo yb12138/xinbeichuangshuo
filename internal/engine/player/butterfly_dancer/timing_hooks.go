@@ -5,6 +5,7 @@ package butterfly_dancer
 import (
 	"fmt"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
@@ -51,7 +52,7 @@ func damageResponseHook(rt player.HookRuntime, ctx player.TimingHookContext) pla
 	}
 	damageAmount := pd.Damage
 
-	if pd.DamageType != model.MagicDamage {
+	if !runtimeutil.IsMagicDamageType(pd.DamageType) {
 		return player.TimingHookResult{}
 	}
 	// 毒粉：伤害为1时，蝶舞者可移除1个茧令伤害+1。该检查仅在⑤窗口执行一次，
@@ -118,7 +119,8 @@ func triggerPilgrimageBeforeApply(rt player.HookRuntime, pd *model.PendingDamage
 				Type:     model.InterruptChoice,
 				PlayerID: target.ID,
 				Context: map[string]interface{}{
-					"choice_type":    "bt_pilgrimage_confirm",
+					// 一步完成：选茧即发动，选项0为"不发动"（不再单独确认是否发动）。
+					"choice_type":    "bt_pilgrimage_pick",
 					"user_id":        target.ID,
 					"source_id":      pd.SourceID,
 					"target_id":      pd.TargetID,

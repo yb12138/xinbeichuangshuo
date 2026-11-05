@@ -169,17 +169,17 @@ func TestAdventurerExtractFullEnergy_AutoParadiseAllyExtract(t *testing.T) {
 		Selections: []int{0},
 	})
 
-	// 队友看到提炼提示
-	testutils.RequireChoicePrompt(t, game, "p2", "extract")
+	// 冒险家自己提炼（上限按队友能量空间）
+	testutils.RequireChoicePrompt(t, game, "p1", "extract")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p2",
+		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0, 1},
 	})
 
-	// p1 能量不变（未提炼），p2 从提炼中获得2水晶
-	if p1.Gem+p1.Crystal != 3 {
-		t.Fatalf("expected p1 energy unchanged (full), got gem=%d crystal=%d", p1.Gem, p1.Crystal)
+	// p1 有能量，必须移除1能量（优先水晶）；p2 获得提炼出的2水晶
+	if p1.Gem != 1 || p1.Crystal != 1 {
+		t.Fatalf("expected p1 lose 1 energy (crystal first), got gem=%d crystal=%d", p1.Gem, p1.Crystal)
 	}
 	if p2.Gem+p2.Crystal != 3 {
 		t.Fatalf("expected p2 receive two extracted energies, got gem=%d crystal=%d", p2.Gem, p2.Crystal)
@@ -230,17 +230,17 @@ func TestAdventurerParadise_AllyDirectExtract(t *testing.T) {
 		Selections: []int{0},
 	})
 
-	// 队友看到提炼提示
-	testutils.RequireChoicePrompt(t, game, "p2", "extract")
+	// 冒险家自己提炼
+	testutils.RequireChoicePrompt(t, game, "p1", "extract")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p2",
+		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
 
-	// p1 能量不变（队友提炼而非冒险者提炼），p2 获得提炼的1宝石
-	if p1.Gem != 2 || p1.Crystal != 0 {
-		t.Fatalf("expected p1 keep pre-existing energy, got gem=%d crystal=%d", p1.Gem, p1.Crystal)
+	// p1 移除1能量，p2 获得提炼的1宝石
+	if p1.Gem != 1 || p1.Crystal != 0 {
+		t.Fatalf("expected p1 lose 1 energy, got gem=%d crystal=%d", p1.Gem, p1.Crystal)
 	}
 	if p2.Gem != 1 || p2.Crystal != 0 {
 		t.Fatalf("expected ally receive extracted gem, got gem=%d crystal=%d", p2.Gem, p2.Crystal)
@@ -311,10 +311,10 @@ func TestAdventurerParadise_TargetsFilteredByExtractCapacity(t *testing.T) {
 		Selections: []int{p3Idx},
 	})
 
-	// p3 看到提炼提示
-	testutils.RequireChoicePrompt(t, game, "p3", "extract")
+	// 冒险家自己提炼，上限按 p3 的能量空间（2）
+	testutils.RequireChoicePrompt(t, game, "p1", "extract")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p3",
+		PlayerID:   "p1",
 		Type:       model.CmdSelect,
 		Selections: []int{0, 1},
 	})
@@ -429,7 +429,8 @@ func TestPriestDivineDomain_HealBranchRequiresTwoDiscards(t *testing.T) {
 	}
 }
 
-func TestPriestDivineDomain_RejectsPartialDiscard(t *testing.T) {
+// 神官-4：手牌不足2张时按部分发动规则，只剩1张就弃1张。
+func TestPriestDivineDomain_AllowsPartialDiscard(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -457,9 +458,58 @@ func TestPriestDivineDomain_RejectsPartialDiscard(t *testing.T) {
 		Type:       model.CmdSkill,
 		SkillID:    "priest_divine_domain",
 		Selections: []int{0},
-	}); err == nil {
-		t.Fatalf("expected divine domain to reject partial discard when hand<2")
+	}); err != nil {
+		t.Fatalf("expected divine domain to allow partial discard when hand<2, got %v", err)
 	}
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected the only hand card discarded, got hand=%d", len(p1.Hand))
+	}
+	if p1.Crystal != 0 {
+		t.Fatalf("expected crystal spent, got %d", p1.Crystal)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "priest_divine_domain_mode")
+}
+
+// 神官-4：没有手牌也能发动神圣领域。
+func TestPriestDivineDomain_AllowsEmptyHand(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = nil
+	sd := findPriestSkill(t, p1, "priest_divine_domain")
+	if !game.CanSatisfyActionSkillDiscardRequirement(p1, sd) {
+		t.Fatalf("expected divine domain discard requirement satisfied with empty hand")
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "priest_divine_domain",
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "priest_divine_domain_mode")
+}
+
+func findPriestSkill(t *testing.T, p *model.Player, id string) model.SkillDefinition {
+	t.Helper()
+	for _, sk := range p.Character.Skills {
+		if sk.ID == id {
+			return sk
+		}
+	}
+	t.Fatalf("skill %s not found", id)
+	return model.SkillDefinition{}
 }
 
 func TestPriestDivineDomain_DamageBranchTargetsAnyPlayer(t *testing.T) {
@@ -502,11 +552,16 @@ func TestPriestDivineDomain_DamageBranchTargetsAnyPlayer(t *testing.T) {
 		Selections: []int{0}, // 伤害分支
 	})
 	ctx := testutils.RequireChoiceContext(t, game, "p1", "priest_divine_domain_damage_target")
+	// 伤害分支是"目标角色"：可以指定包括自己在内的任何角色。
 	if ids, ok := ctx["target_ids"].([]string); ok {
+		hasSelf := false
 		for _, id := range ids {
 			if id == "p1" {
-				t.Fatalf("expected damage branch to exclude self target, got %v", ids)
+				hasSelf = true
 			}
+		}
+		if !hasSelf {
+			t.Fatalf("expected damage branch to include self target, got %v", ids)
 		}
 	}
 	idx := testutils.ChoiceIndexForTarget(t, ctx, "p3")
@@ -568,7 +623,8 @@ func TestPriestWaterPower_DiscardWaterThenGiveSelectedCard(t *testing.T) {
 	}
 }
 
-func TestPriestWaterPower_RequiresTransferCard(t *testing.T) {
+// 神官-1：只剩1张水系牌时可以只弃这一张发动，不交牌，双方仍各+1治疗。
+func TestPriestWaterPower_SingleWaterCardPartialActivation(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -596,8 +652,44 @@ func TestPriestWaterPower_RequiresTransferCard(t *testing.T) {
 		SkillID:    "priest_water_power",
 		TargetIDs:  []string{"p2"},
 		Selections: []int{0},
+	}); err != nil {
+		t.Fatalf("expected water power partial activation with one water card, got %v", err)
+	}
+	p2 := game.State.Players["p2"]
+	if len(p1.Hand) != 0 {
+		t.Fatalf("expected water card discarded, hand=%+v", p1.Hand)
+	}
+	if len(p2.Hand) != 0 {
+		t.Fatalf("expected no card transferred, ally hand=%+v", p2.Hand)
+	}
+	if p1.Heal != 1 || p2.Heal != 1 {
+		t.Fatalf("expected both +1 heal, got priest=%d ally=%d", p1.Heal, p2.Heal)
+	}
+}
+
+// 神官-1：手牌只有1张且不是水系时不能发动。
+func TestPriestWaterPower_RejectsSingleNonWaterCard(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire}}
+	if err := game.HandleAction(model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "priest_water_power",
+		TargetIDs:  []string{"p2"},
+		Selections: []int{0},
 	}); err == nil {
-		t.Fatalf("expected water power to require a second card to transfer")
+		t.Fatalf("expected water power rejected without water card")
 	}
 }
 
@@ -783,5 +875,137 @@ func TestPriestDivineContract_ResumesToActionSelectionAfterStartup(t *testing.T)
 	}
 	if got := game.State.CurrentTurn; got != 0 {
 		t.Fatalf("expected to remain on p1's turn, got current turn index %d", got)
+	}
+}
+
+// 神官-2：水之神力交给队友的牌不公开、也不显示成弃牌；只有弃置的水系牌按弃牌公开。
+func TestPriestWaterPower_TransferCardNotRevealedAsDiscard(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Priest", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "w1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater},
+		{ID: "t1", Name: "雷枪", Type: model.CardTypeAttack, Element: model.ElementThunder},
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSkill,
+		SkillID:    "priest_water_power",
+		TargetIDs:  []string{"p2"},
+		Selections: []int{0, 1},
+	})
+	for _, ev := range obs.Events {
+		if ev.Type != model.EventCardRevealed || ev.CardRevealed == nil || ev.CardRevealed.PlayerID != "p1" {
+			continue
+		}
+		for _, c := range ev.CardRevealed.Cards {
+			if c.ID == "t1" {
+				t.Fatalf("transferred card must not be revealed, got event %+v", ev.CardRevealed)
+			}
+		}
+	}
+	reveal := testutils.FindPublicDiscardReveal(obs, "p1")
+	if reveal == nil || len(reveal.Cards) != 1 || reveal.Cards[0].ID != "w1" {
+		t.Fatalf("expected only water card revealed as discard, got %+v", reveal)
+	}
+}
+
+// 冒险家-3：对方战绩区没有宝石时，"转移"选项置灰；误选会被拒绝，水晶与回合次数都不消耗，可改选另一项。
+func TestAdventurerStealSky_TransferDisabledWithoutEnemyGems(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	game.State.BlueGems = 0
+	game.State.BlueCrystals = 2 // 对方只有水晶：不能转移水晶
+	game.State.RedCrystals = 0  // 我方没有水晶：转换项仍可选
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "adventurer_steal_sky"})
+	testutils.RequireChoicePrompt(t, game, "p1", "adventurer_steal_sky_mode")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || len(prompt.Options) != 2 {
+		t.Fatalf("expected 2 options, got %+v", prompt)
+	}
+	if !prompt.Options[0].Disabled || prompt.Options[0].DisabledReason == "" {
+		t.Fatalf("expected transfer option disabled with reason, got %+v", prompt.Options[0])
+	}
+	if prompt.Options[1].Disabled {
+		t.Fatalf("convert option must stay selectable even without crystals, got %+v", prompt.Options[1])
+	}
+
+	crystalAfterPay := p1.Crystal
+	usedAfterPay := p1.TurnState.UsedSkillCounts["adventurer_steal_sky"]
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}); err == nil {
+		t.Fatalf("expected selecting disabled transfer to be rejected")
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "adventurer_steal_sky_mode")
+	if p1.Crystal != crystalAfterPay || p1.TurnState.UsedSkillCounts["adventurer_steal_sky"] != usedAfterPay {
+		t.Fatalf("rejected selection must not change cost/count")
+	}
+	if game.State.BlueCrystals != 2 {
+		t.Fatalf("enemy crystals must not be touched, got %d", game.State.BlueCrystals)
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	if p1.TurnState.CurrentExtraAction != model.ExtraActionAny {
+		t.Fatalf("expected extra action granted after convert with no crystals, got %q", p1.TurnState.CurrentExtraAction)
+	}
+}
+
+// 冒险家-3：我方星石已满时仍可选"转移"，视为直接弃掉对方 1 宝石。
+func TestAdventurerStealSky_TransferWhenSelfStonesFullDiscardsEnemyGem(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Adventurer", "adventurer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	game.State.RedGems = 5
+	game.State.RedCrystals = 0
+	game.State.BlueGems = 1
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "adventurer_steal_sky"})
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Options[0].Disabled {
+		t.Fatalf("transfer should be selectable when enemy has gems, got %+v", prompt)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	if game.State.BlueGems != 0 {
+		t.Fatalf("expected enemy gem removed, got %d", game.State.BlueGems)
+	}
+	if game.State.RedGems+game.State.RedCrystals != 5 {
+		t.Fatalf("expected self stones stay capped at 5, got gems=%d crystals=%d", game.State.RedGems, game.State.RedCrystals)
 	}
 }

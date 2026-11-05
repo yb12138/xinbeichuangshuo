@@ -82,6 +82,7 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
+		"css_blood_barrier_target":          types.ChoiceRouteRole("crimson_sword_spirit").WithSkill("css_blood_barrier"),
 		"css_dance_mode":                    types.ChoiceRouteRole("crimson_sword_spirit").WithSkill("css_dance"),
 		"css_rose_courtyard_pick":           types.ChoiceRouteRole("crimson_sword_spirit").WithSkill("css_rose_courtyard"),
 		"css_blood_rose_remove_heal_target": types.ChoiceRouteRole("crimson_sword_spirit").WithSkill("css_blood_rose"),

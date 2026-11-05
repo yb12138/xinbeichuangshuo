@@ -23,6 +23,8 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingAttackMiss, Priority: 300, Hook: attackMissHook, SkillID: "mb_magic_pierce"},
 			{Timing: player.TimingAttackSelectTarget, Priority: 100, Hook: attackTargetCtxHook},
 			{Timing: player.TimingPostAttackHit, Priority: 600, Hook: postAttackHitHook, SkillID: "mb_magic_pierce"},
+			{Timing: player.TimingDamageSourceDeal, Priority: 320, Hook: damageCalculateHook, SkillID: "mb_magic_pierce"},
+			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"mb_thunder_scatter": CheckThunderScatterUsability,

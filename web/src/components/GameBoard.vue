@@ -10,7 +10,7 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useUiStore } from '../stores/ui.store'
-import type { AvailableSkill, FieldCard, PlayerView, Prompt } from '../types/game'
+import type { FieldCard, PlayerView, Prompt } from '../types/game'
 import PlayerArea from './PlayerArea.vue'
 import ActionPanel from './ActionPanel.vue'
 import CardComponent from './CardComponent.vue'
@@ -31,6 +31,13 @@ import DecisionDock from './DecisionDock.vue'
 import SoundToggle from './SoundToggle.vue'
 import { characterArtSrc } from '../constants/characterArt'
 import { useInteractionController } from '../composables/useInteractionController'
+import {
+  nextSkillTargets,
+  requiredSkillDiscardCount,
+  requiresExclusiveCardSelectionBeforeTarget,
+  skillTargetBounds,
+  targetToBeReplaced,
+} from '../constants/skillFlowRules'
 import {
   hasBlazeWitchFlameElementOverride,
   skillDiscardEffectiveElement,
@@ -811,14 +818,6 @@ function isMagicBulletCard(cardIdx: number): boolean {
   return !!card && card.type === 'Magic' && card.name === '魔弹'
 }
 
-const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
-  'water_seal',
-  'fire_seal',
-  'earth_seal',
-  'wind_seal',
-  'thunder_seal',
-])
-
 function moraleDeltaLabel(delta: number): string {
   return delta > 0 ? `+${delta}` : `${delta}`
 }
@@ -1582,6 +1581,14 @@ function isPromptCounterTargetSelectable(playerId: string): boolean {
   return ids.includes(playerId)
 }
 
+/** 多目标技能已选满时，下一次点新目标会被替换掉的那个座位（加虚线提示）。 */
+const skillTargetReplaceNextId = computed(() => {
+  if (skillMode.value !== 'choosing_target' || !selectedSkill.value) return ''
+  const { max } = skillTargetBounds(selectedSkill.value)
+  if (max <= 1) return ''
+  return targetToBeReplaced(skillTargetIds.value, max)
+})
+
 function isPlayerSelected(playerId: string): boolean {
   if (skillMode.value === 'choosing_target' && skillTargetIds.value.includes(playerId)) return true
   if (currentPrompt.value?.presentation?.kind === 'target_picker' && selectedTargets.value.includes(playerId)) return true
@@ -1675,65 +1682,22 @@ function onTargetClick(playerId: string) {
       return
     }
 
+    // 已提交、等回包时锁住目标，避免改了选择却和实际发出的不一致
+    if (interruptStore.isSubmitting) return
+    // 点头像只负责选择：点已选目标 = 取消；选满后点新目标 = 替换最早选择的那个。
+    // 发动统一走选目标面板的「确认发动」按钮，避免误触直接发动。
     const skill = selectedSkill.value
-    const requiresManualConfirm = SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS.has(skill.id)
-    const fallbackMinTargets = skill.target_type >= 2 ? 1 : 0
-    const minTargets = (skill.min_targets || 0) > 0 ? (skill.min_targets || 0) : fallbackMinTargets
-    const maxTargets = (skill.max_targets || 0) > 0 ? (skill.max_targets || 0) : 1
+    const { min: minTargets, max: maxTargets } = skillTargetBounds(skill)
     const currentTargets = [...skillTargetIds.value]
-    const alreadySelected = currentTargets.includes(playerId)
-
-    if (alreadySelected) {
-      // 头像模式下：范围多目标技能通过“再次点击已选目标”来确认发动。
-      if (!requiresManualConfirm && currentTargets.length >= minTargets && currentTargets.length > 0) {
-        logTargetDebug('skill_target_confirm_by_rec_click', {
-          playerId,
-          skillId: skill.id,
-          minTargets,
-          maxTargets,
-          skillTargets: currentTargets,
-        })
-        const selections = skillDiscardHandIndexes.value.length > 0 ? [...skillDiscardHandIndexes.value] : undefined
-        actions.submitUseSkill(skill.id, currentTargets, selections, { clearSkillMode: true })
-        return
-      }
-      const nextTargets = currentTargets.filter((id) => id !== playerId)
-      interruptStore.setSkillTargetIds(nextTargets)
-      logTargetDebug('skill_target_unselected', {
-        playerId,
-        skillId: skill.id,
-        skillTargets: nextTargets,
-      })
-      return
-    }
-
-    let nextTargets = currentTargets
-    if (maxTargets > 0 && nextTargets.length >= maxTargets) {
-      nextTargets = maxTargets === 1 ? [] : nextTargets.slice(-(maxTargets - 1))
-    }
-    nextTargets = [...nextTargets, playerId]
+    const nextTargets = nextSkillTargets(currentTargets, playerId, maxTargets)
     interruptStore.setSkillTargetIds(nextTargets)
-    logTargetDebug('skill_target_selected', {
+    logTargetDebug(currentTargets.includes(playerId) ? 'skill_target_unselected' : 'skill_target_selected', {
       playerId,
       skillId: skill.id,
       minTargets,
       maxTargets,
-      requiresManualConfirm,
       skillTargets: nextTargets,
     })
-
-    const shouldAutoSubmitSingle = !requiresManualConfirm && maxTargets === 1 && nextTargets.length === 1
-    const shouldAutoSubmitExactCount = !requiresManualConfirm && minTargets > 0 && minTargets === maxTargets && nextTargets.length === maxTargets
-    if (shouldAutoSubmitSingle || shouldAutoSubmitExactCount) {
-      logTargetDebug('skill_target_auto_use', {
-        playerId,
-        skillId: skill.id,
-        minTargets,
-        maxTargets,
-      })
-      const selections = skillDiscardHandIndexes.value.length > 0 ? [...skillDiscardHandIndexes.value] : undefined
-      actions.submitUseSkill(skill.id, nextTargets, selections, { clearSkillMode: true })
-    }
     return
   }
   // 攻击/法术模式
@@ -1964,6 +1928,25 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
       }
     }
     return { selectable: true, reason: 'prompt_fraud_pick_same_element' }
+  }
+
+  // 圣洁法典等"异系牌"选择：与已选牌同系的手牌不可再选
+  if (prompt.presentation?.card_filter === 'distinct_elements') {
+    if (selectedHandIndexes.value.includes(idx)) {
+      return { selectable: true, reason: 'prompt_distinct_elements_keep_selected' }
+    }
+    const selectedElements = new Set(
+      selectedHandIndexes.value
+        .map((i) => myHand.value[i]?.element)
+        .filter((e): e is NonNullable<typeof e> => !!e)
+    )
+    if (card.element && selectedElements.has(card.element)) {
+      return {
+        selectable: false,
+        reason: 'prompt_distinct_elements_duplicate',
+        error: '需选择不同系别的牌'
+      }
+    }
   }
 
   if (prompt.presentation?.card_filter === 'plague_death_touch_element') {
@@ -2205,11 +2188,14 @@ function shouldShowEffectiveHandCardElement(): boolean {
   return prompt.choice_type === 'system_discard_cards' && !!prompt.skill_id
 }
 
+/** 技能弃牌上限：与 ActionPanel 弃牌面板同一口径（requiredSkillDiscardCount）。 */
+const selectedSkillDiscardLimit = computed(() => requiredSkillDiscardCount(selectedSkill.value, myHand.value.length))
+
 function isCardSelectableForSkillDiscard(idx: number): boolean {
   if (idx < 0 || idx >= myHand.value.length) return false
   if (!selectedSkill.value) return false
   if (skillDiscardHandIndexes.value.includes(idx)) return true
-  if (skillDiscardHandIndexes.value.length >= selectedSkill.value.cost_discards) return false
+  if (skillDiscardHandIndexes.value.length >= selectedSkillDiscardLimit.value) return false
   return cardPassesSkillDiscardRules(idx).selectable
 }
 
@@ -2253,13 +2239,6 @@ function isCardSelectableForAction(idx: number): boolean {
   }
   if (isPromptForMe.value) return promptCardSelectionState(idx).selectable
   return isMyTurn.value
-}
-
-function requiresExclusiveCardSelectionBeforeTarget(skill?: AvailableSkill | null): boolean {
-  return !!skill &&
-    !!skill.require_exclusive &&
-    (skill.target_type ?? 0) !== 0 &&
-    (skill.cost_discards ?? 0) === 0
 }
 
 function togglePromptSelectedCard(idx: number) {
@@ -2323,8 +2302,9 @@ function onCardClick(idx: number) {
       return
     }
     // 检查是否已选满
-    if (!skillDiscardHandIndexes.value.includes(idx) && skillDiscardHandIndexes.value.length >= skill.cost_discards) {
-      interruptStore.showError(`最多选择 ${skill.cost_discards} 张牌`)
+    const limit = requiredSkillDiscardCount(skill, myHand.value.length)
+    if (!skillDiscardHandIndexes.value.includes(idx) && skillDiscardHandIndexes.value.length >= limit) {
+      interruptStore.showError(`最多选择 ${limit} 张牌`)
       return
     }
     interruptStore.toggleSkillDiscardHandIndex(idx)
@@ -2836,7 +2816,8 @@ const fighterHundredDragonByPlayer = computed(() => {
                     'battle-table-seat--me': p.id === myPlayerId,
                     'battle-table-seat--active': p.is_active,
                     'battle-table-seat--previewing': hoveredBattleSeatPlayerId === p.id,
-                    'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id)
+                    'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id),
+                    'battle-table-seat--replace-next': skillTargetReplaceNextId === p.id
                   }
                 ]"
                 :data-player-anchor="p.id"
@@ -5917,6 +5898,16 @@ const fighterHundredDragonByPlayer = computed(() => {
 .guide-hint-leave-to {
   opacity: 0;
   transform: translateY(8px);
+}
+
+.battle-table-seat--replace-next::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 16px;
+  border: 1px dashed rgba(240, 160, 110, 0.85);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .target-guide-pulse::after {

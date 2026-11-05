@@ -18,6 +18,7 @@ func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 		return player.TimingHookResult{}
 	}
 	p.TurnState.SkillFlowState["mb_magic_pierce_pending"] = 0
+	discardMagicPierceDamageBonus(rt, p)
 	rt.AddPendingDamage(model.PendingDamage{
 		SourceID:   ctx.SourceID,
 		TargetID:   ctx.TargetID,

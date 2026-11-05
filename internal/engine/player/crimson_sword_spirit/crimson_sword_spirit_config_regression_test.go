@@ -71,16 +71,22 @@ func TestCrimsonBloodRose_StepByStepTargetSelection(t *testing.T) {
 		t.Fatalf("expected ally hint in message, got: %s", prompt.Message)
 	}
 	// 检查阵营约束提示
-	if len(prompt.EffectHints) == 0 || !strings.Contains(prompt.EffectHints[0], "我方角色") {
+	if len(prompt.EffectHints) == 0 || !strings.Contains(prompt.EffectHints[0], "队友") {
 		t.Fatalf("expected camp constraint hint, got: %v", prompt.EffectHints)
 	}
 
-	// 选择获得治疗目标（p3 队友）
+	// 队友不含自己：候选只有 p3
+	if len(prompt.Options) != 1 || prompt.Options[0].TargetID != "p3" {
+		t.Fatalf("expected only ally p3 (not self) as gain-heal target, got %+v", prompt.Options)
+	}
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{0}, // 第一个队友选项（p1 或 p3）
+		Selections: []int{0},
 	})
+	if p3.Heal != 1 || p1.Heal != 0 {
+		t.Fatalf("expected ally p3 +1 heal and self unchanged, got p3=%d p1=%d", p3.Heal, p1.Heal)
+	}
 
 	// 验证效果
 	if p1.Tokens["css_blood"] != 0 {
@@ -94,7 +100,7 @@ func TestCrimsonBloodRose_StepByStepTargetSelection(t *testing.T) {
 	}
 }
 
-func TestCrimsonBloodRose_SecondTargetMustBeAlly(t *testing.T) {
+func TestCrimsonBloodRose_SecondTargetExcludesSelf(t *testing.T) {
 	g := engine.NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -104,39 +110,38 @@ func TestCrimsonBloodRose_SecondTargetMustBeAlly(t *testing.T) {
 	}
 
 	p1 := g.State.Players["p1"]
-	_ = g.State.Players["p2"] // p2 存在但测试中不直接使用
+	p2 := g.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Tokens["css_blood"] = 2
+	p2.Heal = 2
 	g.State.CurrentTurn = 0
 	g.State.TurnStage = model.TurnStageActionExecution
 
-	// 发动血染蔷薇
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:  "p1",
 		Type:      model.CmdSkill,
 		SkillID:   "css_blood_rose",
 		TargetIDs: nil,
 	})
-
 	// 选择移除治疗目标（p2 敌方）
 	testutils.MustHandleAction(t, g, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
-		Selections: []int{1}, // p2
+		Selections: []int{1},
 	})
 
-	// 第二步的目标列表应该只有队友（p1）
-	// 如果没有队友可选，流程应该报错
-	prompt := g.BuildPendingInterruptPrompt()
-	if prompt == nil {
-		// 只有一个玩家（自己）的情况下，治疗目标应该默认为自己
-		// 或者应该有明确的提示
-		t.Fatalf("expected second step prompt even when no ally available")
+	// 没有队友（自己不算）：不再弹出队友选择，直接结算其余效果，自己不 +1 治疗。
+	if ct := testutils.ChoiceTypeOfInterrupt(g.State.PendingInterrupt); ct == "css_blood_rose_gain_heal_target" {
+		t.Fatalf("expected no gain-heal prompt when there is no teammate")
 	}
-
-	// 验证只有自己作为可选队友
-	if len(prompt.Options) != 1 || prompt.Options[0].Label != p1.Name {
-		t.Logf("step 2 options: %+v (expected only p1)", prompt.Options)
+	if p1.Heal != 0 {
+		t.Fatalf("expected self not to gain heal from blood rose, got %d", p1.Heal)
+	}
+	if p2.Heal != 0 {
+		t.Fatalf("expected remove-heal target lose 2 heal, got %d", p2.Heal)
+	}
+	if p1.Tokens["css_blood"] != 0 {
+		t.Fatalf("expected blood rose spend 2 blood, got %d", p1.Tokens["css_blood"])
 	}
 }

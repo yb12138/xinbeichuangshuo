@@ -534,7 +534,7 @@ var actionTokenDisplayNames = map[string]string{
 	"hb_faith":                        "信仰",
 	"hero_anger":                      "怒气",
 	"hero_exhaustion_release_pending": "疲劳解除",
-	"hero_wisdom":                     "智慧",
+	"hero_wisdom":                     "知性",
 	"hom_magic_rune":                  "魔纹",
 	"hom_war_rune":                    "战纹",
 	"judgment":                        "审判",

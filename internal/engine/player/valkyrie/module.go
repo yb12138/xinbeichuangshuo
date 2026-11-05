@@ -35,8 +35,10 @@ func SkillEntries() []player.SkillEntry {
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"valkyrie_heroic_discard_card":   types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_heroic_summon"),
+		"valkyrie_heroic_heal_target":    types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_heroic_summon"),
 		"valkyrie_heroic_summon_pick":    types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_heroic_summon"),
 		"valkyrie_military_glory_mode":   types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_military_glory"),
+		"valkyrie_military_glory_pay":    types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_military_glory"),
 		"valkyrie_military_glory_target": types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_military_glory"),
 		"valkyrie_military_glory_x":      types.ChoiceRouteRole("valkyrie").WithSkill("valkyrie_military_glory"),
 	}

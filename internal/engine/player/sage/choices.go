@@ -153,31 +153,6 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Max:          len(player.Hand),
 			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
 		}
-	case "sage_holy_target_count":
-		flow, err := model.RequirePromptFlow(data, sageHolyFlowID, "贤者选择")
-		if err != nil {
-			return nil
-		}
-		maxCount := flow.Selection(sageHolyStepCards).Count - 2
-		if maxCount < 1 {
-			maxCount = 1
-		}
-		options := make([]model.PromptOption, 0, maxCount)
-		for count := 1; count <= maxCount; count++ {
-			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", count-1),
-				Label: fmt.Sprintf("选择%d名角色", count),
-			})
-		}
-		return &model.Prompt{
-			Type:         model.PromptConfirm,
-			PlayerID:     playerID,
-			Message:      "【圣洁法典】请选择要获得治疗的角色数量：",
-			Options:      options,
-			Min:          1,
-			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
-		}
 	case "sage_holy_targets":
 		allTargetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
 		flow, err := model.RequirePromptFlow(data, sageHolyFlowID, "贤者选择")
@@ -284,19 +259,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			Element:       string(chosenElement),
 		})
 		return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageMagicReboundFlowRuntime, flow, sageMagicReboundStepCards)
-
-	case "sage_holy_target_count":
-		targetCount := selectionIndex + 1
-		flow, err := model.RequirePromptFlow(ctxData, sageHolyFlowID, "贤者选择")
-		if err != nil {
-			return true, err
-		}
-		maxCount := flow.Selection(sageHolyStepCards).Count - 2
-		if targetCount < 1 || targetCount > maxCount {
-			return true, fmt.Errorf("无效的治疗目标数量")
-		}
-		flow.PutSelection(sageHolyStepTarget, model.PromptFlowSelection{Count: targetCount})
-		return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageHolyFlowRuntime, flow, sageHolyStepTarget)
 
 	case "sage_holy_targets":
 		return resolveHolyCodexTargets(rt, ctxData, []int{selectionIndex})
@@ -628,8 +590,10 @@ func availableElementsByMinCount(player *model.Player, minCount int) []string {
 	return out
 }
 
+// prependPendingDamages 将伤害整体插到队首，并保持 pending 内的原有顺序
+// （pending[0] 最先结算）。逐个 AddPendingDamageFront 会颠倒顺序，故倒序插入。
 func prependPendingDamages(rt engineplayer.ChoiceRuntime, pending []model.PendingDamage) {
-	for _, pd := range pending {
-		rt.AddPendingDamageFront(pd)
+	for i := len(pending) - 1; i >= 0; i-- {
+		rt.AddPendingDamageFront(pending[i])
 	}
 }

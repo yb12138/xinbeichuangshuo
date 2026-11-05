@@ -68,7 +68,8 @@ func (h *BlazeWitchHeavenfireCleaveHandler) Execute(ctx *model.Context) error {
 	damage := 3
 	userCampMorale := ctx.Game.GetCampMorale(string(ctx.User.Camp))
 	targetCampMorale := ctx.Game.GetCampMorale(string(ctx.Target.Camp))
-	if userCampMorale < targetCampMorale {
+	// 只有目标是对手、且我方士气低于对方时才 +1（两段都加）；对我方角色发动固定 3 点。
+	if ctx.Target.Camp != ctx.User.Camp && userCampMorale < targetCampMorale {
 		damage++
 	}
 	if !engineplayer.HasForm(ctx.User, model.FormBlazeWitchFlame) {
@@ -112,9 +113,9 @@ func (h *BlazeWitchWitchWrathHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":   "bw_witch_wrath_draw",
-			"user_id":       ctx.User.ID,
-			"waiting_phase": model.TurnStageActionStart,
+			"choice_type":  "bw_witch_wrath_draw",
+			"user_id":      ctx.User.ID,
+			"resume_phase": model.TurnStageActionStart,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [魔女之怒]，进入烈焰形态并选择摸牌数量", ctx.User.Name))

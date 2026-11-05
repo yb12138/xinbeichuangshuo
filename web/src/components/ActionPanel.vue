@@ -14,6 +14,14 @@ import {
     skillDiscardGuideText as skillDiscardGuideTextById,
     skillSpecificDisabledReason,
 } from '../constants/skillDisplayRules'
+import {
+    requiredSkillDiscardCount,
+    requiresExclusiveCardSelectionBeforeTarget,
+    skillTargetBounds,
+    targetToBeReplaced,
+} from '../constants/skillFlowRules'
+import { cannotBeActiveAttackTarget } from '../constants/skillTargetRules'
+import { skillTokenShortfallReason } from '../constants/skillTokenRules'
 import type { AvailableSkill, PromptOption, PlayerView } from '../types/game'
 import { parseActionHubNotice } from '../constants/actionHubNotice'
 import { cardArtSrc } from '../constants/cardArt'
@@ -106,6 +114,8 @@ const SPECIAL_ACTION_CATALOG: SpecialActionMeta[] = [
     },
 ]
 const isMyTurn = computed(() => snapshotStore.currentPlayer === sessionStore.myPlayerId)
+// 服务端下发：行动阶段不能使用法术牌（魔枪黑暗束缚、魔剑士暗影抗拒等）
+const cannotCastMagic = computed(() => !!myPlayer.value?.cannot_cast_magic)
 /** 等待面板文案："封印师（测试玩家4）"；拿不到角色名时只显示玩家名 */
 function seatLabel(playerId?: string): string {
     if (!playerId) return ''
@@ -124,6 +134,9 @@ const isIdleMainTurnPanel = computed(() =>
     isMyTurn.value &&
     isActionSelectionSnapshot.value &&
     !prompt.value &&
+    // 等待回包、或我的提示正被战斗链播放压着时，不把攻击/法术/特殊按钮重新摆出来
+    !interruptStore.isSubmitting &&
+    !interruptStore.promptGated &&
     interruptStore.actionMode === 'none' &&
     interruptStore.skillMode === 'none'
 )
@@ -159,7 +172,14 @@ const hasSkillSlot = computed(() => {
     return typeof document !== 'undefined' && !!document.getElementById('decision-skill-slot')
 })
 
+/** 提交中 / 提示被压住：行动枢纽位置改为显示一条轻量状态。 */
+const isPendingTurnPanel = computed(() =>
+    interruptStore.promptGated ||
+    (interruptStore.isSubmitting && (!prompt.value || isActionSelectionPrompt.value))
+)
+
 const isActionHubContext = computed(() =>
+    !interruptStore.isSubmitting &&
     (isIdleMainTurnPanel.value || isActionSelectionPrompt.value) &&
     interruptStore.actionMode === 'none' &&
     interruptStore.skillMode === 'none'
@@ -541,21 +561,13 @@ function isStealthBlockedTarget(playerId: string): boolean {
     if (interruptStore.actionMode !== 'attack') return false
     if (targetablePlayers.value.some((p) => p.id === playerId)) return false
     const p = snapshotStore.players[playerId]
-    if (!p || !Array.isArray(p.field)) return false
-    return p.field.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
+    return !!p && cannotBeActiveAttackTarget(p)
 }
 
 const hasStealthBlockedAttackTarget = computed(() =>
     attackTargetCandidates.value.some((p) => isStealthBlockedTarget(p.id))
 )
 
-const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
-    'water_seal',
-    'fire_seal',
-    'earth_seal',
-    'wind_seal',
-    'thunder_seal',
-])
 const SKILL_SUBMIT_BEFORE_TARGET_IDS = new Set([
     'mb_thunder_scatter',
 ])
@@ -571,34 +583,69 @@ const SKILL_BACKEND_PROMPT_FLOW_IDS = new Set([
     'mb_thunder_scatter',
     'bd_dissonance_chord',
 ])
-const ELEMENTALIST_EXCLUSIVE_PROMPT_FLOW_SKILL_IDS = new Set([
-    'elementalist_thunder_strike',
-    'elementalist_freeze',
-    'elementalist_wind_blade',
-    'elementalist_meteor',
-    'elementalist_fireball',
-])
-const isManualTargetConfirmSkillFlow = computed(() => {
-    const skillId = interruptStore.selectedSkill?.id
-    if (!skillId) return false
-    return SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS.has(skillId)
+const selectedSkillTargetBounds = computed(() => {
+    const skill = interruptStore.selectedSkill
+    return skill ? skillTargetBounds(skill) : { min: 0, max: 1 }
 })
 
-function requiresExclusiveCardSelectionBeforeTarget(skill?: AvailableSkill | null): boolean {
-    return !!skill &&
-        !!skill.require_exclusive &&
-        (skill.target_type ?? 0) !== 0 &&
-        ((skill.cost_discards ?? 0) === 0 || ELEMENTALIST_EXCLUSIVE_PROMPT_FLOW_SKILL_IDS.has(skill.id))
+/** 已选满时，再点新目标会被替换掉的那个（最早选择的）的名字。 */
+const skillTargetReplaceName = computed(() => {
+    const max = selectedSkillTargetBounds.value.max
+    if (max <= 1) return ''
+    const id = targetToBeReplaced(interruptStore.skillTargetIds, max)
+    return id ? (snapshotStore.players[id]?.name || id) : ''
+})
+
+const skillTargetHintText = computed(() => {
+    const { min, max } = selectedSkillTargetBounds.value
+    if (max <= 1) return '点击角色头像选择目标（再点一次取消），然后点击「确认发动」'
+    const range = min === max ? `${max} 个` : `${min}-${max} 个`
+    return `点击角色头像选择 ${range}目标（点已选目标可取消），然后点击「确认发动」`
+})
+
+/** 选目标前是否经过了弃牌 / 选牌步骤（决定是否显示「上一步」）。 */
+const skillTargetPrevStep = computed<'choosing_discard' | 'choosing_exclusive' | ''>(() => {
+    const skill = interruptStore.selectedSkill
+    if (!skill) return ''
+    if (requiresExclusiveCardSelectionBeforeTarget(skill)) return 'choosing_exclusive'
+    if (requiredDiscardCount(skill) > 0) return 'choosing_discard'
+    return ''
+})
+
+/** 弃牌后是否还要选目标；否则弃牌面板的下一步直接是「确认发动」。 */
+function discardStepLeadsToTarget(skill: AvailableSkill): boolean {
+    if (SKILL_SUBMIT_BEFORE_TARGET_IDS.has(skill.id)) return false
+    return skill.target_type !== 0 && skill.target_type !== 1
+}
+
+const canConfirmDiscardStep = computed(() => {
+    const skill = interruptStore.selectedSkill
+    if (!skill || interruptStore.isSubmitting) return false
+    const required = requiredDiscardCount(skill)
+    return interruptStore.skillDiscardHandIndexes.length >= required
+})
+
+function confirmDiscardStep() {
+    const skill = interruptStore.selectedSkill
+    if (!skill) return
+    if (!canConfirmDiscardStep.value) {
+        interruptStore.showError(`请先选择 ${requiredDiscardCount(skill)} 张弃牌`)
+        return
+    }
+    proceedAfterDiscard(skill)
+}
+
+/** 选目标面板「上一步」：退回弃牌 / 选牌步骤，保留已选的牌，清掉已选目标。 */
+function backFromSkillTarget() {
+    const prev = skillTargetPrevStep.value
+    if (!prev) return
+    interruptStore.setSkillTargetIds([])
+    interruptStore.setSkillMode(prev)
 }
 
 function isBackendPromptFlowSkill(skill?: AvailableSkill | null): boolean {
     if (!skill) return false
     return isServerPublishedAvailableSkill(skill) && SKILL_BACKEND_PROMPT_FLOW_IDS.has(skill.id)
-}
-
-function isElementalistExclusivePromptFlowSkill(skill?: AvailableSkill | null): boolean {
-    if (!skill) return false
-    return isServerPublishedAvailableSkill(skill) && ELEMENTALIST_EXCLUSIVE_PROMPT_FLOW_SKILL_IDS.has(skill.id)
 }
 
 function isSelectedExclusiveCardValid(skill?: AvailableSkill | null): boolean {
@@ -641,12 +688,8 @@ function selectSkill(skill: AvailableSkill) {
     // A few skills intentionally start a backend prompt flow before costs,
     // branches, or targets are known. Regular server-published target skills
     // still use the shared client-side target picker below.
-    if (isElementalistExclusivePromptFlowSkill(skill)) {
-        interruptStore.setSkillMode('choosing_exclusive')
-        return
-    }
-    if (isBackendPromptFlowSkill(skill)) {
-        actions.submitUseSkill(skill.id, [], undefined, { clearSkillMode: true })
+    if (isBackendPromptFlowSkill(skill) && !requiresExclusiveCardSelectionBeforeTarget(skill)) {
+        actions.submitUseSkill(skill.id, [], undefined)
         return
     }
     if (requiresExclusiveCardSelectionBeforeTarget(skill)) {
@@ -700,38 +743,6 @@ function hasOnmyojiSameFactionPair(): boolean {
     return false
 }
 
-type SkillTokenRule = {
-    token: string
-    min: number
-    label: string
-}
-
-const SKILL_TOKEN_RULES: Record<string, SkillTokenRule[]> = {
-    crk_killing_feast: [{ token: 'crk_blood_mark', min: 1, label: '血印' }],
-    crk_crimson_cross: [{ token: 'crk_blood_mark', min: 1, label: '血印' }],
-    css_blood_thorns: [{ token: 'css_blood', min: 1, label: '鲜血' }],
-    css_crimson_flash: [{ token: 'css_blood', min: 1, label: '鲜血' }],
-    css_blood_rose: [{ token: 'css_blood', min: 2, label: '鲜血' }],
-    css_blood_barrier: [{ token: 'css_blood', min: 1, label: '鲜血' }],
-    hom_rage_suppress: [{ token: 'hom_war_rune', min: 1, label: '战纹' }],
-    hom_rune_smash: [{ token: 'hom_magic_rune', min: 1, label: '魔纹' }],
-    hom_glyph_fusion: [{ token: 'hom_magic_rune', min: 2, label: '魔纹' }],
-    hero_roar: [{ token: 'hero_anger', min: 1, label: '怒气' }],
-    hero_calm_mind: [{ token: 'hero_wisdom', min: 4, label: '知性' }],
-    hero_taunt: [{ token: 'hero_anger', min: 1, label: '怒气' }],
-    fighter_hundred_dragon: [{ token: 'fighter_qi', min: 3, label: '斗气' }],
-    fighter_burst_crash: [{ token: 'fighter_qi', min: 1, label: '斗气' }],
-    ss_soul_mirror: [{ token: 'ss_yellow_soul', min: 2, label: '黄色灵魂' }],
-    ss_soul_blast: [{ token: 'ss_yellow_soul', min: 3, label: '黄色灵魂' }],
-    ss_soul_grant: [{ token: 'ss_blue_soul', min: 3, label: '蓝色灵魂' }],
-    ss_soul_link: [
-        { token: 'ss_yellow_soul', min: 1, label: '黄色灵魂' },
-        { token: 'ss_blue_soul', min: 1, label: '蓝色灵魂' },
-    ],
-    arbiter_balance: [{ token: 'judgment', min: 1, label: '审判' }],
-    bw_heavenfire_cleave: [{ token: 'bw_rebirth', min: 1, label: '重生' }],
-}
-
 function getMyTokenValue(token: string): number {
     return myPlayer.value?.tokens?.[token] ?? 0
 }
@@ -741,13 +752,8 @@ function hasMyForm(form: string): boolean {
 }
 
 function skillTokenDisabledReason(skill: AvailableSkill): string {
-    const rules = SKILL_TOKEN_RULES[skill.id] || []
-    for (const rule of rules) {
-        const cur = getMyTokenValue(rule.token)
-        if (cur < rule.min) {
-            return `${rule.label}不足（需要 ${rule.min}，当前 ${cur}）。`
-        }
-    }
+    const tokenShort = skillTokenShortfallReason(skill.id, myPlayer.value?.tokens)
+    if (tokenShort) return tokenShort
     if (skill.id === 'hb_radiant_descent') {
         const form = hasMyForm('holy_bow_holy_glory_form')
         const faith = getMyTokenValue('hb_faith')
@@ -874,19 +880,19 @@ function proceedAfterDiscard(skill: AvailableSkill) {
     // 魔弓【雷光散射】先移除雷系充能，再根据额外移除数决定是否选择目标。
     if (SKILL_SUBMIT_BEFORE_TARGET_IDS.has(skill.id)) {
         const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
-        actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
+        actions.submitUseSkill(skill.id, [], selections)
         return
     }
     // target_type=0 (None): 无需目标，直接发动
     if (skill.target_type === 0) {
         const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
-        actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
+        actions.submitUseSkill(skill.id, [], selections)
         return
     }
     // target_type=1 (Self): 自动选中自己并发动
     if (skill.target_type === 1) {
         const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
-        actions.submitUseSkill(skill.id, [sessionStore.myPlayerId], selections, { clearSkillMode: true })
+        actions.submitUseSkill(skill.id, [sessionStore.myPlayerId], selections)
         return
     }
     interruptStore.setSkillMode('choosing_target')
@@ -895,9 +901,9 @@ function proceedAfterDiscard(skill: AvailableSkill) {
 function confirmSkill() {
     const skill = interruptStore.selectedSkill
     if (!skill) return
+    if (interruptStore.isSubmitting) return
     if (!canConfirmSkill.value) {
-        const minTargets = (skill.min_targets || 0) > 0 ? (skill.min_targets || 0) : (skill.target_type >= 2 ? 1 : 0)
-        const maxTargets = (skill.max_targets || 0) > 0 ? (skill.max_targets || 0) : 1
+        const { min: minTargets, max: maxTargets } = skillTargetBounds(skill)
         if (minTargets === maxTargets) {
             interruptStore.showError(`请先选择 ${minTargets} 个目标`)
         } else {
@@ -906,7 +912,7 @@ function confirmSkill() {
         return
     }
     const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
-    actions.submitUseSkill(skill.id, [...interruptStore.skillTargetIds], selections, { clearSkillMode: true })
+    actions.submitUseSkill(skill.id, [...interruptStore.skillTargetIds], selections)
 }
 
 function confirmExclusiveSkillSelection() {
@@ -916,26 +922,14 @@ function confirmExclusiveSkillSelection() {
       interruptStore.showError(`请先选择对应的「${skill.title}」独有技手牌`)
       return
     }
-    if (isElementalistExclusivePromptFlowSkill(skill)) {
+    // 需要先选独有技牌、再交给后端分步流程的技能（目前只有元素师的 5 个独有技）。
+    if (isBackendPromptFlowSkill(skill)) {
         const selections = interruptStore.skillDiscardHandIndexes.length > 0 ? [...interruptStore.skillDiscardHandIndexes] : undefined
-        actions.submitUseSkill(skill.id, [], selections, { clearSkillMode: true })
+        actions.submitUseSkill(skill.id, [], selections)
         return
     }
     interruptStore.setSkillMode('choosing_target')
 }
-
-watch(
-    () => [interruptStore.skillMode, interruptStore.selectedSkill?.id, interruptStore.skillDiscardHandIndexes.length] as const,
-    ([mode, _skillId, selectedCount]) => {
-        if (mode !== 'choosing_discard') return
-        const skill = interruptStore.selectedSkill
-        if (!skill) return
-        const required = requiredDiscardCount(skill)
-        if (required > 0 && selectedCount >= required) {
-            proceedAfterDiscard(skill)
-        }
-    }
-)
 
 function skillCostText(skill: AvailableSkill): string {
     const override = skillCostTextOverride(skill.id)
@@ -1119,16 +1113,7 @@ function applyDebugDiscard() {
 }
 
 function requiredDiscardCount(skill: AvailableSkill): number {
-    if (!skill || skill.cost_discards <= 0) return 0
-    // 神官-神圣领域：手牌不足2时，改为弃全部手牌。
-    if (skill.id === 'priest_divine_domain') {
-        return Math.min(skill.cost_discards, myHand.value.length)
-    }
-    // 神官-水之神力：若弃完水系后无剩余手牌，则仅需弃1张水系牌。
-    if (skill.id === 'priest_water_power') {
-        return Math.min(skill.cost_discards, myHand.value.length)
-    }
-    return skill.cost_discards
+    return requiredSkillDiscardCount(skill, myHand.value.length)
 }
 
 function skillDiscardGuideText(skill: AvailableSkill): string {
@@ -1185,7 +1170,15 @@ function elementName(el: string): string {
                 <div class="dock-bd">
                     
                     <div class="dock-medal-row">
-                        <button type="button" class="dock-medal" title="打出法术牌" @click="interruptStore.setMagicSubChoice('card')">
+                        <button
+                            type="button"
+                            class="dock-medal"
+                            data-testid="action-magic-card"
+                            :disabled="cannotCastMagic"
+                            :aria-disabled="cannotCastMagic"
+                            :title="cannotCastMagic ? '你的行动阶段不能使用法术牌' : '打出法术牌'"
+                            @click="!cannotCastMagic && interruptStore.setMagicSubChoice('card')"
+                        >
                             <span class="dock-medal-ring">
                                 <img class="dock-medal-ico dock-medal-ico--img" src="/assets/icons/card.webp" alt="" aria-hidden="true" draggable="false" />
                             </span>
@@ -1361,10 +1354,13 @@ function elementName(el: string): string {
                         <img class="dock-ico dock-ico--img" src="/assets/icons/skill.webp" alt="" aria-hidden="true" draggable="false" />
                         <span class="dock-title">{{ interruptStore.selectedSkill.title }}</span>
                     </span>
-                    <nav class="dock-steps" aria-hidden="true">
+                    <nav v-if="discardStepLeadsToTarget(interruptStore.selectedSkill)" class="dock-steps" aria-hidden="true">
                         <span class="on">① 弃牌</span>
                         <i class="dock-steps-sep">›</i>
                         <span>② 选目标</span>
+                    </nav>
+                    <nav v-else class="dock-steps" aria-hidden="true">
+                        <span class="on">弃牌</span>
                     </nav>
                 </header>
                 <div class="dock-bd">
@@ -1379,11 +1375,21 @@ function elementName(el: string): string {
                             :class="{ 'dock-dot--on': n <= interruptStore.skillDiscardHandIndexes.length }"
                         />
                     </div>
-                    <div class="dock-hint dock-hint--sm">请在下方手牌区点击选择，选满后自动进入下一步</div>
+                    <div class="dock-hint dock-hint--sm">
+                        请在下方手牌区点击选择（再点一次取消），选好后点击「{{ discardStepLeadsToTarget(interruptStore.selectedSkill) ? '下一步' : '确认发动' }}」
+                    </div>
                 </div>
                 <footer class="dock-ft">
                     <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
                     <span class="dock-ft-center">已选 {{ interruptStore.skillDiscardHandIndexes.length }} / {{ requiredDiscardCount(interruptStore.selectedSkill) }}</span>
+                    <button
+                        type="button"
+                        class="dock-btn dock-btn--primary"
+                        :disabled="!canConfirmDiscardStep"
+                        data-testid="skill-discard-confirm-btn"
+                        :title="discardStepLeadsToTarget(interruptStore.selectedSkill) ? '下一步' : '确认发动'"
+                        @click="confirmDiscardStep"
+                    ><img class="dock-btn-ico" src="/assets/icons/confirm.webp" alt="" aria-hidden="true" />{{ discardStepLeadsToTarget(interruptStore.selectedSkill) ? '下一步' : '确认发动' }}</button>
                 </footer>
             </div>
 
@@ -1408,19 +1414,7 @@ function elementName(el: string): string {
                 <div class="dock-bd">
                     <p v-if="interruptStore.selectedSkill.description" class="dock-hint dock-hint--desc">{{ interruptStore.selectedSkill.description }}</p>
                     <div class="dock-hint">
-                        <template v-if="isManualTargetConfirmSkillFlow">
-                            点击角色头像选择目标，然后点击“确认发动”
-                        </template>
-                        <template v-else>
-                            请直接点击角色头像选择目标并自动发动
-                            <span v-if="(interruptStore.selectedSkill.max_targets || 1) === 1">（单目标：点击即发动）</span>
-                            <span v-else-if="(interruptStore.selectedSkill.min_targets || 0) >= (interruptStore.selectedSkill.max_targets || 1)">
-                                （选满 {{ interruptStore.selectedSkill.max_targets || 1 }} 个目标后自动发动）
-                            </span>
-                            <span v-else>
-                                （多目标：先点头像选择，再点击任一已选头像确认发动）
-                            </span>
-                        </template>
+                        {{ skillTargetHintText }}
                     </div>
                     <div class="dock-progress" aria-hidden="true">
                         <i
@@ -1434,19 +1428,29 @@ function elementName(el: string): string {
                         已选目标：
                         {{ interruptStore.skillTargetIds.map((id) => snapshotStore.players[id]?.name || id).join('、') }}
                     </div>
+                    <div v-if="skillTargetReplaceName" class="dock-hint dock-hint--sm" data-testid="skill-target-replace-hint">
+                        已选满，再点新目标将替换最早选择的「{{ skillTargetReplaceName }}」
+                    </div>
                 </div>
                 <footer class="dock-ft">
                     <button type="button" class="dock-btn dock-btn--ghost" title="取消" @click="interruptStore.clearSkillMode()"><img class="dock-btn-ico" src="/assets/icons/cancel.webp" alt="" aria-hidden="true" />取消</button>
                     <button
-                        v-if="isManualTargetConfirmSkillFlow"
+                        v-if="skillTargetPrevStep"
+                        type="button"
+                        class="dock-btn dock-btn--ghost"
+                        data-testid="skill-target-back-btn"
+                        title="上一步"
+                        :disabled="interruptStore.isSubmitting"
+                        @click="backFromSkillTarget()"
+                    >上一步</button>
+                    <button
                         type="button"
                         class="dock-btn dock-btn--primary"
-                        :disabled="!canConfirmSkill"
+                        :disabled="!canConfirmSkill || interruptStore.isSubmitting"
+                        data-testid="skill-target-confirm-btn"
                         title="确认发动"
                         @click="confirmSkill()"
-                    >
-                        确认发动 ✓
-                    </button>
+                    ><img class="dock-btn-ico" src="/assets/icons/confirm.webp" alt="" aria-hidden="true" />{{ interruptStore.isSubmitting ? '发动中…' : '确认发动' }}</button>
                 </footer>
             </div>
 
@@ -1459,6 +1463,14 @@ function elementName(el: string): string {
                 </div>
             </div>
         </template>
+
+        <!-- 已提交、等回包 / 我的提示被战斗链播放压住：不显示行动枢纽，只给一条轻量状态 -->
+        <div v-else-if="isPendingTurnPanel" class="dock-panel dock-panel--waiting" data-testid="dock-pending-panel">
+            <div class="dock-bd dock-bd--deferred">
+                <img class="dock-ico dock-ico--img" src="/assets/icons/waiting.webp" alt="" aria-hidden="true" draggable="false" />
+                <div class="dock-hint" role="status">{{ interruptStore.promptGated ? '战斗结算中，即将轮到你操作' : '已提交，等待服务器结算…' }}</div>
+            </div>
+        </div>
 
         <div v-else-if="interruptStore.waitingFor && !prompt" class="dock-panel dock-panel--waiting">
             <i class="dock-corner dock-corner--tl" aria-hidden="true" />

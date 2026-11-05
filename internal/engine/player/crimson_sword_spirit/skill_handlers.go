@@ -4,7 +4,6 @@ package crimson_sword_spirit
 
 import (
 	"fmt"
-	"strings"
 
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
@@ -118,19 +117,27 @@ func (h *CrimsonBloodBarrierHandler) Execute(ctx *model.Context) error {
 	if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil && *ctx.EventCtx.DamageVal > 0 {
 		*ctx.EventCtx.DamageVal--
 	}
-	sourceID := ""
-	if ctx.EventCtx != nil {
-		sourceID = strings.TrimSpace(ctx.EventCtx.SourceID)
+	// 费用与减伤在发动时立即生效；反伤目标为由血色剑灵指定的任意一名对手。
+	enemyIDs := make([]string, 0, len(ctx.Game.GetAllPlayers()))
+	for _, p := range ctx.Game.GetAllPlayers() {
+		if p != nil && p.Camp != ctx.User.Camp {
+			enemyIDs = append(enemyIDs, p.ID)
+		}
 	}
-	if sourceID != "" && sourceID != ctx.User.ID {
-		ctx.Game.AddPendingDamage(model.PendingDamage{
-			SourceID:   ctx.User.ID,
-			TargetID:   sourceID,
-			Damage:     1,
-			DamageType: model.MagicAttack,
-		})
+	if len(enemyIDs) == 0 {
+		ctx.Game.Log(fmt.Sprintf("%s 发动 [血气屏障]，本次法术伤害-1（无可选对手，跳过反伤）", ctx.User.Name))
+		return nil
 	}
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [血气屏障]，本次法术伤害-1，并对伤害来源造成1点法术伤害", ctx.User.Name))
+	ctx.Game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: ctx.User.ID,
+		Context: map[string]interface{}{
+			"choice_type": "css_blood_barrier_target",
+			"user_id":     ctx.User.ID,
+			"target_ids":  enemyIDs,
+		},
+	})
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [血气屏障]，本次法术伤害-1，请选择一名对手承受1点法术伤害", ctx.User.Name))
 	return nil
 }
 

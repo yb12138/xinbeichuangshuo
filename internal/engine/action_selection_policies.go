@@ -190,7 +190,7 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		}
 
 		currentEnergy := player.Gem + player.Crystal
-		if totalStones > 0 && currentEnergy < e.getPlayerEnergyCap(player) {
+		if totalStones > 0 && (currentEnergy < e.getPlayerEnergyCap(player) || e.canExtractAtFullEnergy(player)) {
 			state.specialOptions = append(state.specialOptions, model.PromptOption{ID: "extract", Label: "提炼"})
 		}
 
@@ -371,4 +371,13 @@ func (e *GameEngine) validateActionSelectionRule(player *model.Player, act model
 	default:
 		return nil
 	}
+}
+
+// canExtractAtFullEnergy 自身能量已满时，角色规则是否仍允许提炼（如冒险者天堂交给队友）。
+func (e *GameEngine) canExtractAtFullEnergy(player *model.Player) bool {
+	if player == nil || player.Character == nil {
+		return false
+	}
+	entry := roleRegistry.Entry(player.Character.ID)
+	return entry.ExtractAtFullEnergy != nil && entry.ExtractAtFullEnergy(e, player)
 }

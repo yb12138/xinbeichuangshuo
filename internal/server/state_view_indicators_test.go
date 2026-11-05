@@ -116,3 +116,34 @@ func TestBuildStateForPlayer_UsesIndicatorsForDerivedDisplayState(t *testing.T) 
 		t.Fatalf("expected indicators in JSON, got %s", text)
 	}
 }
+
+// 潜行中的暗杀者不能成为主动攻击目标：状态视图下发 not_attack_targetable，前端据此置灰。
+func TestBuildStateForPlayer_SendsNotAttackTargetable(t *testing.T) {
+	room := NewRoom("STEALTH")
+	room.Engine = engine.NewGameEngine(room)
+	room.Started = true
+	if err := room.Engine.AddPlayer("p1", "Alice", "assassin", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := room.Engine.AddPlayer("p2", "Bob", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	view := room.buildStateForPlayer("p2")
+	if view.Players["p1"].NotAttackTargetable {
+		t.Fatalf("assassin out of stealth should be attack-targetable")
+	}
+
+	room.Engine.State.Players["p1"].Form = model.FormAssassinStealth
+	view = room.buildStateForPlayer("p2")
+	if !view.Players["p1"].NotAttackTargetable {
+		t.Fatalf("stealthed assassin should be flagged not_attack_targetable")
+	}
+	raw, err := json.Marshal(view.Players["p1"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"not_attack_targetable":true`) {
+		t.Fatalf("expected not_attack_targetable in JSON, got %s", raw)
+	}
+}

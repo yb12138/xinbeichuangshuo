@@ -526,11 +526,17 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("阴阳师不存在")
 		}
 
+		if !CanPayBindingCost(rt, actor.Camp) {
+			return true, fmt.Errorf("战绩区资源不足，式神咒束需要1宝石+1星石")
+		}
+
 		// Consume the card from actor's hand
 		card, ok := rt.ConsumePlayableCardByCardID(actorID, selectedCardID)
 		if !ok {
 			return true, fmt.Errorf("无法消耗选定的卡牌")
 		}
+		// 扣除战绩区代价：1宝石 + 1星石
+		PayBindingCost(rt, actor.Camp)
 
 		// Apply 阴阳转换 + 式神转换 bonuses (统一入口)
 		// 注意：selectedUseFaction 表示是否使用同命格应战（阴阳转换）
@@ -656,14 +662,17 @@ func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxDa
 			TargetID:   user.ID,
 			Damage:     ghostFire,
 			DamageType: damageType,
+			// X=3 时该伤害不导致士气下降
+			NoMoraleLoss: ghostFire >= 3,
 		})
 	}
 	rt.Log(fmt.Sprintf("%s 的 [生命结界] 分支①生效：%s +%d宝石+1治疗，自身承受%d点法术伤害", user.Name, target.Name, gainedGem, ghostFire))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
-		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {
-			rt.EnterTurnEndStage()
-		})
+		// 结算完正常走行动结束时点（之后再进额外行动 / ActionQueue）。
+		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionEnd) {
+			rt.EnterActionEndStage()
+		}
 	}
 	return nil
 }
@@ -692,6 +701,13 @@ func resolveOnmyojiLifeBarrierReleaseTarget(rt engineplayer.ChoiceRuntime, _ map
 				"prompt":        "【生命结界】请弃置1张手牌：",
 			},
 		})
+		return nil
+	}
+	// 队友没有手牌可弃：直接推进到行动结束，避免流程停住。
+	if rt.GetPendingInterrupt() == nil {
+		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionEnd) {
+			rt.EnterActionEndStage()
+		}
 	}
 	return nil
 }
@@ -707,9 +723,6 @@ func resolveOnmyojiDarkRitualTarget(rt engineplayer.ChoiceRuntime, ctxData map[s
 	target := rt.GetPlayers()[targetID]
 	if target == nil {
 		return fmt.Errorf("目标不存在")
-	}
-	if target.Camp == user.Camp {
-		return fmt.Errorf("黑暗祭礼只能选择敌方目标")
 	}
 	if user.Tokens == nil {
 		user.Tokens = map[string]int{}

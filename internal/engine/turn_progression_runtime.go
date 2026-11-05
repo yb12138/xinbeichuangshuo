@@ -70,6 +70,7 @@ func (e *GameEngine) prepareNextTurnRuntime(nextPlayer *model.Player) {
 
 	nextPlayer.IsActive = true
 	nextPlayer.TurnState = model.NewPlayerTurnState()
+	e.resetTurnLimitedSkillCounts(nextPlayer)
 
 	e.resetTurnMagicDamageTracker()
 
@@ -88,4 +89,31 @@ func (e *GameEngine) prepareNextTurnRuntime(nextPlayer *model.Player) {
 	// 回合开始的结算（虚弱 / 中毒、希望赋格曲等）是新行动者的独立一手：不开新的叙事行动，
 	// 它们会沿用上一名玩家"回合结束"那一手的 ActionID，被并进上一手的战斗链（如沉沦协奏曲之后）。
 	e.beginNarrativeAction("turn_start", nextPlayer.ID)
+}
+
+// turnLimitAuxKeys 回合限定技能除技能 ID 以外、同样按"每个回合一次"计的辅助标记。
+var turnLimitAuxKeys = map[string][]string{
+	// 沉沦协奏曲：询问过（含拒绝）即算本回合已发动。
+	"bd_descent_concerto": {"bd_descent", "bd_descent_prompted"},
+}
+
+// resetTurnLimitedSkillCounts 回合限定按"任意一个回合各限一次"计：每个玩家的回合开始时，
+// 清掉其他玩家的回合限定计数（回合玩家自己的 TurnState 已整体重置）。
+// 只清回合限定技能的计数，不动其他跨回合存活到"自己下回合"的标记。
+func (e *GameEngine) resetTurnLimitedSkillCounts(turnPlayer *model.Player) {
+	for _, pid := range e.State.PlayerOrder {
+		p := e.State.Players[pid]
+		if p == nil || p == turnPlayer || p.Character == nil || p.TurnState.UsedSkillCounts == nil {
+			continue
+		}
+		for _, skill := range p.Character.Skills {
+			if !model.ContainsSkillTag(skill.Tags, model.TagTurnLimit) {
+				continue
+			}
+			delete(p.TurnState.UsedSkillCounts, skill.ID)
+			for _, key := range turnLimitAuxKeys[skill.ID] {
+				delete(p.TurnState.UsedSkillCounts, key)
+			}
+		}
+	}
 }

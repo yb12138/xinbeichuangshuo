@@ -86,6 +86,15 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("禁断之力上下文无效")
 	}
+	// 命中/未命中分支依赖攻击上下文；命中分支的火系加伤还要改写本次伤害值。
+	// 上下文缺失时整体不结算（不扣费、不弃牌、不自伤），避免半结算。
+	if ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
+		return fmt.Errorf("禁断之力缺少攻击上下文，无法结算")
+	}
+	isHit := ctx.EventCtx.AttackInfo.IsHit
+	if isHit && ctx.EventCtx.DamageVal == nil {
+		return fmt.Errorf("禁断之力缺少本次攻击伤害值，无法结算命中分支")
+	}
 	if !engineplayer.SpendCrystalLike(ctx, 1) {
 		return fmt.Errorf("禁断之力需要1点蓝水晶（红宝石可替代）")
 	}
@@ -113,7 +122,6 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 	}
 
 	anger := engineplayer.AddToken(ctx.User, "hero_anger", magicCount, heroTokenCap)
-	isHit := ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.IsHit
 	wisdomGain := 0
 	if !isHit {
 		before := engineplayer.GetToken(ctx.User, "hero_wisdom")
@@ -122,9 +130,7 @@ func (h *HeroForbiddenPowerHandler) Execute(ctx *model.Context) error {
 	}
 
 	if isHit && fireCount > 0 {
-		if ctx.EventCtx != nil && ctx.EventCtx.DamageVal != nil {
-			*ctx.EventCtx.DamageVal += fireCount
-		}
+		*ctx.EventCtx.DamageVal += fireCount
 		ctx.Game.AddPendingDamage(model.PendingDamage{
 			SourceID:   ctx.User.ID,
 			TargetID:   ctx.User.ID,

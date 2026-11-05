@@ -100,12 +100,13 @@ func TestMagicSwordsmanShadowGather_ReleasesBeforeNextActionSelectionPrompt(t *t
 			break
 		}
 	}
-	if !hasMagic {
-		t.Fatalf("expected magic option after shadow release, got %+v", lastPrompt.Options)
+	// 暗影抗拒：行动阶段始终不能使用法术牌（与形态无关），转正后也不提供打法术牌入口。
+	if hasMagic {
+		t.Fatalf("expected no magic option for magic swordsman even after shadow release, got %+v", lastPrompt.Options)
 	}
 }
 
-func TestMagicSwordsmanShadowMeteor_TargetsEnemyOnlyAndUsesUnifiedSkillFlow(t *testing.T) {
+func TestMagicSwordsmanShadowMeteor_TargetsAnyCharacterAndUsesUnifiedSkillFlow(t *testing.T) {
 	g := engine.NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "MS", "magic_swordsman", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -130,22 +131,12 @@ func TestMagicSwordsmanShadowMeteor_TargetsEnemyOnlyAndUsesUnifiedSkillFlow(t *t
 	g.State.CurrentTurn = 0
 	g.State.TurnStage = model.TurnStageActionExecution
 
-	err := g.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSkill,
-		SkillID:    "ms_shadow_meteor",
-		TargetIDs:  []string{"p3"},
-		Selections: []int{0, 1},
-	})
-	if err == nil {
-		t.Fatalf("expected ally target to be rejected for shadow meteor")
-	}
-
+	// 文案为"目标角色"：队友同样可以被指定。
 	if err := g.HandleAction(model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSkill,
 		SkillID:    "ms_shadow_meteor",
-		TargetIDs:  []string{"p2"},
+		TargetIDs:  []string{"p3"},
 		Selections: []int{0, 1},
 	}); err != nil {
 		t.Fatalf("shadow meteor failed: %v", err)
@@ -162,8 +153,8 @@ func TestMagicSwordsmanShadowMeteor_TargetsEnemyOnlyAndUsesUnifiedSkillFlow(t *t
 		t.Fatalf("expected pending damage queued by shadow meteor")
 	}
 	pd := g.State.PendingDamageQueue[0]
-	if pd.TargetID != "p2" {
-		t.Fatalf("expected shadow meteor target p2, got %+v", pd)
+	if pd.TargetID != "p3" {
+		t.Fatalf("expected shadow meteor target ally p3, got %+v", pd)
 	}
 
 	if err := g.HandleAction(model.PlayerAction{

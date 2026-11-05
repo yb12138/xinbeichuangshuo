@@ -133,6 +133,9 @@ func mergeRoleEntry(base RoleEntry, overlay RoleEntry) RoleEntry {
 	if overlay.AttackElementResolver != nil {
 		merged.AttackElementResolver = overlay.AttackElementResolver
 	}
+	if overlay.ExtractAtFullEnergy != nil {
+		merged.ExtractAtFullEnergy = overlay.ExtractAtFullEnergy
+	}
 	if overlay.CannotActChecker != nil {
 		merged.CannotActChecker = overlay.CannotActChecker
 	}

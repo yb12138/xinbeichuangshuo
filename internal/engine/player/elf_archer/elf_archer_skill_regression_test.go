@@ -76,6 +76,9 @@ func TestElfElementalShotPick_CancelSupported(t *testing.T) {
 	if p1.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"] != 0 {
 		t.Fatalf("expected no wind pending state on cancel, got %d", p1.TurnState.SkillFlowState["elf_elemental_shot_wind_pending"])
 	}
+	if got := p1.TurnState.UsedSkillCounts["elf_elemental_shot"]; got != 0 {
+		t.Fatalf("expected turn-limit count refunded after cancel, got %d", got)
+	}
 }
 
 func TestElfElementalShotWind_GrantsExtraAttackOnlyAfterActionEnd(t *testing.T) {
@@ -296,7 +299,7 @@ func TestElfElementalShotPickAcceptsBlessingCardIDSelection(t *testing.T) {
 	}
 }
 
-func TestElfRitualRelease_TargetsEnemyOnly(t *testing.T) {
+func TestElfRitualRelease_TargetsAnyCharacter(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Elf", "elf_archer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -334,7 +337,13 @@ func TestElfRitualRelease_TargetsEnemyOnly(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected target_ids []string, got %+v", ctxData["target_ids"])
 	}
-	if len(targetIDs) != 1 || targetIDs[0] != "p3" {
-		t.Fatalf("expected only enemy target p3, got %+v", targetIDs)
+	// 文案为"目标角色"：包括自己在内的任意角色
+	if len(targetIDs) != 3 {
+		t.Fatalf("expected all characters as targets, got %+v", targetIDs)
+	}
+	// 选自己（p1），脱离形态时应恢复直立
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	if p1.Form != "" || p1.Orientation != model.OrientationNormal {
+		t.Fatalf("expected ritual form cleared and upright, got form=%q orientation=%s", p1.Form, p1.Orientation)
 	}
 }

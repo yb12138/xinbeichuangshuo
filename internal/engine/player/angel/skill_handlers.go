@@ -155,11 +155,20 @@ func (h *AngelBondHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx == nil || ctx.User == nil {
 		return false
 	}
-	if ctx.Timing == model.TimingFieldMarkChanged {
-		if ctx.EventCtx.SourceID != ctx.User.ID {
-			return false
-		}
+	if ctx.Timing != model.TimingFieldMarkChanged {
+		return false
+	}
+	// 只有天使本人主动操作才算：被动移除（如封印伤害结算后自动移除）的 SourceID 为空。
+	if ctx.EventCtx.SourceID != ctx.User.ID {
+		return false
+	}
+	switch ctx.EventCtx.Type {
+	case model.EventBuffRemoved:
+		// 移除一个基础效果（风之洁净、天使之歌等）。
 		return model.IsBasicEffect(ctx.EventCtx.BuffID)
+	case model.EventBuff:
+		// 放置类只有"使用圣盾"算；放置中毒、虚弱不触发。
+		return ctx.EventCtx.BuffID == string(model.EffectShield)
 	}
 	return false
 }
@@ -268,7 +277,11 @@ func (h *AngelBlessingHandler) Execute(ctx *model.Context) error {
 type AngelCleanseHandler struct{ BaseHandler }
 
 func (h *AngelCleanseHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || ctx.User == nil {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return false
+	}
+	// 场上没有基础效果时不能发动。
+	if len(collectBasicEffectOptions(ctx.Game.GetAllPlayers()...)) == 0 {
 		return false
 	}
 	for _, card := range ctx.User.Hand {
@@ -344,12 +357,13 @@ func (h *AngelSongHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":   "basic_effect_pick",
-			"user_id":       ctx.User.ID,
-			"skill_name":    "天使之歌",
-			"operation":     "remove",
-			"resume_phase":  model.TurnStageActionStart,
-			"waiting_phase": model.TurnStageActionStart,
+			"choice_type": "basic_effect_pick",
+			"user_id":     ctx.User.ID,
+			"skill_name":  "天使之歌",
+			"operation":   "remove",
+			// 回合开始前发动：移除后回到回合开始前阶段，继续结算中毒/虚弱等。
+			"resume_phase":  model.TurnStageTurnBeforeStart,
+			"waiting_phase": model.TurnStageTurnBeforeStart,
 			"prompt":        "【天使之歌】请选择要移除的基础效果：",
 			"options":       encodeBasicEffectOptions(options),
 		},

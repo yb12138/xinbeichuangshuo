@@ -376,6 +376,7 @@ type RoleEntry struct {
 	HandLimitModifier          HandLimitModifier                                                                    // 全局手牌上限修改器（可选，如血之巫女同生共死）
 	MoraleLossModifier         MoraleLossModifier                                                                   // 全局士气损失修改器（可选，如蝶舞者枯萎）
 	BlocksActionType           func(player *model.Player, actionType model.ActionType) bool                         // 行动类型限制（可选）
+	ExtractAtFullEnergy        func(game model.IGameEngine, player *model.Player) bool                              // 自身能量已满时仍可提炼（可选，如冒险者天堂交给队友）
 	PlayableCoverEffects       []model.EffectType                                                                   // 可作为可打牌使用的盖牌效果类型（可选）
 	ExcludeCardFromDiscard     func(player *model.Player, card model.Card) bool                                     // 弃牌时排除特定卡牌（可选，如精灵射手祝福牌）
 	AfterMoraleLossHook        func(rt model.IGameEngine, victim *model.Player, finalLoss int, fromDamageDraw bool) // 士气损失后置钩子（可选，如灵魂巫师灵魂吞噬）

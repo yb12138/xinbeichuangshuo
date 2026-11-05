@@ -269,6 +269,8 @@ export interface PlayerView {
   buffs: Buff[]
   tokens?: Record<string, number>
   indicators?: Record<string, number>
+  cannot_cast_magic?: boolean
+  not_attack_targetable?: boolean
   current_extra_action?: string
   current_extra_element?: string[]
 }

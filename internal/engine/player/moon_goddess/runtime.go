@@ -116,12 +116,7 @@ func TryQueueBlasphemy(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage) b
 	if source == nil || !engineplayer.IsCharacter(source, "moon_goddess") {
 		return false
 	}
-	order := rt.GetPlayerOrder()
-	idx := rt.GetCurrentTurnIndex()
-	currentTurnSource := idx >= 0 && idx < len(order) && order[idx] == source.ID
-	if !source.IsActive && !currentTurnSource {
-		return false
-	}
+	// 回合限定：每个回合各限一次，对手回合同样可触发。
 	target := rt.GetPlayers()[pd.TargetID]
 	if target == nil || target.Camp == source.Camp {
 		return false

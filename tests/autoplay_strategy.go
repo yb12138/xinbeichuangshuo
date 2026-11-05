@@ -401,12 +401,14 @@ func runAutoGameWithScenarioSeedTag(
 		}
 
 		if game.State.PendingInterrupt != nil {
+			pending := game.State.PendingInterrupt
 			if err := resolveInterrupt(game); err != nil {
+				// 用解决前的中断描述错误：失败的处理可能已经把中断弹出。
 				return nil, fmt.Errorf(
 					"step %d interrupt=%s choice=%s prompt=%s failed: %w",
 					step,
-					game.State.PendingInterrupt.Type,
-					interruptChoiceType(game.State.PendingInterrupt),
+					pending.Type,
+					interruptChoiceType(pending),
 					describePromptOptions(game.GetCurrentPrompt()),
 					err,
 				)
@@ -2652,6 +2654,9 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 		return selections, err
 	case "adventurer_fraud_pick":
 		return chooseAdventurerFraudSelections(player, prompt)
+	case "plague_death_touch_cards":
+		// 死亡之触一次选出 ≥2 张同系牌；候选里混着多种系别，不能按顺序取前两张。
+		return pickSameElementSelections(player, prompt)
 	case "mb_magic_pierce_hit_confirm":
 		// 魔贯冲击命中后默认吃满收益。
 		return []int{0}, nil
@@ -2736,6 +2741,14 @@ func chooseChoiceInterruptSelections(game *engine.GameEngine, intr *model.Interr
 			return []int{len(prompt.Options) - 1}, nil
 		}
 		return []int{0}, nil
+	case "adventurer_steal_sky_mode":
+		// 偷天换日："转移"在对方战绩区无宝石时置灰，跳过不可选的选项。
+		for i, opt := range prompt.Options {
+			if !opt.Disabled {
+				return []int{i}, nil
+			}
+		}
+		return []int{0}, nil
 	case "adventurer_steal_sky_extra_action":
 		// 冒险家定向回归优先攻击链路，制造响应窗口。
 		return []int{0}, nil
@@ -2801,6 +2814,46 @@ func chooseAdventurerFraudSelections(player *model.Player, prompt *model.Prompt)
 
 	// 回退：至少保证满足 Min 要求（若策略数据异常时不阻塞流程）。
 	return pickCardSelections(prompt)
+}
+
+// pickSameElementSelections 从候选手牌里选出同一系别的 prompt.Min 张牌（取张数最多的系别）。
+func pickSameElementSelections(player *model.Player, prompt *model.Prompt) ([]int, error) {
+	if prompt == nil {
+		return nil, fmt.Errorf("missing prompt for same-element selection")
+	}
+	if player == nil {
+		return pickCardSelections(prompt)
+	}
+	need := prompt.Min
+	if need < 1 {
+		need = 1
+	}
+	byElement := map[model.Element][]int{}
+	var order []model.Element
+	for _, opt := range prompt.Options {
+		idx, err := strconv.Atoi(opt.ID)
+		if err != nil || idx < 0 || idx >= len(player.Hand) {
+			continue
+		}
+		ele := player.Hand[idx].Element
+		if ele == "" {
+			continue
+		}
+		if _, ok := byElement[ele]; !ok {
+			order = append(order, ele)
+		}
+		byElement[ele] = append(byElement[ele], idx)
+	}
+	var best []int
+	for _, ele := range order {
+		if len(byElement[ele]) > len(best) {
+			best = byElement[ele]
+		}
+	}
+	if len(best) < need {
+		return nil, fmt.Errorf("no element group with %d cards for same-element selection", need)
+	}
+	return append([]int{}, best[:need]...), nil
 }
 
 func firstNumericPromptOptionID(prompt *model.Prompt) (int, bool) {

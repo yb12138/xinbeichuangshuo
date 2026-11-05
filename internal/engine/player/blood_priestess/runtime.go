@@ -90,38 +90,3 @@ func EnterBleedingFormWithLog(rt engineplayer.ChoiceRuntime, player *model.Playe
 	rt.Log(fmt.Sprintf("%s 的 [流血] 触发：%s，进入流血形态", player.Name, reason))
 	return true
 }
-
-// LeaveBleedingFormWithLog 脱离流血形态并记录日志。
-func LeaveBleedingFormWithLog(rt engineplayer.ChoiceRuntime, player *model.Player, reason string) bool {
-	if player == nil || !engineplayer.IsCharacter(player, "blood_priestess") {
-		return false
-	}
-	if !InBleedingForm(player) {
-		return false
-	}
-	defer rt.PoseChangeGuard()
-	LeaveBleedingForm(player)
-	if reason == "" {
-		reason = "行动结束时手牌少于3"
-	}
-	rt.Log(fmt.Sprintf("%s 的 [流血·手牌不足脱离] 生效：%s，脱离流血形态", player.Name, reason))
-	return true
-}
-
-// ResolveBleedExitOnActionEnd 在行动结束时检查所有血祭司是否需要脱离流血形态。
-func ResolveBleedExitOnActionEnd(rt engineplayer.ChoiceRuntime) bool {
-	released := false
-	for _, pid := range rt.GetPlayerOrder() {
-		player := rt.GetPlayers()[pid]
-		if player == nil || !engineplayer.IsCharacter(player, "blood_priestess") {
-			continue
-		}
-		if len(player.Hand) >= 3 {
-			continue
-		}
-		if LeaveBleedingFormWithLog(rt, player, "行动结束时手牌<3") {
-			released = true
-		}
-	}
-	return released
-}

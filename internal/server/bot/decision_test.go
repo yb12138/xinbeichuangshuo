@@ -79,3 +79,35 @@ func TestDecideActionSelectionUsesExtraActionInsteadOfSkipping(t *testing.T) {
 		t.Fatalf("expected the bot to attack with its extra action, got %s", action.Type)
 	}
 }
+
+// 冒险家自身能量已满、但有队友能量未满时，应继续提炼（触发冒险者天堂交给队友）。
+func TestDecideActionSelectionAdventurerExtractsForAllyAtFullEnergy(t *testing.T) {
+	state := StateSnapshot{
+		CurrentPlayer: "p1",
+		Players: map[string]PlayerSnapshot{
+			"p1": {ID: "p1", Camp: "Blue", Role: "adventurer", MaxHand: 6, Gem: 2, Crystal: 1},
+			"p3": {ID: "p3", Camp: "Blue", Role: "berserker", MaxHand: 6},
+			"p2": {ID: "p2", Camp: "Red", MaxHand: 6},
+		},
+	}
+	me := state.Players["p1"]
+	if !adventurerCanExtractForAlly(state, me) {
+		t.Fatalf("expected adventurer with full energy to extract for an ally")
+	}
+
+	full := state
+	full.Players = map[string]PlayerSnapshot{
+		"p1": me,
+		"p3": {ID: "p3", Camp: "Blue", Role: "berserker", MaxHand: 6, Gem: 3},
+		"p2": {ID: "p2", Camp: "Red", MaxHand: 6},
+	}
+	if adventurerCanExtractForAlly(full, me) {
+		t.Fatalf("no ally has room, adventurer should not extract")
+	}
+
+	other := state.Players["p1"]
+	other.Role = "berserker"
+	if adventurerCanExtractForAlly(state, other) {
+		t.Fatalf("only adventurer may extract at full energy")
+	}
+}

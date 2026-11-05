@@ -19,16 +19,7 @@ func ForcedDoomsdayStartup(rt engineplayer.ChoiceRuntime, player *model.Player) 
 		player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
 		return false
 	}
-	enemyCount := 0
-	for _, p := range rt.GetPlayers() {
-		if p != nil && p.Camp != player.Camp {
-			enemyCount++
-		}
-	}
-	if enemyCount == 0 {
-		player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
-		return false
-	}
+	// 末日审判文案为"目标角色"（含自己），总有合法目标，不再要求场上有敌方。
 	if player.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] == 0 {
 		rt.Log(fmt.Sprintf("%s 的审判已达上限：本行动阶段必须发动 [末日审判]", player.Name))
 	}

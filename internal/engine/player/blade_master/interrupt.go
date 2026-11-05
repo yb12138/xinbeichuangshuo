@@ -16,8 +16,8 @@ func MaybeHolySwordDrawInterrupt(rt engineplayer.HookRuntime, ctx engineplayer.T
 	if p == nil {
 		return engineplayer.TimingHookResult{}
 	}
-	// 只在第3次攻击时触发
-	if p.TurnState.AttackCount != 3 {
+	// 只在第3次攻击行动结束时触发；法术行动结束时 AttackCount 仍为 3，必须排除。
+	if ctx.ActionType != model.ActionAttack || p.TurnState.AttackCount != 3 {
 		return engineplayer.TimingHookResult{}
 	}
 	// 检查是否有圣剑技能

@@ -195,7 +195,7 @@ func TestElementalistIgnite_RequiresThreeElement(t *testing.T) {
 	}
 }
 
-func TestElementalistOffenseSkills_RejectAllyTargets(t *testing.T) {
+func TestElementalistOffenseSkills_AcceptAllyAndSelfTargets(t *testing.T) {
 	skillCard := func(owner *model.Player, skillTitle string, element model.Element) []int {
 		owner.Hand = []model.Card{elementalistExclusiveCard(owner, skillTitle, element)}
 		return []int{0}
@@ -253,37 +253,40 @@ func TestElementalistOffenseSkills_RejectAllyTargets(t *testing.T) {
 		},
 	}
 
+	// 独有技文案为"目标角色"，可以指定包括自己、队友在内的任意角色。
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			game := engine.NewGameEngine(testutils.NoopObserver{})
-			if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
-				t.Fatal(err)
-			}
-			if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
-				t.Fatal(err)
-			}
-			if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
-				t.Fatal(err)
-			}
+		for _, targetID := range []string{"p2", "p1"} {
+			t.Run(tc.name+"_"+targetID, func(t *testing.T) {
+				game := engine.NewGameEngine(testutils.NoopObserver{})
+				if err := game.AddPlayer("p1", "Elem", "elementalist", model.RedCamp); err != nil {
+					t.Fatal(err)
+				}
+				if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+					t.Fatal(err)
+				}
+				if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+					t.Fatal(err)
+				}
 
-			p1 := game.State.Players["p1"]
-			p1.IsActive = true
-			p1.TurnState = model.NewPlayerTurnState()
-			game.State.CurrentTurn = 0
-			game.State.TurnStage = model.TurnStageActionExecution
-			selections := tc.setup(p1)
+				p1 := game.State.Players["p1"]
+				p1.IsActive = true
+				p1.TurnState = model.NewPlayerTurnState()
+				game.State.CurrentTurn = 0
+				game.State.TurnStage = model.TurnStageActionExecution
+				selections := tc.setup(p1)
 
-			err := game.HandleAction(model.PlayerAction{
-				PlayerID:   "p1",
-				Type:       model.CmdSkill,
-				SkillID:    tc.skillID,
-				TargetIDs:  []string{"p2"},
-				Selections: selections,
+				err := game.HandleAction(model.PlayerAction{
+					PlayerID:   "p1",
+					Type:       model.CmdSkill,
+					SkillID:    tc.skillID,
+					TargetIDs:  []string{targetID},
+					Selections: selections,
+				})
+				if err != nil {
+					t.Fatalf("expected %s target accepted, got err=%v", targetID, err)
+				}
 			})
-			if err == nil || !strings.Contains(err.Error(), "skill can only target enemies") {
-				t.Fatalf("expected ally target rejection, got err=%v", err)
-			}
-		})
+		}
 	}
 }
 

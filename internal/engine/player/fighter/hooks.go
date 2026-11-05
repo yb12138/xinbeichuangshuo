@@ -76,20 +76,44 @@ func pendingDamageInitHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingH
 	return engineplayer.TimingHookResult{}
 }
 
-// turnEndHook 回合结束：百式幻龙拳退场并转正。
-func turnEndHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+// burstCrashSelfDamage 气绝崩击：本次攻击结算完之后，再对自己造成 X 点法术伤害。
+func burstCrashSelfDamage(rt engineplayer.HookRuntime, p *model.Player) {
+	if p == nil {
+		return
+	}
+	damage := engineplayer.GetSkillFlowState(p, "fighter_burst_crash_self_damage")
+	if damage <= 0 {
+		return
+	}
+	engineplayer.SetSkillFlowState(p, "fighter_burst_crash_self_damage", 0)
+	rt.AddPendingDamage(model.PendingDamage{
+		SourceID:   p.ID,
+		TargetID:   p.ID,
+		Damage:     damage,
+		DamageType: model.MagicAttack,
+	})
+	rt.Log(fmt.Sprintf("%s 的 [气绝崩击]：攻击结算后对自己造成%d点法术伤害", p.Name, damage))
+}
+
+// burstCrashAfterAttackDamageHook 攻击命中：对目标的攻击伤害结算完后，再结算自伤。
+func burstCrashAfterAttackDamageHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
 	if p == nil || !rt.IsCharacter(p, "fighter") {
 		return engineplayer.TimingHookResult{}
 	}
-	if rt.HasForm(p, model.FormFighterHundredDragon) {
-		defer rt.PoseChangeGuard()
-		active := rt.HasForm(p, model.FormFighterHundredDragon) || engineplayer.GetSkillFlowState(p, "fighter_hundred_dragon_target_order") > 0
-		engineplayer.ClearForm(p, model.FormFighterHundredDragon)
-		engineplayer.SetSkillFlowState(p, "fighter_hundred_dragon_target_order", 0)
-		if active {
-			rt.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 在本行动阶段结束时退场并转正", p.Name))
-		}
+	if ctx.DamageType != model.AttackDamage || ctx.TargetID == p.ID {
+		return engineplayer.TimingHookResult{}
 	}
+	burstCrashSelfDamage(rt, p)
+	return engineplayer.TimingHookResult{}
+}
+
+// burstCrashAttackMissHook 攻击未命中：未命中时结算自伤。
+func burstCrashAttackMissHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || !rt.IsCharacter(p, "fighter") || ctx.IsCounter {
+		return engineplayer.TimingHookResult{}
+	}
+	burstCrashSelfDamage(rt, p)
 	return engineplayer.TimingHookResult{}
 }

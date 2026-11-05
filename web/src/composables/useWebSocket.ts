@@ -12,6 +12,7 @@ import { createRoomMessageHandlers } from '../network/roomMessageHandlers'
 import { createWsCommandClient } from '../network/wsCommandClient'
 import { routeWsMessage } from '../network/messageRouter'
 import type { ProtocolErrorPayload, RoutedWsMessage } from '../network/protocol'
+import { recoverFromRejectedSubmission } from '../network/submissionRecovery'
 import { loadReconnectInfo, saveReconnectInfo } from '../network/wsReconnect'
 
 // 改造成一个函数，动态获取当前访问的 IP 和端口
@@ -97,6 +98,7 @@ export function useWebSocket() {
   function handleProtocolError(payload: ProtocolErrorPayload) {
     const message = payload.message || '服务器协议错误'
     interruptStore.showError(message)
+    recoverFromRejectedSubmission(interruptStore, message, payload.code || 'unknown')
     battleReviewStore.addLog(`[WS][ProtocolError] ${payload.code || 'unknown'}: ${message}`)
   }
 

@@ -33,6 +33,8 @@ func RoleEntry() player.RoleEntry {
 		},
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingDamageSourceDeal, Priority: 300, Hook: damageCalculateHook},
+			{Timing: player.TimingAttackStateReset, Priority: 300, Hook: darkReleaseAttackDeclareHook, SkillID: "ml_dark_release"},
+			{Timing: player.TimingAttackMiss, Priority: 300, Hook: darkReleaseAttackMissHook, SkillID: "ml_dark_release"},
 			{Timing: player.TimingPostDamageResolved, Priority: 300, Hook: postDamageResolvedHook, SkillID: "ml_phantom_stardust"},
 			{Timing: player.TimingDefendValidation, Priority: 100, Hook: defendValidationHook, SkillID: "ml_dark_bind"},
 			{Timing: player.TimingMagicMissileDefend, Priority: 100, Hook: magicMissileDefendHook, SkillID: "ml_dark_bind"},
@@ -71,18 +73,7 @@ func SkillEntries() []player.SkillEntry {
 		},
 		{ID: "ml_dark_bind", Handler: &MagicLancerDarkBindHandler{}},
 		{ID: "ml_dark_barrier", Handler: &MagicLancerDarkBarrierHandler{}},
-		{
-			ID:      "ml_fullness",
-			Handler: &MagicLancerFullnessHandler{},
-			Policy: types.SkillPolicy{
-				TargetRules: types.TargetRuleSet{
-					Count: types.TargetCountRule{Min: 0, Max: 1, Err: "充盈至多指定1名其他队友"},
-					Slots: []types.TargetSlotRule{
-						{Index: 0, Camp: types.TargetCampAlly, Self: types.TargetSelfOther, Err: "充盈的可选目标必须是其他队友"},
-					},
-				},
-			},
-		},
+		{ID: "ml_fullness", Handler: &MagicLancerFullnessHandler{}},
 		{ID: "ml_black_spear", Handler: &MagicLancerBlackSpearHandler{}},
 	}
 }
