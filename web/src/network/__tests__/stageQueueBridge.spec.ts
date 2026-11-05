@@ -250,7 +250,11 @@ describe('createStageQueueBridge', () => {
     const all = queued()
     expect(all.filter((step) => step.type === 'link')).toHaveLength(1)
     expect(all.some((step) => step.type === 'narration-row' && step.html.includes('承受'))).toBe(true)
-    expect(added).toEqual([{ type: 'value-chip', playerId: 'p1', text: '-2', color: 'damage' }])
+    // 伤害后到：数字落在座位上，同时就地补到承受行（战斗链行尾的最终伤害）
+    expect(added).toEqual([
+      { type: 'value-chip', playerId: 'p1', text: '-2', color: 'damage' },
+      { type: 'take-result', linkId: 'f1:e3', damage: 2, heal: false },
+    ])
   })
 
   it('enqueues mark-previous before the first step of a new flow_id', () => {

@@ -124,7 +124,9 @@
       "Bash(kill 4118)",
       "Bash(kill 35051)",
       "Bash(node -e \"try { require\\('./e2e/scenarios/valkyrie.ts'\\); console.log\\('OK'\\); } catch\\(e\\) { console.log\\(e.message\\); }\")",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(gh pr *)",
+      "Bash(kill 8625 *)"
     ]
   }
 }

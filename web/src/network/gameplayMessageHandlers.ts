@@ -1,3 +1,4 @@
+import { watch } from 'vue'
 import type { GameEvent, GameStateUpdate, Prompt } from '../types/game'
 import { extractGameplayEventsFromTimeline } from './gameplayTimeline'
 import type { RequireActionPayload, SyncStatePayload, TimelineDelta, TimelineNotifyPayload } from './protocol'
@@ -13,6 +14,8 @@ import { useStageQueueStore } from '../stores/stageQueue.store'
 import { createStageQueueBridge } from './stageQueueBridge'
 import { cardArtSrc } from '../constants/cardArt'
 import { useUiStore } from '../stores/ui.store'
+import { playSfx } from '../audio/sfx'
+import { endCueFor } from '../audio/endCue'
 
 export interface GameplayMessageHandlerDeps {
   interruptStore: ReturnType<typeof useInterruptStore>
@@ -42,8 +45,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     return snapshotStore.players[id]?.name || id
   }
 
+  const stageQueue = useStageQueueStore()
   const stageBridge = createStageQueueBridge({
-    stageQueue: useStageQueueStore(),
+    stageQueue,
     playerName: (id: string) => playerNameById(id),
     roleName: (id: string) => {
       const role = snapshotStore.players[id]?.role || ''
@@ -174,6 +178,82 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     battleFxStore.startActingPlayerFocus(playerId, 'skill')
   }
 
+  /**
+   * 战斗链还在播放时先压住我的操作提示，播完再交出操作权，避免上一手还没看清就被催着决策。
+   * 新的 state_update 会作废压着的提示（与 syncAfterStateUpdate 语义一致）；
+   * 最多等 PROMPT_GATE_MAX_MS，防止后台标签页 rAF 暂停时永远拿不到操作权。
+   */
+  const PROMPT_GATE_MAX_MS = 8000
+  let gatedPrompt: Prompt | null = null
+  let gateTimer: ReturnType<typeof setTimeout> | null = null
+  let stopGateWatch: (() => void) | null = null
+
+  function clearPromptGate() {
+    gatedPrompt = null
+    if (gateTimer) clearTimeout(gateTimer)
+    gateTimer = null
+    stopGateWatch?.()
+    stopGateWatch = null
+  }
+
+  function releaseGatedPrompt() {
+    const prompt = gatedPrompt
+    clearPromptGate()
+    if (!prompt) return
+    showMyPrompt(prompt)
+  }
+
+  /** 把操作权交给我；从"没有提示"变成"有提示"时响一声，重复同步同一提示不重复提醒。 */
+  function showMyPrompt(prompt: Prompt) {
+    const wasIdle = !interruptStore.currentPrompt
+    interruptStore.setPrompt(prompt)
+    interruptStore.setWaiting('')
+    if (wasIdle) playSfx('prompt')
+  }
+
+  function presentMyPrompt(prompt: Prompt) {
+    clearPromptGate()
+    if (!uiStore.stageOverlayEnabled || !stageQueue.isPlaying) {
+      showMyPrompt(prompt)
+      return
+    }
+    gatedPrompt = prompt
+    interruptStore.setPrompt(null)
+    interruptStore.setWaiting('')
+    stopGateWatch = watch(
+      () => stageQueue.isPlaying,
+      (playing) => {
+        if (!playing) releaseGatedPrompt()
+      },
+      { flush: 'sync' },
+    )
+    gateTimer = setTimeout(releaseGatedPrompt, PROMPT_GATE_MAX_MS)
+  }
+
+  /** 结尾音乐等最后一手演出播完再响，免得盖住决胜的那一下；最多等 END_CUE_MAX_WAIT_MS。 */
+  const END_CUE_MAX_WAIT_MS = 4000
+  function playEndCue(cue: Parameters<typeof playSfx>[0]) {
+    if (!stageQueue.isPlaying) {
+      playSfx(cue)
+      return
+    }
+    let done = false
+    const fire = () => {
+      if (done) return
+      done = true
+      stop()
+      clearTimeout(timer)
+      playSfx(cue)
+    }
+    const stop = watch(
+      () => stageQueue.isPlaying,
+      (playing) => {
+        if (!playing) fire()
+      },
+    )
+    const timer = setTimeout(fire, END_CUE_MAX_WAIT_MS)
+  }
+
   function handleSyncState(payload: SyncStatePayload) {
     const state = buildGameStateUpdateFromSyncState(payload)
 
@@ -192,9 +272,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     if (prompt) {
       focusPromptActor(prompt, payload.target_user_id)
       if (payload.target_user_id === sessionStore.myPlayerId) {
-        interruptStore.setPrompt(prompt)
-        interruptStore.setWaiting('')
+        presentMyPrompt(prompt)
       } else {
+        clearPromptGate()
         interruptStore.setPrompt(null)
         interruptStore.setWaiting(payload.target_user_id || '')
       }
@@ -205,6 +285,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
       battleFxStore.startActingPlayerFocus(payload.target_user_id, 'skill')
       interruptStore.setWaiting('')
     } else {
+      clearPromptGate()
       interruptStore.setPrompt(null)
       interruptStore.setWaiting(payload.target_user_id || '')
       battleFxStore.startActingPlayerFocus(payload.target_user_id || '', 'skill')
@@ -246,6 +327,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const prevCurrent = snapshotStore.currentPlayer
           battleFxStore.prepareForFlowUpdate(event.state.combat_stage, event.state.subflow)
           snapshotStore.updateGameState(event.state)
+          clearPromptGate()
           interruptStore.syncAfterStateUpdate()
           const me = sessionStore.myPlayerId ? event.state.players[sessionStore.myPlayerId] : undefined
           if (me?.camp || me?.role) {
@@ -303,13 +385,13 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
       case 'prompt':
         if (event.prompt) {
-          interruptStore.setPrompt(event.prompt)
           focusPromptActor(event.prompt)
-          interruptStore.setWaiting('')
+          presentMyPrompt(event.prompt)
         }
         break
 
       case 'waiting':
+        clearPromptGate()
         interruptStore.setPrompt(null)
         interruptStore.setWaiting(event.player_id || '')
         battleFxStore.startActingPlayerFocus(event.player_id || '', 'skill')
@@ -335,6 +417,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const isFirstEndSignal = !uiStore.isGameEnded
           matchLifecycleStore.setGameEnded(message)
           if (isFirstEndSignal) {
+            playEndCue(endCueFor(message, snapshotStore.players[sessionStore.myPlayerId]?.camp))
             battleReviewStore.addBattleFeed({
               type: 'system',
               title: message,

@@ -9,6 +9,7 @@ import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
 import { useTimelineStore } from '../../stores/timeline.store'
 import { useUiStore } from '../../stores/ui.store'
+import { useStageQueueStore } from '../../stores/stageQueue.store'
 import type { Prompt } from '../../types/game'
 import type { RequireActionPayload, SyncStatePayload, TimelineNotifyPayload } from '../protocol'
 
@@ -250,6 +251,45 @@ describe('createGameplayMessageHandlers', () => {
 
     expect(interruptStore.currentPrompt?.player_id).toBe('p1')
     expect(interruptStore.waitingFor).toBe('')
+  })
+
+  it('holds my prompt until the combat chain finishes playing', () => {
+    const { handlers, interruptStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    const stageQueue = useStageQueueStore()
+    stageQueue.enqueue({ type: 'narration-row', html: 'p2 攻击 p1', tag: '攻击', tagColor: 'attack' })
+    expect(stageQueue.isPlaying).toBe(true)
+
+    handlers.handleRequireAction({
+      interrupt_type: 'WaitChoice',
+      target_user_id: 'p1',
+      timeout: 0,
+      msg: '请选择应战方式',
+      prompt: { type: 'confirm', player_id: 'p1', message: '应战？', options: [{ id: 'take', label: '承受', button_label: '承受' }], min: 1, max: 1, presentation: { kind: 'target_picker', numeric_base: 0 } },
+    })
+    expect(interruptStore.currentPrompt).toBeNull()
+
+    stageQueue.tick(0)
+    stageQueue.tick(10_000)
+    expect(stageQueue.isPlaying).toBe(false)
+    expect(interruptStore.currentPrompt?.player_id).toBe('p1')
+  })
+
+  it('releases a held prompt after the safety timeout', () => {
+    const { handlers, interruptStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    useStageQueueStore().enqueue({ type: 'narration-row', html: 'x', tag: '攻击', tagColor: 'attack' })
+
+    handlers.handleRequireAction({
+      interrupt_type: 'WaitChoice',
+      target_user_id: 'p1',
+      timeout: 0,
+      msg: '',
+      prompt: { type: 'confirm', player_id: 'p1', message: '应战？', options: [{ id: 'take', label: '承受', button_label: '承受' }], min: 1, max: 1, presentation: { kind: 'target_picker', numeric_base: 0 } },
+    })
+    expect(interruptStore.currentPrompt).toBeNull()
+    vi.advanceTimersByTime(8000)
+    expect(interruptStore.currentPrompt?.player_id).toBe('p1')
   })
 
   it('focuses the prompt actor when a prompt arrives', () => {

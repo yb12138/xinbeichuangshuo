@@ -152,7 +152,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
     return memory
   }
 
-  function nodeDelta(node: ActionFlowNodeDTO, memory: FlowMemory): AtomicStep[] {
+  function nodeDelta(flowId: string, node: ActionFlowNodeDTO, memory: FlowMemory): AtomicStep[] {
     const shownDamage = memory.nodes.get(node.id)
     const damage = node.damage ?? 0
     const resultKey = node.cause_id ? JSON.stringify(nodeSkillResult(node, playerName, roleName)) : ''
@@ -164,7 +164,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
     if (shownDamage === undefined) {
       memory.nodes.set(node.id, damage)
       if (resultKey) memory.results.set(node.id, resultKey)
-      return [...nodeSteps(node, playerName, roleName), ...handFlightSteps(node, shownFlights)]
+      return [...withAnchor(flowId, node, nodeSteps(node, playerName, roleName)), ...handFlightSteps(node, shownFlights)]
     }
     const steps: AtomicStep[] = []
     if (resultKey && resultKey !== memory.results.get(node.id)) {
@@ -178,6 +178,13 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
       steps.push(...nodeDamageSteps(node))
     }
     return steps
+  }
+
+  /** 技能节点记下它挂靠的边：战斗链据此把被动技能挂到正确的那一步（结果后到也不会挂错）。 */
+  function withAnchor(flowId: string, node: ActionFlowNodeDTO, steps: AtomicStep[]): AtomicStep[] {
+    if (!node.anchor_edge_id) return steps
+    const anchorLinkId = flowLinkId(flowId, node.anchor_edge_id)
+    return steps.map((step) => (step.type === 'narration-row' && step.skill ? { ...step, skill: { ...step.skill, anchorLinkId } } : step))
   }
 
   function edgeResolveDelta(flowId: string, edge: ActionFlowEdgeDTO, edgeMemory: EdgeMemory): AtomicStep[] {
@@ -196,7 +203,7 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
       edgeMemory.endKey = endKey
     }
     if (damage > 0 && damage !== edgeMemory.damage) {
-      steps.push(...resolve.filter((step) => step.type === 'value-chip'))
+      steps.push(...resolve.filter((step) => step.type === 'value-chip' || step.type === 'take-result'))
       edgeMemory.damage = damage
     }
     return steps
@@ -228,12 +235,12 @@ export function createStageQueueBridge(deps: StageQueueBridgeDeps) {
         steps.push(...edgeStartSteps(flow.flow_id, edge, playerName, roleName, cardImage))
       }
       for (const node of anchored.get(edge.id) || []) {
-        steps.push(...nodeDelta(node, memory))
+        steps.push(...nodeDelta(flow.flow_id, node, memory))
       }
       steps.push(...edgeResolveDelta(flow.flow_id, edge, edgeMemory))
     }
     for (const node of free) {
-      steps.push(...nodeDelta(node, memory))
+      steps.push(...nodeDelta(flow.flow_id, node, memory))
     }
 
     if (steps.some((step) => step.type === 'narration-row')) memory.narrated = true

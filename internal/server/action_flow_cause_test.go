@@ -512,3 +512,49 @@ func TestActionFlow_CounterAttackEdgeIsCardless(t *testing.T) {
 		t.Fatalf("expected the counter card once on p2→p3 edges, got %d", cardsFromP2toP3)
 	}
 }
+
+// 剑帝攻击被应战时，剑魂守护 / 佯攻（只以自己为目标）不能把出牌事件引到"自己 → 自己"的边上：
+// 否则边编号在增量重建之间错位，前端按边 ID 去重会把同一步画两次。
+func TestActionFlow_SelfTargetSkillsKeepEdgeIDsStable(t *testing.T) {
+	room := newCauseFlowRoom(t,
+		map[string]string{"p1": "sword_emperor", "p2": "sealer", "p3": "elf_archer"},
+		map[string]model.Camp{"p1": model.BlueCamp, "p2": model.RedCamp, "p3": model.BlueCamp},
+		[]string{"p1", "p2", "p3"})
+	setActivePlayer(room, "p1")
+	st := room.Engine.State
+	st.TurnStage = model.TurnStageActionExecution
+	st.PendingInterrupt, st.InterruptQueue = nil, nil
+	st.Players["p1"].TurnState = model.NewPlayerTurnState()
+	st.Players["p1"].Hand = []model.Card{{ID: "a1", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2, Faction: "圣"}}
+	st.Players["p2"].Hand = []model.Card{{ID: "c1", Name: "雷光斩", Type: model.CardTypeAttack, Element: model.ElementThunder, Damage: 2, Faction: "技"}}
+	st.Players["p3"].Hand = []model.Card{}
+	room.Engine.Drive()
+
+	edgesByID := map[string]string{}
+	check := func(stage string) {
+		for _, flow := range replayFlows(room) {
+			for _, edge := range flow.Edges {
+				if edge.FromUserID == edge.ToUserID && edge.Phase != "take" {
+					t.Fatalf("%s: unexpected self edge %+v", stage, edge)
+				}
+				key := edge.FromUserID + ">" + edge.ToUserID + ":" + edge.Phase
+				if prev, ok := edgesByID[edge.ID]; ok && prev != key {
+					t.Fatalf("%s: edge %s changed from %s to %s", stage, edge.ID, prev, key)
+				}
+				edgesByID[edge.ID] = key
+			}
+		}
+	}
+	must := func(a model.PlayerAction) {
+		if err := room.Engine.HandleAction(a); err != nil {
+			t.Fatalf("%+v: %v", a, err)
+		}
+		room.Engine.Drive()
+	}
+	must(model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, CardID: "a1", TargetID: "p2"})
+	check("after attack")
+	must(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, CardID: "c1", TargetID: "p3", ExtraArgs: []string{"counter"}})
+	check("after counter")
+	must(model.PlayerAction{PlayerID: "p3", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
+	check("after take")
+}

@@ -90,10 +90,8 @@ const CHIP_BG: Record<ValueChipColor, string> = {
   neutral: '#33425e',
 }
 const COLOR_KEYS = Object.keys(LINK_COLORS) as LinkColor[]
-/** 一回合里所有的手都累积在同一条链上，行数会比单手多；卡片数量另行限制（MAX_CHAIN_NODES）。 */
+/** 一回合里所有的手都累积在同一条链上，行数会比单手多；显示的攻击行数另行限制（MAX_CHAIN_ROWS）。 */
 const MAX_ROWS = 40
-/** 战斗链最多同时显示的卡片数；更早的步骤折叠成开头的"+N 步"。 */
-const MAX_CHAIN_NODES = 8
 const MAX_HISTORY = 4
 const MEASURE_INTERVAL_MS = 250
 
@@ -314,7 +312,10 @@ const mergedChain = computed(() => {
     if (row.skill) {
       // Passive / response skills hang under the step they reacted to instead of adding a card.
       if (row.skill.opening === 'trigger' && prev) {
-        prev.triggers.push(row.skill)
+        // 服务端标了挂靠边就挂到那一步（剑魂守护挂在剑帝的攻击上，而不是后面封印师的应战上）
+        const anchor = row.skill.anchorLinkId
+        const anchored = anchor ? nodes.find((n) => n.chain && (n.chain.linkId === anchor || n.resultLinkId === anchor)) : undefined
+        ;(anchored || prev).triggers.push(row.skill)
         continue
       }
       nodes.push({ row, skill: row.skill, resultLinkId: '', triggers: [] })
@@ -799,7 +800,35 @@ const chipLayers = computed(() => {
   return { chips, impacts }
 })
 
+/**
+ * 战斗链回放：0 = 实时（当前链 / 上一手）；n = 往前翻第 n 条已归档的链（最多 MAX_CHAIN_ARCHIVE 条）。
+ * 有新链被归档时回到实时，免得翻看的那条在列表里错位。
+ */
+const replayOffset = ref(0)
+/** 可回放的历史链（旧 → 新）：归档 + 当前链在播时被压下的"上一手"，取最近 MAX_REPLAY 条。 */
+const MAX_REPLAY = 5
+const replayChains = computed<NarrationRow[][]>(() => {
+  const list = [...store.chainArchive]
+  if (store.stageRows.length > 0 && store.previousAction?.rows.length) list.push(store.previousAction.rows)
+  return list.slice(-MAX_REPLAY)
+})
+const replayCount = computed(() => replayChains.value.length)
+watch(
+  () => store.chainArchive,
+  () => {
+    replayOffset.value = 0
+  },
+)
+function replayOlder() {
+  if (replayOffset.value < replayCount.value) replayOffset.value += 1
+}
+function replayNewer() {
+  if (replayOffset.value > 0) replayOffset.value -= 1
+}
+
 const narration = computed<{ rows: NarrationRow[]; previous: boolean } | null>(() => {
+  const archived = replayOffset.value > 0 ? replayChains.value[replayChains.value.length - replayOffset.value] : undefined
+  if (archived) return { rows: archived.slice(-MAX_ROWS), previous: true }
   if (store.stageRows.length > 0) return { rows: store.stageRows.slice(-MAX_ROWS), previous: false }
   if (store.previousAction && store.previousAction.rows.length > 0) {
     return { rows: store.previousAction.rows.slice(-MAX_ROWS), previous: true }
@@ -809,6 +838,13 @@ const narration = computed<{ rows: NarrationRow[]; previous: boolean } | null>((
 
 interface ChainNodeView {
   id: number
+  kind: 'chain' | 'skill' | 'special' | 'effect'
+  fromId: string
+  toId: string
+  /** 攻击牌的牌面伤害（伤害算式的起点）；非攻击牌为空。 */
+  baseDamage?: number
+  /** 额外行动节点：作为下一次攻击那一行的引子，不单独成行。 */
+  extraAction: boolean
   verb: string
   fromAvatar: string
   toAvatar: string
@@ -826,7 +862,7 @@ interface ChainNodeView {
   /** Extra targets beyond the one avatar shown ("+2"). */
   moreTargets: number
   /** 挂在本步下的被动 / 响应技能；outcome = 它的结算结果（"信仰 +1"），没有可见结果时为空。 */
-  triggers: { name: string; outcome: string; stroke: string }[]
+  triggers: { name: string; outcome: string; stroke: string; actorId: string }[]
   /** Skill node: 消耗（"宝石 1"），小字显示在结果下。 */
   cost: string
   /** 悬停时显示的完整技能描述。 */
@@ -887,13 +923,17 @@ const chainView = computed(() => {
     const { chain, skill, row } = entry
     const next = chainNodes[index + 1]
     const last = !next
-    const triggers = entry.triggers.map((t) => ({ name: t.skillName, outcome: t.outcome || '', stroke: strokeOf(t.element, 'skill') }))
+    const triggers = entry.triggers.map((t) => ({ name: t.skillName, outcome: t.outcome || '', stroke: strokeOf(t.element, 'skill'), actorId: t.actorId }))
     if (skill) {
       // 只作用于自身的技能不画“A › A”，目标名写“自身”。
       const others = skill.targetIds.filter((id) => id !== skill.actorId)
       const firstTarget = others[0] || ''
       return {
         id: row.id,
+        kind: 'skill',
+        fromId: skill.actorId,
+        toId: others[0] || '',
+        extraAction: false,
         verb: skill.outcome || transferVerb(skill) || (skill.opening === 'trigger' ? '触发' : '发动'),
         fromAvatar: avatar(skill.actorId),
         toAvatar: firstTarget ? avatar(firstTarget) : '',
@@ -939,6 +979,10 @@ const chainView = computed(() => {
       const sp = entry.special
       return {
         id: row.id,
+        kind: 'special',
+        fromId: sp.actorId,
+        toId: '',
+        extraAction: false,
         // 行动名作卡面，行动者自身后果（"手牌 +3"）放在动词行，避免挤在卡面角标里
         verb: sp.outcome || '特殊行动',
         fromAvatar: avatar(sp.actorId),
@@ -970,6 +1014,10 @@ const chainView = computed(() => {
       const from = ef.actorId || target
       return {
         id: row.id,
+        kind: 'effect',
+        fromId: from,
+        toId: target && target !== from ? target : '',
+        extraAction: ef.kind === 'extra_action',
         verb: ef.kind === 'extra_action' ? '额外行动' : `${ef.label} 生效`,
         fromAvatar: avatar(from),
         toAvatar: target && target !== from ? avatar(target) : '',
@@ -1010,6 +1058,11 @@ const chainView = computed(() => {
     }
     return {
       id: row.id,
+      kind: 'chain',
+      fromId: c.fromPlayerId,
+      toId: c.toPlayerId,
+      ...(typeof c.card?.damage === 'number' && c.card.damage > 0 ? { baseDamage: c.card.damage } : {}),
+      extraAction: false,
       verb: c.verb,
       fromAvatar: avatar(c.fromPlayerId),
       toAvatar: avatar(c.toPlayerId),
@@ -1033,25 +1086,203 @@ const chainView = computed(() => {
       transfers: [],
     }
   })
-  // "X 承受" closes the chain: show it as the last card's result instead of a separate line.
-  const lastNode = nodes[nodes.length - 1]
-  const lastChainRowId = chainNodes[chainNodes.length - 1]?.row.id ?? 0
-  const takeRow = source.rows.find((row) => !row.chain && !row.skill && row.tag === '承受' && row.id > lastChainRowId)
-  if (lastNode && takeRow && !lastNode.skill) {
-    if (!lastNode.result) {
-      lastNode.result = '命中'
-      lastNode.resultStyle = 'hit'
-    }
-    if (lastNode.state === 'waiting') lastNode.state = 'current'
-  }
-  // 士气变化是这一手的最终后果：单独一行醒目显示，不挤进普通备注。
-  // 士气 / 阵营战绩区资源是这一手的最终后果：单独醒目显示，不挤进普通备注。
+  // 承受结算（"X 承受"）不再单列：伤害写到那次攻击那一行的行尾。
+  const takeRows = source.rows.filter((row) => !row.chain && !row.skill && row.tag === '承受')
+  // 士气 / 阵营战绩区资源是这一手的最终后果：挂在引起它的那一行下，醒目显示。
   const isOutcomeRow = (row: NarrationRow) => !row.chain && !row.skill && !row.special && !row.effect && (row.tag === '士气' || row.tag === '资源')
-  const outcomes = source.rows.filter(isOutcomeRow).map((row) => ({ id: row.id, html: row.html, kind: row.tag === '士气' ? 'morale' : 'resource' }))
-  const notes = source.rows.filter((row) => !row.chain && !row.skill && !row.special && !row.effect && row !== takeRow && !isOutcomeRow(row)).slice(-2)
-  const hiddenSteps = Math.max(0, nodes.length - MAX_CHAIN_NODES)
-  return { nodes: nodes.slice(-MAX_CHAIN_NODES), hiddenSteps, notes, outcomes, previous: source.previous }
+  const outcomeRows = source.rows.filter(isOutcomeRow)
+  const notes = source.rows.filter((row) => !row.chain && !row.skill && !row.special && !row.effect && !takeRows.includes(row) && !isOutcomeRow(row)).slice(-2)
+  const allRows = groupChainRows(nodes, takeRows, outcomeRows)
+  const rows = allRows.slice(-MAX_CHAIN_ROWS)
+  const folded = allRows.slice(0, Math.max(0, allRows.length - MAX_CHAIN_ROWS)).map(foldedSummary)
+  const attached = new Set(allRows.flatMap((row) => row.outcomes.map((o) => o.id)))
+  const outcomes = outcomeRows.filter((row) => !attached.has(row.id)).map(outcomeView)
+  return { rows, folded, notes, outcomes, previous: source.previous }
 })
+
+/** 战斗链最多同时显示的行（一次攻击一行）；更早的行折叠成一行摘要。 */
+const MAX_CHAIN_ROWS = 3
+const ROW_INDEX = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'
+const CAMP_COLOR: Record<string, string> = { Red: '#ff6b74', Blue: '#5fa8ff' }
+
+type VerdictStyle = LinkEndStyle | 'waiting' | ''
+
+interface ChainOutcomeView {
+  id: number
+  html: string
+  kind: 'morale' | 'resource'
+}
+
+interface ChainTakeView {
+  playerId: string
+  name: string
+  damage: number
+  heal: boolean
+}
+
+interface ChainRowView {
+  id: number
+  index: string
+  /** "主攻击" / "追加攻击" / "法术" / "技能"… */
+  title: string
+  /** 引出这一行的原因（额外行动 / 追加攻击来源），可为空。 */
+  cause: string
+  nodes: ChainNodeView[]
+  current: boolean
+  verdict: { text: string; style: VerdictStyle; damage: string } | null
+  /** 伤害算式："基础 2 · 恶魔之魂 +1 → 3"；没有修正时为空。 */
+  formula: string
+  triggerGroups: { ownerId: string; ownerName: string; ownerColor: string; triggers: ChainNodeView['triggers'] }[]
+  takes: ChainTakeView[]
+  outcomes: ChainOutcomeView[]
+}
+
+function outcomeView(row: NarrationRow): ChainOutcomeView {
+  return { id: row.id, html: row.html, kind: row.tag === '士气' ? 'morale' : 'resource' }
+}
+
+function campColor(id: string): string {
+  return CAMP_COLOR[snapshotStore.players[id]?.camp || ''] || '#c6d0e0'
+}
+
+function rowTitle(first: ChainNodeView, attackIndex: number): string {
+  if (first.kind === 'chain') {
+    if (first.verb === '攻击') return attackIndex === 0 ? '主攻击' : '追加攻击'
+    return first.verb
+  }
+  if (first.kind === 'skill') return '技能'
+  if (first.kind === 'special') return '特殊行动'
+  return first.extraAction ? '额外行动' : '效果'
+}
+
+/** 一次攻击一行：新攻击 / 法术 / 主动技能 / 特殊行动 / 场上效果另起一行，应战、防御接在当前行后面。 */
+function groupChainRows(nodes: ChainNodeView[], takeRows: NarrationRow[], outcomeRows: NarrationRow[]): ChainRowView[] {
+  const groups: { nodes: ChainNodeView[]; cause: string }[] = []
+  let pendingCause = ''
+  for (const node of nodes) {
+    const last = groups[groups.length - 1]
+    const lastNode = last?.nodes[last.nodes.length - 1]
+    // 额外行动本身不成行：作为下一行的引子
+    if (node.extraAction) {
+      pendingCause = node.cardName
+      continue
+    }
+    const continues =
+      !!lastNode && node.kind === 'chain' && lastNode.kind === 'chain' && node.verb !== '攻击' && node.verb !== '法术' && node.fromId === lastNode.toId
+    if (continues) {
+      last!.nodes.push(node)
+      continue
+    }
+    groups.push({ nodes: [node], cause: pendingCause })
+    pendingCause = ''
+  }
+  if (pendingCause) {
+    // 额外行动还没接上攻击：单独成行提示
+    const node = nodes.filter((n) => n.extraAction).pop()
+    if (node) groups.push({ nodes: [{ ...node, extraAction: false }], cause: '' })
+  }
+
+  let attackIndex = 0
+  const rows = groups.map((group, i): ChainRowView => {
+    const first = group.nodes[0]!
+    const title = rowTitle(first, attackIndex)
+    if (first.kind === 'chain' && first.verb === '攻击') attackIndex += 1
+    const triggerGroups: ChainRowView['triggerGroups'] = []
+    for (const node of group.nodes) {
+      for (const trigger of node.triggers) {
+        let owner = triggerGroups.find((g) => g.ownerId === trigger.actorId)
+        if (!owner) {
+          owner = { ownerId: trigger.actorId, ownerName: seatName(trigger.actorId), ownerColor: campColor(trigger.actorId), triggers: [] }
+          triggerGroups.push(owner)
+        }
+        owner.triggers.push(trigger)
+      }
+    }
+    return {
+      id: first.id,
+      index: ROW_INDEX[i] || `${i + 1}.`,
+      title,
+      cause: group.cause,
+      nodes: group.nodes,
+      current: group.nodes.some((n) => n.state !== 'past'),
+      verdict: null,
+      formula: '',
+      triggerGroups,
+      takes: [],
+      outcomes: [],
+    }
+  })
+
+  // 承受 / 士气 / 资源归到在它之前开始、且最近的那一行（承受还要求目标在这一行里）
+  const rowBefore = (id: number, pick?: (row: ChainRowView) => boolean) =>
+    [...rows].reverse().find((row) => row.id < id && (!pick || pick(row)))
+  for (const takeRow of takeRows) {
+    const take = takeRow.take
+    if (!take) continue
+    const row = rowBefore(takeRow.id, (r) => r.nodes.some((n) => n.kind === 'chain' && n.toId === take.playerId))
+    if (row) row.takes.push({ playerId: take.playerId, name: seatName(take.playerId), damage: take.damage, heal: take.heal })
+  }
+  for (const outcome of outcomeRows) {
+    rowBefore(outcome.id)?.outcomes.push(outcomeView(outcome))
+  }
+  for (const row of rows) applyVerdict(row, takeRows)
+  return rows
+}
+
+const DAMAGE_MOD = /伤害\s*([+\-−])\s*(\d+)/
+
+/** 行尾结论：命中 / 未命中 / 抵挡 + 最终伤害，以及伤害算式。 */
+function applyVerdict(row: ChainRowView, takeRows: NarrationRow[]) {
+  const chainNodes = row.nodes.filter((n) => n.kind === 'chain')
+  const last = chainNodes[chainNodes.length - 1]
+  if (!last) return
+  const take = row.takes.find((t) => t.playerId === last.toId) || row.takes[0]
+  const hasTakeRow = takeRows.some((r) => r.take && r.take.playerId === last.toId && r.id > last.id)
+  let style: VerdictStyle = last.resultStyle
+  let text = ''
+  if (last.state === 'waiting') {
+    style = 'waiting'
+    text = '等待响应'
+  } else if (style === 'miss') text = last.result || '未命中'
+  else if (style === 'blocked') text = last.result || '抵挡'
+  else if (style === 'heal') text = '治疗'
+  else if (style === 'hit' || take || hasTakeRow) {
+    style = 'hit'
+    text = '命中'
+  }
+  const resultDamage = Number(/(\d+)\s*伤害/.exec(last.result)?.[1] || 0)
+  const final = take?.damage || resultDamage
+  const damage = !text || style === 'miss' || style === 'blocked' || style === 'waiting' ? '' : final > 0 ? (take?.heal || style === 'heal' ? `+${final}` : `${final} 伤害`) : ''
+  // 多目标：其余承受者另写
+  const others = row.takes.filter((t) => t !== take && t.damage > 0).map((t) => `${t.name} ${t.damage}`)
+  row.verdict = text ? { text, style, damage: [damage, ...others].filter(Boolean).join(' · ') } : null
+  // 中间被应战的那一步：结果写在牌上
+  for (const node of chainNodes) {
+    if (node !== last && !node.result) {
+      node.result = '被应战'
+      node.resultStyle = 'miss'
+    }
+  }
+  if (last.result && row.verdict) last.result = ''
+
+  const mods = row.triggerGroups
+    .flatMap((g) => g.triggers)
+    .map((t) => ({ name: t.name, m: DAMAGE_MOD.exec(t.outcome) }))
+    .filter((t): t is { name: string; m: RegExpExecArray } => !!t.m)
+    .map((t) => `${t.name} ${t.m[1] === '+' ? '+' : '-'}${t.m[2]}`)
+  const base = last.baseDamage
+  if (style !== 'hit' || !final) return
+  if (mods.length) row.formula = `${base ? `基础 ${base} · ` : ''}${mods.join(' · ')} → ${final}`
+  else if (base && base !== final) row.formula = `基础 ${base} → ${final}`
+}
+
+function foldedSummary(row: ChainRowView): string {
+  const first = row.nodes[0]!
+  const last = row.nodes[row.nodes.length - 1]!
+  const to = last.toName && last.toName !== '自身' ? ` → ${last.toName}` : ''
+  const verdict = row.verdict ? ` ${row.verdict.text}${row.verdict.damage ? ` ${row.verdict.damage}` : ''}` : ''
+  return `${row.index} ${first.fromName}${to}${verdict}`
+}
 
 const historyView = computed(() => store.historyChips.slice(-MAX_HISTORY))
 
@@ -1352,82 +1583,151 @@ onBeforeUnmount(() => {
       :class="{ 'stage-chain--prev': chainView.previous, 'stage-chain--lifted': decisionOpen }"
       data-testid="stage-chain"
     >
-      <div class="stage-chain__tag">{{ chainView.previous ? '上一手' : '战斗链' }}</div>
-      <div v-if="chainView.nodes.length" class="stage-chain__track">
-        <span v-if="chainView.hiddenSteps" class="stage-chain__folded" data-testid="stage-chain-folded">+{{ chainView.hiddenSteps }} 步</span>
-        <template v-for="(node, index) in chainView.nodes" :key="node.id">
-          <div v-if="index > 0" class="stage-chain__arrow" :class="{ 'stage-chain__arrow--live': node.state !== 'past' }" :style="{ '--node-color': node.stroke }" />
-          <div
-            class="stage-chain__node"
-            :class="`stage-chain__node--${node.state}`"
-            :style="{ '--node-color': node.stroke }"
-            data-testid="stage-chain-node"
-          >
-            <div class="stage-chain__who" :title="node.toName ? `${node.fromName} → ${node.toName}` : node.fromName">
-              <img v-if="node.fromAvatar" :src="node.fromAvatar" alt="" />
+      <div class="stage-chain__head">
+        <button
+          v-if="replayCount > 0"
+          type="button"
+          class="stage-chain__replay"
+          :disabled="replayOffset >= replayCount"
+          aria-label="查看更早的战斗链"
+          title="查看更早的战斗链"
+          data-testid="stage-chain-replay-older"
+          @click="replayOlder"
+        >▲</button>
+        <div class="stage-chain__tag" data-testid="stage-chain-tag">
+          {{ replayOffset > 0 ? `回放 · 前 ${replayOffset} 条` : chainView.previous ? '上一手' : '战斗链' }}
+        </div>
+        <button
+          v-if="replayOffset > 0"
+          type="button"
+          class="stage-chain__replay"
+          aria-label="查看较新的战斗链"
+          title="查看较新的战斗链"
+          data-testid="stage-chain-replay-newer"
+          @click="replayNewer"
+        >▼</button>
+      </div>
+      <div v-if="chainView.folded.length" class="stage-chain__folded" data-testid="stage-chain-folded">
+        <span v-for="line in chainView.folded" :key="line">{{ line }}</span>
+      </div>
+      <div
+        v-for="row in chainView.rows"
+        :key="row.id"
+        class="stage-chain__row"
+        :class="{ 'stage-chain__row--current': row.current }"
+        data-testid="stage-chain-row"
+      >
+        <div class="stage-chain__row-head">
+          <span class="stage-chain__row-index">{{ row.index }}</span>
+          <span class="stage-chain__row-title" data-testid="stage-chain-row-title">{{ row.title }}</span>
+          <span v-if="row.cause" class="stage-chain__row-cause">· {{ row.cause }}</span>
+        </div>
+        <div class="stage-chain__row-body">
+          <div class="stage-chain__track">
+            <template v-for="(node, index) in row.nodes" :key="node.id">
+              <img
+                v-if="index === 0 && node.fromAvatar"
+                class="stage-chain__seat"
+                :style="{ '--seat-color': campColor(node.fromId) }"
+                :src="node.fromAvatar"
+                :alt="node.fromName"
+                :title="node.fromName"
+              />
+              <span v-if="index > 0" class="stage-chain__relay" aria-hidden="true">⟲</span>
+              <div class="stage-chain__node" :class="`stage-chain__node--${node.state}`" :style="{ '--node-color': node.stroke }" data-testid="stage-chain-node">
+                <div class="stage-chain__card" :class="{ 'stage-chain__card--skill': node.skill }" :title="node.hint || undefined">
+                  <template v-if="node.skill">
+                    <img v-if="node.cardArt" class="stage-chain__skill-art" :src="node.cardArt" alt="" />
+                    <span class="stage-chain__skill-name">{{ node.cardName }}</span>
+                  </template>
+                  <img v-else-if="node.cardArt" :src="node.cardArt" alt="" />
+                  <span v-else class="stage-chain__card-text">{{ node.cardName }}</span>
+                  <span
+                    v-if="node.showCardName && node.cardArt"
+                    class="stage-chain__card-name"
+                    :class="{ 'stage-chain__card-name--raised': !!node.result }"
+                    data-testid="stage-chain-card-name"
+                  >{{ node.cardName }}</span>
+                  <span v-if="node.faction" class="stage-chain__fate" :title="`${node.faction}命格`" data-testid="stage-chain-fate">{{ node.faction }}</span>
+                  <span v-if="node.element" class="stage-chain__elem"><ElementGlyph :element="node.element" /></span>
+                  <span v-if="node.state === 'waiting'" class="stage-chain__timer" />
+                  <span v-if="node.result" class="stage-chain__result" :class="`stage-chain__result--${node.resultStyle}`">{{ node.result }}</span>
+                </div>
+                <!-- 只有非攻击类节点（技能结果、特殊行动、效果）才需要动词；攻击方向由头像表达 -->
+                <div
+                  v-if="node.kind !== 'chain'"
+                  class="stage-chain__verb"
+                  :class="{ 'stage-chain__verb--outcome': node.skill && node.verb !== '发动' && node.verb !== '触发' }"
+                >
+                  {{ node.verb }}
+                </div>
+                <div v-else class="stage-chain__step">{{ node.verb }}</div>
+                <div v-if="node.cost" class="stage-chain__cost">消耗 {{ node.cost }}</div>
+                <!-- 技能公开展示的牌：小牌面并排，带命格与牌名 -->
+                <div v-if="node.revealed.length" class="stage-chain__revealed" data-testid="stage-chain-revealed">
+                  <div v-for="card in node.revealed" :key="card.key" class="stage-chain__mini" :title="card.faction ? `${card.name} · ${card.faction}命格` : card.name">
+                    <img v-if="card.art" :src="card.art" alt="" />
+                    <span v-if="card.faction" class="stage-chain__fate stage-chain__fate--mini">{{ card.faction }}</span>
+                    <span class="stage-chain__card-name stage-chain__card-name--mini">{{ card.name }}</span>
+                  </div>
+                </div>
+                <!-- 手牌流动：谁把几张牌交给了谁 -->
+                <div v-if="node.transfers.length" class="stage-chain__transfers" data-testid="stage-chain-transfers">
+                  <div v-for="t in node.transfers" :key="t.key" class="stage-chain__transfer" :title="t.title" :aria-label="t.title">
+                    <img v-if="t.fromAvatar" :src="t.fromAvatar" alt="" />
+                    <span v-else class="stage-chain__transfer-pile">{{ t.fromName }}</span>
+                    <span class="stage-chain__transfer-arrow" aria-hidden="true">➜</span>
+                    <img v-if="t.toAvatar" :src="t.toAvatar" alt="" />
+                    <span v-else class="stage-chain__transfer-pile">{{ t.toName }}</span>
+                    <span class="stage-chain__transfer-count">{{ t.count }} 张</span>
+                  </div>
+                </div>
+              </div>
               <template v-if="node.toAvatar">
-                <span class="stage-chain__who-arrow">›</span>
-                <img :src="node.toAvatar" alt="" />
+                <span class="stage-chain__arrow" :class="{ 'stage-chain__arrow--live': node.state !== 'past' }" :style="{ '--node-color': node.stroke }" aria-hidden="true" />
+                <img
+                  class="stage-chain__seat"
+                  :style="{ '--seat-color': campColor(node.toId) }"
+                  :src="node.toAvatar"
+                  :alt="node.toName"
+                  :title="node.toName"
+                />
+                <span v-if="node.moreTargets > 0" class="stage-chain__more">+{{ node.moreTargets }}</span>
               </template>
-              <span v-if="node.moreTargets > 0" class="stage-chain__more">+{{ node.moreTargets }}</span>
-            </div>
-            <div class="stage-chain__card" :class="{ 'stage-chain__card--skill': node.skill }">
-              <template v-if="node.skill">
-                <img v-if="node.cardArt" class="stage-chain__skill-art" :src="node.cardArt" alt="" />
-                <span class="stage-chain__skill-name">{{ node.cardName }}</span>
-              </template>
-              <img v-else-if="node.cardArt" :src="node.cardArt" alt="" />
-              <span v-else-if="!node.skill" class="stage-chain__card-text">{{ node.cardName }}</span>
-              <span
-                v-if="node.showCardName && node.cardArt"
-                class="stage-chain__card-name"
-                :class="{ 'stage-chain__card-name--raised': !!node.result }"
-                data-testid="stage-chain-card-name"
-              >{{ node.cardName }}</span>
-              <span v-if="node.faction" class="stage-chain__fate" :title="`${node.faction}命格`" data-testid="stage-chain-fate">{{ node.faction }}</span>
-              <span v-if="node.element" class="stage-chain__elem"><ElementGlyph :element="node.element" /></span>
-              <span v-if="node.state === 'waiting'" class="stage-chain__timer" />
-              <span v-if="node.result" class="stage-chain__result" :class="`stage-chain__result--${node.resultStyle}`">{{ node.result }}</span>
-            </div>
-            <div
-              class="stage-chain__verb"
-              :class="{ 'stage-chain__verb--outcome': node.skill && node.verb !== '发动' && node.verb !== '触发' }"
-              :title="node.hint || undefined"
-            >
-              {{ node.state === 'waiting' ? '等待响应' : node.verb }}
-            </div>
-            <div v-if="node.cost" class="stage-chain__cost">消耗 {{ node.cost }}</div>
-            <!-- 技能公开展示的牌：小牌面并排，带命格与牌名 -->
-            <div v-if="node.revealed.length" class="stage-chain__revealed" data-testid="stage-chain-revealed">
-              <div v-for="card in node.revealed" :key="card.key" class="stage-chain__mini" :title="card.faction ? `${card.name} · ${card.faction}命格` : card.name">
-                <img v-if="card.art" :src="card.art" alt="" />
-                <span v-if="card.faction" class="stage-chain__fate stage-chain__fate--mini">{{ card.faction }}</span>
-                <span class="stage-chain__card-name stage-chain__card-name--mini">{{ card.name }}</span>
-              </div>
-            </div>
-            <!-- 手牌流动：谁把几张牌交给了谁 -->
-            <div v-if="node.transfers.length" class="stage-chain__transfers" data-testid="stage-chain-transfers">
-              <div v-for="t in node.transfers" :key="t.key" class="stage-chain__transfer" :title="t.title" :aria-label="t.title">
-                <img v-if="t.fromAvatar" :src="t.fromAvatar" alt="" />
-                <span v-else class="stage-chain__transfer-pile">{{ t.fromName }}</span>
-                <span class="stage-chain__transfer-arrow" aria-hidden="true">➜</span>
-                <img v-if="t.toAvatar" :src="t.toAvatar" alt="" />
-                <span v-else class="stage-chain__transfer-pile">{{ t.toName }}</span>
-                <span class="stage-chain__transfer-count">{{ t.count }} 张</span>
-              </div>
-            </div>
-            <div
-              v-for="trigger in node.triggers"
-              :key="trigger.name"
-              class="stage-chain__trigger"
-              :style="{ '--node-color': trigger.stroke }"
-              data-testid="stage-chain-trigger"
-            >
-              ✦ {{ trigger.name }}<span v-if="trigger.outcome" class="stage-chain__trigger-outcome">{{ trigger.outcome }}</span>
-            </div>
-            <div class="stage-chain__names">{{ node.toName ? `${node.fromName} → ${node.toName}` : node.fromName }}</div>
+            </template>
           </div>
-        </template>
+          <div
+            v-if="row.verdict"
+            class="stage-chain__verdict"
+            :class="`stage-chain__verdict--${row.verdict.style}`"
+            data-testid="stage-chain-verdict"
+          >
+            <span class="stage-chain__verdict-text">{{ row.verdict.text }}</span>
+            <span v-if="row.verdict.damage" class="stage-chain__verdict-damage">{{ row.verdict.damage }}</span>
+          </div>
+        </div>
+        <div v-if="row.formula" class="stage-chain__formula" data-testid="stage-chain-formula">{{ row.formula }}</div>
+        <div v-for="group in row.triggerGroups" :key="group.ownerId" class="stage-chain__triggers">
+          <span class="stage-chain__trigger-owner" :style="{ color: group.ownerColor }">{{ group.ownerName }}：</span>
+          <span
+            v-for="trigger in group.triggers"
+            :key="trigger.name"
+            class="stage-chain__trigger"
+            :style="{ '--node-color': trigger.stroke }"
+            data-testid="stage-chain-trigger"
+          >
+            ✦ {{ trigger.name }}<span v-if="trigger.outcome" class="stage-chain__trigger-outcome">{{ trigger.outcome }}</span>
+          </span>
+        </div>
+        <div v-if="row.outcomes.length" class="stage-chain__row-outcomes">
+          <div
+            v-for="outcome in row.outcomes"
+            :key="outcome.id"
+            :class="outcome.kind === 'morale' ? 'stage-chain__morale' : 'stage-chain__resource'"
+            :data-testid="outcome.kind === 'morale' ? 'stage-chain-morale' : 'stage-chain-resource'"
+            v-html="outcome.html"
+          />
+        </div>
       </div>
       <div
         v-for="row in chainView.outcomes"
@@ -2191,7 +2491,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   /* 一整回合的步骤会更多：放宽到 80%，超出时轨道换行 */
   max-width: 80%;
   transition: filter 0.5s, opacity 0.5s, top 0.3s ease;
@@ -2203,6 +2503,33 @@ onBeforeUnmount(() => {
 .stage-chain--prev {
   opacity: 0.92;
 }
+.stage-chain__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stage-chain__replay {
+  pointer-events: auto;
+  cursor: pointer;
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  font-size: 10px;
+  line-height: 18px;
+  color: var(--bt-text-muted, #9aa6bb);
+  background: rgba(20, 26, 40, 0.7);
+  border: 1px solid var(--bt-hairline-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 4px;
+}
+.stage-chain__replay:hover:not(:disabled),
+.stage-chain__replay:focus-visible {
+  color: #e8ecf4;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.stage-chain__replay:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 .stage-chain__tag {
   font-size: 11px;
   letter-spacing: 3px;
@@ -2211,31 +2538,83 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--bt-hairline-soft, rgba(255, 255, 255, 0.12));
   border-bottom: 1px solid var(--bt-hairline-soft, rgba(255, 255, 255, 0.12));
 }
-.stage-chain__track {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  row-gap: 10px;
-}
 .stage-chain__folded {
-  align-self: center;
-  margin-bottom: 30px;
-  padding: 2px 8px;
-  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 12px;
+  border-radius: 8px;
   font-size: 11px;
   color: var(--bt-text-sub, #9aa4b5);
-  background: rgba(16, 24, 40, 0.85);
-  border: 1px solid #33425e;
+  background: rgba(16, 24, 40, 0.75);
+  border: 1px solid #2a3650;
   white-space: nowrap;
 }
+/* 一次攻击一行：行首编号 + 来源，主线 头像 → 牌 → 头像，行尾是结论 */
+.stage-chain__row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 360px;
+  padding: 8px 14px 10px;
+  border-radius: 12px;
+  background: rgba(7, 11, 20, 0.72);
+  border: 1px solid var(--bt-hairline-soft, rgba(255, 255, 255, 0.1));
+  animation: stage-node-in 0.4s ease both;
+}
+.stage-chain__row--current {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.45);
+}
+.stage-chain__row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--bt-text-muted, #9aa6bb);
+}
+.stage-chain__row-index {
+  font-size: 14px;
+  color: #dfe7f2;
+}
+.stage-chain__row-title {
+  font-weight: 700;
+  color: #dfe7f2;
+  letter-spacing: 1px;
+}
+.stage-chain__row-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.stage-chain__track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stage-chain__seat {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 999px;
+  object-fit: cover;
+  object-position: center 20%;
+  border: 2px solid var(--seat-color, #b8c4d6);
+  box-shadow: 0 0 0 2px var(--bt-bg-0, #070b14);
+}
+.stage-chain__relay {
+  font-size: 16px;
+  color: var(--bt-text-muted, #9aa6bb);
+}
 .stage-chain__arrow {
-  width: 46px;
+  width: 30px;
   height: 2px;
-  margin-bottom: 30px;
+  flex: none;
   position: relative;
-  background: repeating-linear-gradient(90deg, rgba(180, 196, 220, 0.45) 0 6px, transparent 6px 11px);
+  background: rgba(180, 196, 220, 0.5);
 }
 .stage-chain__arrow::after {
   content: '';
@@ -2243,7 +2622,7 @@ onBeforeUnmount(() => {
   right: -2px;
   top: -4px;
   border: 5px solid transparent;
-  border-left: 7px solid rgba(180, 196, 220, 0.55);
+  border-left: 7px solid rgba(180, 196, 220, 0.6);
   border-right: 0;
 }
 .stage-chain__arrow--live {
@@ -2259,40 +2638,82 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   transition: transform 0.4s ease, opacity 0.4s ease, filter 0.4s ease;
-  animation: stage-node-in 0.45s ease both;
 }
-/* 已结算的步骤保留原色、略缩小；当前步骤靠放大与高亮箭头区分，不再置灰（置灰后牌面看不清） */
-.stage-chain__node--past {
-  transform: scale(0.9);
+.stage-chain__node--waiting .stage-chain__card {
+  animation: stage-sigil-pulse 1.6s ease-in-out infinite;
 }
-.stage-chain__node--current,
-.stage-chain__node--waiting {
-  transform: scale(1.08);
-}
-.stage-chain__who {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.stage-chain__who img {
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  object-fit: cover;
-  object-position: center 20%;
-  border: 1px solid var(--bt-chrome, #b8c4d6);
-  box-shadow: 0 0 0 2px var(--bt-bg-0, #070b14);
-}
-.stage-chain__who-arrow {
-  font-size: 14px;
+.stage-chain__step {
+  font-size: 10px;
   color: var(--bt-text-muted, #9aa6bb);
+  letter-spacing: 1px;
+}
+/* 行尾结论：命中 / 未命中 / 抵挡 + 最终伤害，整条链里最醒目的字 */
+.stage-chain__verdict {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 76px;
+  padding: 4px 12px;
+  border-radius: 10px;
+  background: #4a5368;
+  color: #fff;
+  animation: stage-node-in 0.35s ease both;
+}
+.stage-chain__verdict-text {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+.stage-chain__verdict-damage {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.stage-chain__verdict--hit {
+  background: linear-gradient(180deg, #b72d37, #7a1820);
+  box-shadow: 0 0 0 1px rgba(255, 140, 150, 0.5), 0 0 12px rgba(226, 82, 94, 0.35);
+}
+.stage-chain__verdict--blocked {
+  background: #f0d27a;
+  color: #2a1d00;
+}
+.stage-chain__verdict--heal {
+  background: #1c7a49;
+}
+.stage-chain__verdict--waiting {
+  background: rgba(9, 14, 26, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #dfe7f2;
+}
+.stage-chain__formula {
+  align-self: flex-end;
+  font-size: 11px;
+  color: #f2c8cc;
+  white-space: nowrap;
+}
+.stage-chain__triggers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-left: 48px;
+}
+.stage-chain__trigger-owner {
+  font-size: 11px;
+  font-weight: 700;
+}
+.stage-chain__row-outcomes {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .stage-chain__card {
   position: relative;
-  width: 64px;
-  height: 90px;
+  width: 54px;
+  height: 76px;
   border-radius: 7px;
   overflow: visible;
   background: var(--bt-bg-0, #070b14);
@@ -2469,7 +2890,6 @@ onBeforeUnmount(() => {
   color: var(--bt-text-muted, #b9c4d8);
   white-space: nowrap;
 }
-.stage-chain__node--current .stage-chain__verb,
 /* 技能结果（"蛹 +1 · 茧 ×4"）替代通用的“技能”字样：用技能色描边，允许略宽。 */
 .stage-chain__verb--outcome {
   color: #fff;
@@ -2488,14 +2908,6 @@ onBeforeUnmount(() => {
   color: #fff;
   border-color: var(--node-color);
   box-shadow: 0 0 10px color-mix(in srgb, var(--node-color) 45%, transparent);
-}
-.stage-chain__names {
-  font-size: 11px;
-  color: var(--bt-text-muted, #9aa6bb);
-  white-space: nowrap;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .stage-chain__more {
   margin-left: 2px;
