@@ -12,6 +12,9 @@ import { useUiStore } from '../../stores/ui.store'
 import { useStageQueueStore } from '../../stores/stageQueue.store'
 import type { Prompt } from '../../types/game'
 import type { RequireActionPayload, SyncStatePayload, TimelineNotifyPayload } from '../protocol'
+import { playSfx } from '../../audio/sfx'
+
+vi.mock('../../audio/sfx', () => ({ playSfx: vi.fn() }))
 
 function buildSyncPlayer(id: string, camp: 'Red' | 'Blue') {
   return {
@@ -71,6 +74,50 @@ describe('createGameplayMessageHandlers', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()
+    vi.mocked(playSfx).mockClear()
+  })
+
+  function endState(overrides: Partial<SyncStatePayload>): SyncStatePayload {
+    return {
+      room_state: 'Playing',
+      turn_stage: 'Main',
+      turn_player_id: 'p1',
+      has_performed_startup: true,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0],
+      stones_blue: [0, 0],
+      deck_count: 10,
+      discard_count: 0,
+      available_skills: [],
+      characters: [],
+      players: [buildSyncPlayer('p1', 'Red'), buildSyncPlayer('p2', 'Blue')],
+      ...overrides,
+    }
+  }
+
+  it('plays the victory cue when the end is first seen in a state update', () => {
+    const { handlers, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+
+    handlers.handleSyncState(endState({ morale_blue: 0 }))
+    // 随后到达的 game_end 不再重复放
+    handlers.handleGameplayEvent({ event_type: 'game_end', message: '红方胜利！蓝方士气归零' })
+
+    const endCalls = vi.mocked(playSfx).mock.calls.filter(([cue]) => ['victory', 'defeat', 'game-end'].includes(cue))
+    expect(endCalls).toEqual([['victory']])
+  })
+
+  it('plays the defeat cue from a game_end event', () => {
+    const { handlers, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    handlers.handleSyncState(endState({}))
+
+    handlers.handleGameplayEvent({ event_type: 'game_end', message: '蓝方胜利！星杯达到 5' })
+
+    expect(vi.mocked(playSfx)).toHaveBeenCalledWith('defeat')
   })
 
   afterEach(() => {

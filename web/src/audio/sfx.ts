@@ -9,59 +9,32 @@
 export type SfxCue =
   | 'attack'
   | 'magic'
-  | 'hit'
-  | 'block'
-  | 'miss'
-  | 'heal'
-  | 'skill'
-  | 'trigger'
-  | 'gem'
-  | 'draw'
-  | 'turn'
   | 'prompt'
-  | 'game-end'
   | 'victory'
   | 'defeat'
+  | 'game-end'
 
 /** 真实素材登记表：放进 public/assets/sfx/ 后在这里加一行；没登记的音效继续用合成音。 */
 const SAMPLE_FILES: Partial<Record<SfxCue, string>> = {
   attack: '/assets/sfx/attack.mp3',
   magic: '/assets/sfx/magic.mp3',
-  hit: '/assets/sfx/hit.mp3',
-  block: '/assets/sfx/block.mp3',
-  miss: '/assets/sfx/miss.mp3',
-  heal: '/assets/sfx/heal.mp3',
-  skill: '/assets/sfx/skill.mp3',
-  trigger: '/assets/sfx/trigger.mp3',
-  gem: '/assets/sfx/gem.mp3',
-  draw: '/assets/sfx/draw.mp3',
-  turn: '/assets/sfx/turn.mp3',
   prompt: '/assets/sfx/prompt.mp3',
   victory: '/assets/sfx/victory.mp3',
   defeat: '/assets/sfx/defeat.mp3',
-  // game-end 没有素材：没有观战位，只在结束消息里认不出胜方时兜底，用合成音
+  // game-end：没有观战位，只在结束消息里认不出胜方时兜底，用合成音
 }
 
 /**
  * 每个音效的目标响度（有声部分的 RMS，dBFS）。素材各自生成、响度差异很大，
- * 解码后按这里统一：提示音最醒目，高频出现的触发 / 宝石最轻。
+ * 解码后按这里统一：提示音最醒目，出牌声最频繁所以偏轻。
  */
 const TARGET_RMS_DB: Record<SfxCue, number> = {
   prompt: -18,
-  hit: -21,
-  block: -23,
   attack: -24,
-  skill: -24,
-  turn: -24,
   magic: -25,
-  draw: -26,
-  miss: -27,
-  heal: -25,
-  gem: -27,
-  trigger: -30,
-  'game-end': -22,
   victory: -20,
   defeat: -22,
+  'game-end': -22,
 }
 
 /** 归一化后的峰值上限，防止增益拉高后削波。 */
@@ -256,62 +229,15 @@ function noise(c: AudioContext, out: AudioNode, t0: number, o: { dur: number; ga
 type Synth = (c: AudioContext, out: AudioNode, t: number) => void
 
 const SYNTH: Record<SfxCue, Synth> = {
-  // 攻击出手：短促的挥砍风声
+  // 打出攻击牌：牌拍在桌上
   attack: (c, o, t) => {
-    noise(c, o, t, { dur: 0.18, gain: 0.35, filter: 1800, q: 0.8, type: 'highpass' })
-    tone(c, o, t, { freq: 420, to: 160, dur: 0.14, type: 'triangle', gain: 0.12 })
+    noise(c, o, t, { dur: 0.08, gain: 0.35, filter: 2400, q: 0.9 })
+    tone(c, o, t, { freq: 180, to: 90, dur: 0.08, type: 'sine', gain: 0.2 })
   },
-  // 法术出手：上扬的闪光
+  // 打出法术牌：翻牌
   magic: (c, o, t) => {
-    tone(c, o, t, { freq: 520, to: 1560, dur: 0.28, type: 'sine', gain: 0.18 })
-    tone(c, o, t, { freq: 780, to: 2100, dur: 0.24, type: 'triangle', gain: 0.08, delay: 0.04 })
-  },
-  // 命中：低频重击
-  hit: (c, o, t) => {
-    tone(c, o, t, { freq: 150, to: 50, dur: 0.22, type: 'sine', gain: 0.5 })
-    noise(c, o, t, { dur: 0.1, gain: 0.3, filter: 900, q: 0.7 })
-  },
-  // 被挡下：金属格挡
-  block: (c, o, t) => {
-    tone(c, o, t, { freq: 1250, dur: 0.25, type: 'square', gain: 0.06 })
-    tone(c, o, t, { freq: 1870, dur: 0.18, type: 'triangle', gain: 0.08 })
-    noise(c, o, t, { dur: 0.05, gain: 0.25, filter: 4000, q: 2 })
-  },
-  // 未命中：轻飘的下滑
-  miss: (c, o, t) => {
-    noise(c, o, t, { dur: 0.22, gain: 0.15, filter: 2600, q: 0.6 })
-    tone(c, o, t, { freq: 600, to: 300, dur: 0.18, type: 'sine', gain: 0.06 })
-  },
-  // 治疗：温和的上行三音
-  heal: (c, o, t) => {
-    tone(c, o, t, { freq: 523, dur: 0.3, gain: 0.14 })
-    tone(c, o, t, { freq: 659, dur: 0.3, gain: 0.12, delay: 0.07 })
-    tone(c, o, t, { freq: 784, dur: 0.4, gain: 0.12, delay: 0.14 })
-  },
-  // 主动技能：亮一点的和弦
-  skill: (c, o, t) => {
-    tone(c, o, t, { freq: 392, dur: 0.35, type: 'triangle', gain: 0.14 })
-    tone(c, o, t, { freq: 587, dur: 0.35, type: 'triangle', gain: 0.1, delay: 0.03 })
-    tone(c, o, t, { freq: 1175, to: 1400, dur: 0.25, gain: 0.05, delay: 0.06 })
-  },
-  // 被动触发：很轻的提示
-  trigger: (c, o, t) => {
-    tone(c, o, t, { freq: 880, dur: 0.12, type: 'sine', gain: 0.07 })
-  },
-  // 宝石 / 水晶：清脆的叮
-  gem: (c, o, t) => {
-    tone(c, o, t, { freq: 1568, dur: 0.22, gain: 0.1 })
-    tone(c, o, t, { freq: 2349, dur: 0.16, gain: 0.05, delay: 0.03 })
-  },
-  // 摸牌：纸张摩擦
-  draw: (c, o, t) => {
-    noise(c, o, t, { dur: 0.09, gain: 0.18, filter: 3200, q: 1.2 })
-    noise(c, o, t, { dur: 0.07, gain: 0.12, filter: 3800, q: 1.2, delay: 0.06 })
-  },
-  // 回合切换
-  turn: (c, o, t) => {
-    tone(c, o, t, { freq: 330, dur: 0.3, type: 'triangle', gain: 0.12 })
-    tone(c, o, t, { freq: 494, dur: 0.4, type: 'triangle', gain: 0.1, delay: 0.1 })
+    noise(c, o, t, { dur: 0.06, gain: 0.2, filter: 3600, q: 1.2 })
+    noise(c, o, t, { dur: 0.08, gain: 0.28, filter: 2200, q: 0.9, delay: 0.06 })
   },
   // 轮到我操作：最醒目的两声
   prompt: (c, o, t) => {
@@ -331,7 +257,7 @@ const SYNTH: Record<SfxCue, Synth> = {
     tone(c, o, t, { freq: 392, dur: 0.6, type: 'sine', gain: 0.13, delay: 0.32 })
     tone(c, o, t, { freq: 311, dur: 1.2, type: 'sine', gain: 0.14, delay: 0.64 })
   },
-  // 对局结束（观战 / 判断不出胜负时）
+  // 对局结束（判断不出胜负时）
   'game-end': (c, o, t) => {
     tone(c, o, t, { freq: 392, dur: 0.5, type: 'triangle', gain: 0.16 })
     tone(c, o, t, { freq: 494, dur: 0.5, type: 'triangle', gain: 0.14, delay: 0.15 })

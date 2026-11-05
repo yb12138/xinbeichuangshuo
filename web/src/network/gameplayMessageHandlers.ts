@@ -230,6 +230,15 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     gateTimer = setTimeout(releaseGatedPrompt, PROMPT_GATE_MAX_MS)
   }
 
+  /**
+   * 游戏结束有两条入口：game_end 事件，或 state_update 里星杯 / 士气已到终局（可能先到）。
+   * 哪条先把游戏标记为结束，就由哪条放结尾音；另一条看到已结束就不会重复。
+   */
+  function playEndCueFor(message: string) {
+    const myCamp = snapshotStore.players[sessionStore.myPlayerId]?.camp || sessionStore.myCamp
+    playEndCue(endCueFor(message, myCamp))
+  }
+
   /** 结尾音乐等最后一手演出播完再响，免得盖住决胜的那一下；最多等 END_CUE_MAX_WAIT_MS。 */
   const END_CUE_MAX_WAIT_MS = 4000
   function playEndCue(cue: Parameters<typeof playSfx>[0]) {
@@ -340,6 +349,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const fallbackEndMsg = deriveEndMessageFromState(event.state)
           if (fallbackEndMsg && !uiStore.isGameEnded) {
             matchLifecycleStore.setGameEnded(fallbackEndMsg)
+            playEndCueFor(fallbackEndMsg)
             battleReviewStore.addLog(`游戏结束: ${fallbackEndMsg}`)
           }
           const nextCurrent = event.state.current_player
@@ -417,7 +427,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const isFirstEndSignal = !uiStore.isGameEnded
           matchLifecycleStore.setGameEnded(message)
           if (isFirstEndSignal) {
-            playEndCue(endCueFor(message, snapshotStore.players[sessionStore.myPlayerId]?.camp))
+            playEndCueFor(message)
             battleReviewStore.addBattleFeed({
               type: 'system',
               title: message,
