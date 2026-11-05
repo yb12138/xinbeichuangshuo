@@ -43,7 +43,7 @@ func drainButterflyFlow(t *testing.T, game *engine.GameEngine) {
 	for i := 0; i < 30 && (len(game.State.PendingDamageQueue) > 0 || game.State.PendingInterrupt != nil); i++ {
 		if intr := game.State.PendingInterrupt; intr != nil && intr.Type == model.InterruptChoice {
 			sel := 0
-			if ct, _ := intr.Context.(map[string]interface{})["choice_type"].(string); ct == "bt_wither_confirm" || ct == "bt_pilgrimage_confirm" {
+			if ct, _ := intr.Context.(map[string]interface{})["choice_type"].(string); ct == "bt_wither_confirm" {
 				sel = 1
 			}
 			testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: intr.PlayerID, Type: model.CmdSelect, Selections: []int{sel}})
@@ -77,8 +77,6 @@ func TestButterflyPilgrimage_EmitsSkillActivatedOnce(t *testing.T) {
 	game.Drive()
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_poison_pick")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}) // 不发动毒粉
-	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_confirm")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
 	requireNoSkillActivation(t, obs, "bt_pilgrimage")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})

@@ -37,6 +37,24 @@ func placeHundredDragonLock(rt engineplayer.ChoiceRuntime, fighter, target *mode
 	return rt.AttachEffectCard(fighter, target, model.EffectFighterHundredDragonLock, hundredDragonLockCard())
 }
 
+// findHundredDragonLockHolder 在 model.IGameEngine 上查找锁定卡所在的角色（技能 Execute 侧使用）。
+func findHundredDragonLockHolder(game model.IGameEngine, fighter *model.Player) *model.Player {
+	if game == nil || fighter == nil {
+		return nil
+	}
+	for _, p := range game.GetAllPlayers() {
+		if p == nil {
+			continue
+		}
+		for _, fc := range p.Field {
+			if fc != nil && fc.Mode == model.FieldEffect && fc.Effect == model.EffectFighterHundredDragonLock && fc.SourceID == fighter.ID {
+				return p
+			}
+		}
+	}
+	return nil
+}
+
 func clearHundredDragonLock(rt engineplayer.ChoiceRuntime, fighter *model.Player) {
 	if rt == nil || fighter == nil {
 		return
@@ -44,19 +62,14 @@ func clearHundredDragonLock(rt engineplayer.ChoiceRuntime, fighter *model.Player
 	rt.RemoveEffectCard(fighter, model.EffectFighterHundredDragonLock, false)
 }
 
+// LockedTarget 返回百式幻龙拳锁定的目标：以目标面前的锁定专属效果卡为准。
+// 百式状态跨回合持续，而 TurnState 每回合重置，所以不能把锁定目标存在 SkillFlowState 里。
 func LockedTarget(rt engineplayer.ChoiceRuntime, p *model.Player) *model.Player {
-	if p == nil {
+	if rt == nil || p == nil {
 		return nil
 	}
-	order := engineplayer.GetSkillFlowState(p, "fighter_hundred_dragon_target_order")
-	if order <= 0 {
-		return nil
-	}
-	orderIDs := rt.GetPlayerOrder()
-	if order > len(orderIDs) {
-		return nil
-	}
-	return rt.GetPlayers()[orderIDs[order-1]]
+	holder, _ := rt.FindEffectCard(p, model.EffectFighterHundredDragonLock)
+	return holder
 }
 
 func ClearHundredDragon(rt engineplayer.ChoiceRuntime, p *model.Player, logLine string) bool {
@@ -64,9 +77,8 @@ func ClearHundredDragon(rt engineplayer.ChoiceRuntime, p *model.Player, logLine 
 		return false
 	}
 	defer rt.PoseChangeGuard()
-	active := engineplayer.HasForm(p, model.FormFighterHundredDragon) || engineplayer.GetSkillFlowState(p, "fighter_hundred_dragon_target_order") > 0
+	active := engineplayer.HasForm(p, model.FormFighterHundredDragon) || LockedTarget(rt, p) != nil
 	engineplayer.ClearForm(p, model.FormFighterHundredDragon)
-	engineplayer.SetSkillFlowState(p, "fighter_hundred_dragon_target_order", 0)
 	clearHundredDragonLock(rt, p)
 	rt.ClearRuleModifiersByModifierID(p.ID, hundredDragonDisableChargeModifierID)
 	if active && logLine != "" {

@@ -95,27 +95,12 @@ func (h *PlagueDeathTouchHandler) CanUse(ctx *model.Context) bool {
 
 func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
 	if ctx.Target == nil {
-		return fmt.Errorf("死亡之触需要1名敌方目标")
+		return fmt.Errorf("死亡之触需要1名目标角色")
 	}
 	if ctx.User.Heal < 2 {
 		return fmt.Errorf("死亡之触需要至少2点治疗")
 	}
-	counts := map[model.Element]int{}
-	for _, c := range ctx.User.Hand {
-		if c.Element != "" {
-			counts[c.Element]++
-		}
-	}
-	var elements []string
-	for _, ele := range []model.Element{
-		model.ElementEarth, model.ElementWater, model.ElementFire,
-		model.ElementWind, model.ElementThunder, model.ElementLight, model.ElementDark,
-	} {
-		if counts[ele] >= 2 {
-			elements = append(elements, string(ele))
-		}
-	}
-	if len(elements) == 0 {
+	if len(deathTouchCandidateCardIndices(ctx.User)) == 0 {
 		return fmt.Errorf("死亡之触需要至少2张同系牌")
 	}
 	// 该技能不触发不朽：先设置抑制标记，覆盖 UseSkill 的阶段结束触发。
@@ -124,12 +109,10 @@ func (h *PlagueDeathTouchHandler) Execute(ctx *model.Context) error {
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":              "plague_death_touch_element",
+			"choice_type":              "plague_death_touch_x",
 			"user_id":                  ctx.User.ID,
 			"target_id":                ctx.Target.ID,
-			"elements":                 elements,
 			"max_heal":                 ctx.User.Heal,
-			"element_counts":           counts,
 			model.PromptFlowContextKey: deathTouchFlowRuntime.Begin(),
 		},
 	})

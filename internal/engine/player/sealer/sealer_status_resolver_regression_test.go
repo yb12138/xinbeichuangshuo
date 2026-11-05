@@ -337,3 +337,30 @@ func TestSealBreak_CanPickGlobalBasicEffectWithoutPreselectedTarget(t *testing.T
 		t.Fatalf("expected unselected effect on p2 to remain, got %d", got)
 	}
 }
+
+// 封印师-1：一次展示多张同系牌只触发一次封印。
+func TestElementalSeal_MultipleSameElementCardsTriggerOnce(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Target", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Sealer", "sealer", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	target := game.State.Players["p1"]
+	target.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "seal-fire", Name: "火之封印", Type: model.CardTypeMagic, Element: model.ElementFire},
+		OwnerID:  target.ID,
+		SourceID: "p2",
+		Mode:     model.FieldEffect,
+		Effect:   model.EffectSealFire,
+		Hook:     model.FieldHookOnCardPlayedOrRevealed,
+	})
+	game.NotifyCardRevealed("p1", []model.Card{
+		{ID: "fire-1", Name: "火牌1", Type: model.CardTypeMagic, Element: model.ElementFire},
+		{ID: "fire-2", Name: "火牌2", Type: model.CardTypeAttack, Element: model.ElementFire},
+	}, "discard")
+	if got := len(game.State.PendingDamageQueue); got != 1 {
+		t.Fatalf("expected seal to trigger once for two fire cards, got %d pending damages", got)
+	}
+}

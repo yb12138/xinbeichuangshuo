@@ -94,6 +94,9 @@ func (e *GameEngine) syncTurnStageForDispatch(player *model.Player) model.TurnSt
 	return setAndReturn(stage)
 }
 
+// turnBeforeStartSkillsDispatchedKey 标记本回合已开过"回合开始前"技能窗口。
+const turnBeforeStartSkillsDispatchedKey = "__turn_before_start_skills_dispatched"
+
 func (e *GameEngine) driveTurnBeforeStartStage(player *model.Player) driveOutcome {
 	if e.State.Subflow != model.SubflowNone || len(e.State.CombatStack) > 0 || e.State.TurnStage != model.TurnStageTurnBeforeStart {
 		return driveUnhandled
@@ -104,6 +107,23 @@ func (e *GameEngine) driveTurnBeforeStartStage(player *model.Player) driveOutcom
 			return driveStop
 		}
 		return driveContinueLoop
+	}
+
+	// "回合开始前"技能窗口（如天使之歌）：排在 BeforeAction 的中毒/虚弱结算之前。
+	// 每回合只开一次：技能结算完会恢复回本阶段，再次进入时不重复询问。
+	if player != nil && player.TurnState.SkillFlowState[turnBeforeStartSkillsDispatchedKey] == 0 {
+		if player.TurnState.SkillFlowState == nil {
+			player.TurnState.SkillFlowState = map[string]int{}
+		}
+		player.TurnState.SkillFlowState[turnBeforeStartSkillsDispatchedKey] = 1
+		beforeStartCtx := e.BuildTimedContext(player, nil, model.TimingTurnBeforeStart, &model.EventContext{
+			Type:     model.EventTurnStart,
+			SourceID: player.ID,
+		})
+		e.dispatcher.OnTiming(beforeStartCtx.Timing, beforeStartCtx)
+		if e.State.PendingInterrupt != nil {
+			return driveStop
+		}
 	}
 
 	e.setTurnStage(model.TurnStageBeforeAction)
@@ -606,9 +626,8 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 	e.Log(fmt.Sprintf("[Debug] TurnEnd 阶段: player=%s pending_action_tokens=%d", currentPid, pendingTokenCount))
 
 	// 9. 回合结束阶段
-	if e.runTimingTurnEndPreExtraHooks(player) {
-		return driveStop
-	}
+	// 先消费待执行的行动令牌（额外行动）；"回合结束时"钩子要等所有额外行动都执行完之后才结算，
+	// 否则每段额外行动之前都会跑一次（兽魂重复扣除、热血沸腾提前脱离、黑暗祭礼提前结算等）。
 	// 检查是否有待执行的行动令牌 (处理额外行动)
 	// 将PendingActions逻辑迁移至此
 	if len(player.TurnState.PendingActions) > 0 {
@@ -634,6 +653,14 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 		e.Log(fmt.Sprintf("[Turn] %s %s 额外行动开始 (剩余 %d 次额外行动)%s",
 			player.Name, currentAction.Source, len(player.TurnState.PendingActions)+1, constraintInfo))
 
+		return driveContinueLoop
+	}
+
+	if e.runTimingTurnEndPreExtraHooks(player) {
+		return driveStop
+	}
+	// 回合结束钩子若追加了额外行动，回到 TurnEnd 继续消费，避免行动令牌丢失。
+	if len(player.TurnState.PendingActions) > 0 {
 		return driveContinueLoop
 	}
 

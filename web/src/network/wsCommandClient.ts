@@ -29,6 +29,8 @@ export function createWsCommandClient(deps: WsCommandClientDeps) {
 
   function sendAction(action: PlayerAction) {
     if (!isTransportOpen()) {
+      // 没发出去：恢复提交前的选择，别让界面停在"提交中"
+      interruptStore.restoreSubmission()
       interruptStore.showError('未连接到服务器')
       return
     }

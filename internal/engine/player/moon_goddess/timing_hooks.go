@@ -56,12 +56,7 @@ func postDamageResolvedHook(rt engineplayer.HookRuntime, ctx engineplayer.Timing
 	if source == nil || !engineplayer.IsCharacter(source, "moon_goddess") {
 		return engineplayer.TimingHookResult{}
 	}
-	order := rt.GetPlayerOrder()
-	currentTurnPlayerID := order[rt.GetCurrentTurnIndex()]
-	currentTurnSource := currentTurnPlayerID == source.ID
-	if !source.IsActive && !currentTurnSource {
-		return engineplayer.TimingHookResult{}
-	}
+	// 回合限定：每个回合各限一次，对手回合同样可触发。
 	target := rt.GetPlayers()[pd.TargetID]
 	if target == nil || target.Camp == source.Camp {
 		return engineplayer.TimingHookResult{}

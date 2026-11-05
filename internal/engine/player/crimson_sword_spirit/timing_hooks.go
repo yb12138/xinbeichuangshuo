@@ -55,10 +55,8 @@ func turnEndHook(rt player.HookRuntime, ctx player.TimingHookContext) player.Tim
 	if !hasCourtyard {
 		return player.TimingHookResult{}
 	}
+	// 鲜血上限始终为 3；散华轮舞宝石分支留下的超额鲜血（最高 4）不在回合结束时截回。
 	p.Tokens["css_blood_cap"] = 3
-	if p.Tokens["css_blood"] > 3 {
-		p.Tokens["css_blood"] = 3
-	}
 	if rt.RemoveExclusiveEffectCard(p, model.EffectRoseCourtyard, true) {
 		rt.Log(fmt.Sprintf("%s 的 [血蔷薇庭院] 回合结束移回专属卡区", p.Name))
 	} else {

@@ -279,8 +279,7 @@ describe('ActionPanel skill availability', () => {
     expect(mocks.submitUseSkill).toHaveBeenCalledWith(
       'sage_arcane_codex',
       [],
-      undefined,
-      { clearSkillMode: true },
+      undefined
     )
     expect(useInterruptStore().skillMode).not.toBe('choosing_target')
   })
@@ -336,8 +335,7 @@ describe('ActionPanel skill availability', () => {
     expect(mocks.submitUseSkill).toHaveBeenCalledWith(
       'adventurer_fraud',
       [],
-      undefined,
-      { clearSkillMode: true },
+      undefined
     )
     expect(useInterruptStore().skillMode).not.toBe('choosing_target')
   })
@@ -532,8 +530,7 @@ describe('ActionPanel skill availability', () => {
       expect(mocks.submitUseSkill).toHaveBeenCalledWith(
         skill.id,
         [],
-        [0],
-        { clearSkillMode: true },
+        [0]
       )
       unmount()
     }
@@ -595,5 +592,125 @@ describe('ActionPanel action hub notice and end-turn', () => {
     expect(screen.getByTestId('action-cannot-act')).toHaveTextContent('放弃额外行动')
     expect(screen.queryByTestId('action-hub-notice')).toBeNull()
     expect(screen.getByText('仅可攻击')).toBeInTheDocument()
+  })
+})
+
+describe('ActionPanel skill step confirmation', () => {
+  const discardSkill: AvailableSkill = {
+    id: 'test_discard_target',
+    title: '弃牌打击',
+    description: '弃1张牌，对1名目标造成伤害。',
+    min_targets: 1,
+    max_targets: 1,
+    target_type: 2,
+    cost_gem: 0,
+    cost_crystal: 0,
+    cost_discards: 1,
+  }
+
+  function setup(skill: AvailableSkill) {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    mocks.submitUseSkill.mockReset()
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'hero')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p1: buildPlayer({
+          id: 'p1',
+          role: 'hero',
+          hand_count: 2,
+          hand: [
+            { id: 'c1', name: '火焰斩', type: 'Attack', element: 'Fire', damage: 2, description: '' },
+            { id: 'c2', name: '水涟斩', type: 'Attack', element: 'Water', damage: 2, description: '' },
+          ],
+        }),
+        p2: buildPlayer({ id: 'p2', name: '目标', camp: 'Blue', role: 'enemy', is_active: false }),
+      },
+      available_skills: [skill],
+      characters: [buildCharacter({ id: 'hero', name: '英雄', skills: [{ ...skill, type: 2 }] })],
+    }))
+    const store = useInterruptStore()
+    store.setSelectedSkill(skill)
+    store.setSkillMode('choosing_discard')
+    render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+    return store
+  }
+
+  it('waits for "下一步" after the discard is full, and "上一步" keeps the discard', async () => {
+    const store = setup(discardSkill)
+    const next = screen.getByTestId('skill-discard-confirm-btn')
+    expect(next).toBeDisabled()
+    expect(next).toHaveTextContent('下一步')
+
+    store.setSkillDiscardHandIndexes([1])
+    await waitFor(() => expect(screen.getByTestId('skill-discard-confirm-btn')).not.toBeDisabled())
+    expect(store.skillMode).toBe('choosing_discard')
+
+    await userEvent.click(screen.getByTestId('skill-discard-confirm-btn'))
+    expect(store.skillMode).toBe('choosing_target')
+
+    await userEvent.click(screen.getByTestId('skill-target-back-btn'))
+    expect(store.skillMode).toBe('choosing_discard')
+    expect(store.skillDiscardHandIndexes).toEqual([1])
+  })
+
+  it('submits a targeted skill only through "确认发动"', async () => {
+    const store = setup(discardSkill)
+    store.setSkillDiscardHandIndexes([0])
+    store.setSkillMode('choosing_target')
+    await waitFor(() => expect(screen.getByTestId('skill-target-confirm-btn')).toBeDisabled())
+
+    store.setSkillTargetIds(['p2'])
+    await waitFor(() => expect(screen.getByTestId('skill-target-confirm-btn')).not.toBeDisabled())
+    expect(mocks.submitUseSkill).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByTestId('skill-target-confirm-btn'))
+    expect(mocks.submitUseSkill).toHaveBeenCalledWith('test_discard_target', ['p2'], [0])
+  })
+
+  it('labels the discard step "确认发动" and hides the target step for self-target skills', async () => {
+    const store = setup({ ...discardSkill, id: 'test_discard_self', target_type: 1, min_targets: 0, max_targets: 0 })
+    expect(screen.queryByText('② 选目标')).toBeNull()
+    expect(screen.getByTestId('skill-discard-confirm-btn')).toHaveTextContent('确认发动')
+
+    store.setSkillDiscardHandIndexes([0])
+    await waitFor(() => expect(screen.getByTestId('skill-discard-confirm-btn')).not.toBeDisabled())
+    await userEvent.click(screen.getByTestId('skill-discard-confirm-btn'))
+    expect(mocks.submitUseSkill).toHaveBeenCalledWith('test_discard_self', ['p1'], [0])
+  })
+
+  it('hints which target will be replaced once a multi-target skill is full', async () => {
+    const store = setup({ ...discardSkill, id: 'test_multi', cost_discards: 0, min_targets: 1, max_targets: 2 })
+    store.setSkillMode('choosing_target')
+    store.setSkillTargetIds(['p2', 'p1'])
+    await waitFor(() => expect(screen.getByTestId('skill-target-replace-hint')).toHaveTextContent('目标'))
+  })
+})
+
+describe('ActionPanel pending states', () => {
+  function renderIdleTurn() {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'hero')
+    useSnapshotStore().updateGameState(buildState())
+    render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+    return useInterruptStore()
+  }
+
+  it('hides the action hub while a submission awaits the server', async () => {
+    const store = renderIdleTurn()
+    expect(screen.getByTestId('action-attack')).toBeInTheDocument()
+    store.beginSubmit()
+    await waitFor(() => expect(screen.queryByTestId('action-attack')).toBeNull())
+    expect(screen.getByTestId('dock-pending-panel')).toHaveTextContent('等待服务器结算')
+    store.endSubmit()
+    await waitFor(() => expect(screen.getByTestId('action-attack')).toBeInTheDocument())
+  })
+
+  it('shows a light "即将轮到你" status while my prompt is gated', async () => {
+    const store = renderIdleTurn()
+    store.setPromptGated(true)
+    await waitFor(() => expect(screen.getByTestId('dock-pending-panel')).toHaveTextContent('战斗结算中，即将轮到你操作'))
+    expect(screen.queryByTestId('action-attack')).toBeNull()
   })
 })

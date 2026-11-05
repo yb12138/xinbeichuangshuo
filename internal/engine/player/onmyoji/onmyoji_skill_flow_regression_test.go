@@ -48,10 +48,11 @@ func TestOnmyojiDarkRitual_ChoosesTargetAtTurnEnd(t *testing.T) {
 	}
 	ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
 	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
-	if len(targetIDs) != 1 || targetIDs[0] != "p2" {
-		t.Fatalf("expected dark ritual target pool only include enemy p2, got %+v", targetIDs)
+	// 黑暗祭礼文案为"目标角色"：候选包括自己在内的所有角色。
+	if len(targetIDs) != 2 || targetIDs[0] != "p1" || targetIDs[1] != "p2" {
+		t.Fatalf("expected dark ritual target pool include all characters [p1 p2], got %+v", targetIDs)
 	}
-	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
 		t.Fatalf("choose dark ritual target failed: %v", err)
 	}
 	if got := p1.Tokens["onmyoji_ghost_fire"]; got != 0 {
@@ -94,11 +95,17 @@ func TestOnmyojiBinding_RequiresGemAndCrystal(t *testing.T) {
 		CanBeResponded: true,
 	}
 
-	// 仅2宝石，0水晶：不满足式神咒束代应战成本
-	game.State.BlueGems = 2
+	// 仅1宝石，0水晶：不满足式神咒束代应战成本（1宝石+1星石）
+	game.State.BlueGems = 1
 	game.State.BlueCrystals = 0
 	if game.RunAttackResponseCombatInteractionPolicies(&req) {
-		t.Fatalf("binding should not start without crystal")
+		t.Fatalf("binding should not start with only 1 gem")
+	}
+	// 仅水晶没有宝石：同样不满足
+	game.State.BlueGems = 0
+	game.State.BlueCrystals = 2
+	if game.RunAttackResponseCombatInteractionPolicies(&req) {
+		t.Fatalf("binding should not start without gem")
 	}
 
 	// 1宝石+1水晶：可触发询问
@@ -188,6 +195,10 @@ func TestOnmyojiBinding_FullFlow(t *testing.T) {
 	// Flow should complete
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no pending interrupt after full flow, got %+v", game.State.PendingInterrupt)
+	}
+	// 式神咒束代价：战绩区 1宝石 + 1星石
+	if game.State.BlueGems != 0 || game.State.BlueCrystals != 0 {
+		t.Fatalf("binding should consume 1 gem + 1 crystal, got gems=%d crystals=%d", game.State.BlueGems, game.State.BlueCrystals)
 	}
 }
 
@@ -442,5 +453,33 @@ func TestOnmyojiBinding_DeclineKeepsCombatFlowActive(t *testing.T) {
 	}
 	if got := choiceTypeOf(game.State.PendingInterrupt); got == "onmyoji_binding_confirm" {
 		t.Fatalf("expected binding confirm not to reappear after decline")
+	}
+}
+
+// 黑暗祭礼可以指定自己。
+func TestOnmyojiDarkRitual_CanTargetSelf(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Onmyoji", "onmyoji", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["onmyoji_ghost_fire"] = 3
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageTurnEnd
+
+	game.Drive()
+	if got := choiceTypeOf(game.State.PendingInterrupt); got != "onmyoji_dark_ritual_target" {
+		t.Fatalf("expected onmyoji_dark_ritual_target prompt, got %s", got)
+	}
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
+		t.Fatalf("choose self as dark ritual target failed: %v", err)
+	}
+	if len(game.State.PendingDamageQueue) == 0 || game.State.PendingDamageQueue[0].TargetID != "p1" {
+		t.Fatalf("expected dark ritual damage on self, got %+v", game.State.PendingDamageQueue)
 	}
 }

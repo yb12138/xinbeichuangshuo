@@ -63,7 +63,20 @@ func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) play
 	if p == nil || !player.IsCharacter(p, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
-	if ctx.IsCounter || InIaijutsuForm(p) {
+	if ctx.IsCounter {
+		return player.TimingHookResult{}
+	}
+	// 逆反居合斩：攻击前已发动，命中时②改为目标弃牌。
+	if p.TurnState.SkillFlowState[reversalArmedKey] > 0 {
+		x := p.TurnState.SkillFlowState["bs_reversal_pending_x"]
+		p.TurnState.SkillFlowState[reversalArmedKey] = 0
+		target := rt.GetPlayer(ctx.TargetID)
+		if target != nil && startReversalHitDiscard(rt.AsChoiceRuntime(), p, target, x, ctx.PendingDamage, ctx.Card) {
+			return player.TimingHookResult{Interrupted: true}
+		}
+		return player.TimingHookResult{}
+	}
+	if InIaijutsuForm(p) {
 		return player.TimingHookResult{}
 	}
 	before := BeastSoul(p)

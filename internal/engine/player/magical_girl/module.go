@@ -15,9 +15,6 @@ func RoleEntry() player.RoleEntry {
 		MagicBullet: player.MagicBulletAbilities{CanFuse: true, CanDirect: true},
 		Choices:     NewChoiceHandler(),
 		Skills:      SkillEntries(),
-		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingMagicMissileResponseSkillAug, Priority: 100, Hook: magicMissileResponseSkillAugHook},
-		},
 		InterruptSpecs: []player.InterruptSpec{
 			{
 				Type:                 model.InterruptMagicMissile,

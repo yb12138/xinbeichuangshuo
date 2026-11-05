@@ -4,32 +4,17 @@ import type { SfxCue } from './sfx'
 /**
  * 演出步骤 → 音效。只在步骤真正播放时调用（stageQueue.tick），
  * 快进结算和回放（holdMs = 0）都不出声，所以音效与画面始终同步。
+ *
+ * 刻意只保留出牌（攻击 / 法术连线出现）。命中、格挡、士气、摸牌、回合切换等都不出声，
+ * 避免一条战斗链里声音叠成一片。
  */
 export function cueForStep(step: AtomicStep): SfxCue | null {
   if (step.holdMs === 0) return null
   switch (step.type) {
     case 'link':
-      if (step.color === 'heal' || step.color === 'magic') return 'magic'
-      if (step.color === 'skill') return 'skill'
-      if (step.color === 'grey') return null
-      return 'attack'
-    case 'link-end':
-      if (step.style === 'hit') return 'hit'
-      if (step.style === 'blocked') return 'block'
-      if (step.style === 'miss') return 'miss'
-      // 治疗声由随后的 value-chip 给出，避免同一次治疗响两遍
+      if (step.color === 'attack') return 'attack'
+      if (step.color === 'magic' || step.color === 'heal') return 'magic'
       return null
-    case 'skill-bubble':
-      return step.opening === 'trigger' ? 'trigger' : 'skill'
-    case 'value-chip':
-      // 伤害声已经由 link-end 的命中给出；这里只负责治疗
-      return step.color === 'heal' ? 'heal' : null
-    case 'stone-flight':
-      return 'gem'
-    case 'deck-to-seat':
-      return 'draw'
-    case 'turn-banner':
-      return 'turn'
     default:
       return null
   }

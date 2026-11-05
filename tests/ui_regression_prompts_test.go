@@ -113,8 +113,8 @@ func TestUIRegression_YellowSpring_HidesCounterOptionInResponsePrompt(t *testing
 	}
 }
 
-// UI回归：血气屏障确认后应直接结算“伤害-1并反打来源”，不再进入额外确认/选目标弹框。
-func TestUIRegression_CrimsonBloodBarrier_ResolvesWithoutNestedChoicePrompt(t *testing.T) {
+// UI回归：血气屏障确认后本次伤害立即-1，随后弹出不可取消的选目标提示（仅对手），选完后原伤害继续结算。
+func TestUIRegression_CrimsonBloodBarrier_PromptsEnemyTargetThenResumesDamage(t *testing.T) {
 	game := engine.NewGameEngine(nil)
 	if err := game.AddPlayer("p1", "血色剑灵", "crimson_sword_spirit", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -135,6 +135,10 @@ func TestUIRegression_CrimsonBloodBarrier_ResolvesWithoutNestedChoicePrompt(t *t
 	}
 	game.State.CurrentTurn = 1
 	game.State.TurnStage = model.TurnStageActionExecution
+	game.State.Deck = nil
+	for i := 0; i < 10; i++ {
+		game.State.Deck = append(game.State.Deck, model.Card{ID: "bb-deck-" + string(rune('a'+i)), Name: "补牌", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2})
+	}
 
 	if err := game.HandleAction(model.PlayerAction{
 		PlayerID: "p2",
@@ -160,17 +164,30 @@ func TestUIRegression_CrimsonBloodBarrier_ResolvesWithoutNestedChoicePrompt(t *t
 		t.Fatalf("确认血气屏障失败: %v", err)
 	}
 
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("血气屏障确认后不应再出现二级弹框，实际: %+v", game.State.PendingInterrupt)
+	if got := p1.Tokens["css_blood"]; got != 0 {
+		t.Fatalf("预期确认后立即移除1鲜血，实际剩余 %d", got)
 	}
-	foundReflect := false
-	for _, pd := range game.State.PendingDamageQueue {
-		if pd.SourceID == "p1" && pd.TargetID == "p2" && pd.Damage == 1 && pd.DamageType == "magic" {
-			foundReflect = true
-			break
-		}
+	intr := game.State.PendingInterrupt
+	if intr == nil || intr.Type != model.InterruptChoice || intr.PlayerID != "p1" {
+		t.Fatalf("预期出现血气屏障选目标提示，实际: %+v", intr)
 	}
-	if !foundReflect {
-		t.Fatalf("预期存在反打来源 p2 的1点法术伤害，实际: %+v", game.State.PendingDamageQueue)
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || len(prompt.Options) != 1 || prompt.Options[0].TargetID != "p2" {
+		t.Fatalf("预期仅可选对手 p2 且不可取消，实际: %+v", prompt)
+	}
+	p1HandBefore := len(p1.Hand)
+	p2HandBefore := len(p2.Hand)
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}); err != nil {
+		t.Fatalf("选择反伤目标失败: %v", err)
+	}
+	game.Drive()
+	if got := len(p1.Hand) - p1HandBefore; got != 1 {
+		t.Fatalf("预期原魔弹伤害 -1 后结算为1点，实际 p1 摸牌 %d", got)
+	}
+	if got := len(p2.Hand) - p2HandBefore; got != 1 {
+		t.Fatalf("预期 p2 承受1点反伤，实际摸牌 %d", got)
+	}
+	if len(game.State.PendingDamageQueue) != 0 {
+		t.Fatalf("预期伤害队列已清空，实际: %+v", game.State.PendingDamageQueue)
 	}
 }

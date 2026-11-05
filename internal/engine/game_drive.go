@@ -5,6 +5,7 @@ package engine
 import (
 	"fmt"
 
+	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
 
@@ -21,6 +22,11 @@ func (e *GameEngine) Drive() {
 		e.Log(fmt.Sprintf("[Debug] Drive Loop: %d, %s", iterations, e.RuntimeStateLabel()))
 		iterations++
 		// 如果有待处理的中断，不自动推进
+		if e.State.PendingInterrupt != nil {
+			return
+		}
+		// 状态检查：如流血形态"手牌<3 立即脱离"。
+		e.dispatchAllRoleTimingHooks(engineplayer.TimingStateCheck, engineplayer.TimingHookContext{})
 		if e.State.PendingInterrupt != nil {
 			return
 		}

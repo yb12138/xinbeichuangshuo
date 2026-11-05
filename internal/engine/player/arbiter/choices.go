@@ -58,7 +58,7 @@ func handleArbiterBalanceChoice(rt engineplayer.ChoiceRuntime, playerID string, 
 		rt.Log(fmt.Sprintf("%s 选择判决天平分支1：弃掉所有手牌", user.Name))
 	case 1:
 		// 分支2：补牌到上限并我方战绩区+1红宝石
-		maxHand := user.MaxHand
+		maxHand := rt.GetMaxHand(user)
 		if len(user.Hand) < maxHand {
 			rt.DrawCards(playerID, maxHand-len(user.Hand))
 		}

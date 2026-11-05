@@ -151,19 +151,34 @@ func (h *MagicBlastHandler) Execute(ctx *model.Context) error {
 	for i, t := range targets {
 		targetIDs[i] = t.ID
 	}
+	// 规则：指定多名角色的效果，从当前回合角色开始按逆时针依次结算（与玩家点选顺序无关）。
+	targetIDs = orderTargetsCounterclockwise(ctx.Game.PlayerOrder(), ctx.User.ID, targetIDs)
 
+	// 没有法术牌的目标无需选择，直接受到2点伤害。
+	idx, stage, done := resolveMagicBlastAutoTargets(ctx.Game, ctx.User.ID, targetIDs, 0)
+	if done {
+		return nil
+	}
+	promptPlayerID := ctx.User.ID
+	if stage == magicBlastStageTargetDiscard {
+		promptPlayerID = targetIDs[idx]
+	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptMagicBlast,
-		PlayerID: targetIDs[0], // 第一个目标先响应
+		PlayerID: promptPlayerID,
 		Context: map[string]interface{}{
 			"choice_type":    "magic_blast",
-			"stage":          "target_discard",
+			"stage":          stage,
 			"caster_id":      ctx.User.ID,
 			"targets":        targetIDs,
-			"current_target": 0,
+			"current_target": idx,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("[Skill] %s 需要选择弃一张法术牌或受到2点伤害", targets[0].Name))
+	if stage == magicBlastStageTargetDiscard {
+		if t := ctx.Game.GetPlayers()[targetIDs[idx]]; t != nil {
+			ctx.Game.Log(fmt.Sprintf("[Skill] %s 需要选择弃一张法术牌或受到2点伤害", t.Name))
+		}
+	}
 
 	return nil
 }
@@ -186,4 +201,25 @@ func (h *DestructionStormHandler) Execute(ctx *model.Context) error {
 
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [毁灭风暴]，对 %d 名目标造成伤害", ctx.User.Name, len(targets)))
 	return nil
+}
+
+// orderTargetsCounterclockwise 将目标按"从 startID 开始逆时针"的座位顺序排列；不在座位表中的目标保持原相对顺序追加在末尾。
+func orderTargetsCounterclockwise(order []string, startID string, targetIDs []string) []string {
+	want := make(map[string]bool, len(targetIDs))
+	for _, id := range targetIDs {
+		want[id] = true
+	}
+	out := make([]string, 0, len(targetIDs))
+	for _, id := range engineplayer.ReversePlayerIDsFromOrder(order, startID, engineplayer.ReverseOrderOption{IncludeSelf: true}) {
+		if want[id] {
+			out = append(out, id)
+			delete(want, id)
+		}
+	}
+	for _, id := range targetIDs {
+		if want[id] {
+			out = append(out, id)
+		}
+	}
+	return out
 }

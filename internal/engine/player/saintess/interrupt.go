@@ -183,8 +183,8 @@ func resolveSaintHealAllocationStage(
 
 	first := act.Selections[0]
 	second := act.Selections[1]
-	if first < 0 || second < 0 || first > 3 || second > 3 || first+second != 3 {
-		return player.InterruptActionResult{}, fmt.Errorf("圣疗分配必须满足两项之和=3 且单项在 0..3 之间，当前：%d/%d", first, second)
+	if first < 0 || second < 0 || first > 3 || second > 3 || first+second > 3 {
+		return player.InterruptActionResult{}, fmt.Errorf("圣疗分配必须满足两项之和不超过3 且单项在 0..3 之间，当前：%d/%d", first, second)
 	}
 
 	allocations := map[string]int{

@@ -180,7 +180,7 @@ func (e *GameEngine) handleInterruptChoiceActionInCause(act model.PlayerAction) 
 
 func (e *GameEngine) choiceTypeRequiresMultiSelect(choiceType string) bool {
 	switch choiceType {
-	case "adventurer_fraud_pick", "bs_reversal_target_discard":
+	case "adventurer_fraud_pick", "bs_reversal_target_discard", "bs_beast_return_self_discard":
 		return true
 	default:
 		return false

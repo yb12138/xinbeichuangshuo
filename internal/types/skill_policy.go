@@ -35,6 +35,8 @@ type PolicyContext struct {
 	DiscardedCards   []model.Card
 	TargetIDs        []string
 	ActualTargetIDs  []string
+	// HandSize 是发动者当前手牌数（弃牌前），供“部分发动”类技能按手牌数折算弃牌张数。
+	HandSize int
 }
 
 // PolicyHost 抽象角色策略可调用的引擎能力。

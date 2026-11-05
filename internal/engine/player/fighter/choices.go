@@ -21,7 +21,11 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "fighter_psi_bullet_target":
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【念弹】请选择1名目标对手：", data, false)
 	case "fighter_hundred_dragon_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【百式幻龙拳】请选择本行动阶段锁定的目标角色：", data, false)
+		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【百式幻龙拳】请选择锁定的目标对手（移除3斗气并横置）：", data, false)
+		// 选目标前尚未扣斗气，可取消（取消即不发动）。
+		prompt.Presentation.CancelPolicy = model.CancelPolicyAbort
+		prompt.Presentation.CancelLabel = "取消"
+		return prompt
 	default:
 		return nil
 	}
@@ -37,6 +41,23 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	default:
 		return false, nil
 	}
+}
+
+// HandleCancel 百式幻龙拳选锁定目标时取消：视为不发动，回到行动窗口。
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "fighter_hundred_dragon_target" {
+		return false, nil
+	}
+	userID, _ := ctxData["user_id"].(string)
+	if user := rt.GetPlayers()[userID]; user != nil {
+		rt.Log(fmt.Sprintf("%s 取消了 [百式幻龙拳]", user.Name))
+	}
+	rt.PopInterrupt()
+	if rt.GetPendingInterrupt() == nil {
+		rt.ApplyChoiceResumePoint(engineplayer.MustChoiceResumePointFromMap(ctxData, "waiting_phase"))
+	}
+	return true, nil
 }
 
 func resolveFighterChoiceTarget(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) (*model.Player, *model.Player, string, error) {
@@ -95,20 +116,28 @@ func handleFighterPsiBulletTargetChoice(rt engineplayer.ChoiceRuntime, selection
 }
 
 func handleFighterHundredDragonTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
-	user, target, targetID, err := resolveFighterChoiceTarget(rt, selectionIndex, ctxData)
+	user, target, _, err := resolveFighterChoiceTarget(rt, selectionIndex, ctxData)
 	if err != nil {
 		return err
 	}
-	targetOrder := playerOrderPosition(rt, targetID)
-	if targetOrder <= 0 {
-		return fmt.Errorf("目标不存在")
+	if engineplayer.GetToken(user, "fighter_qi") < 3 {
+		return fmt.Errorf("斗气不足3，无法发动百式幻龙拳")
 	}
-	engineplayer.EnsurePlayerSkillFlowState(user)
-	user.TurnState.SkillFlowState["fighter_hundred_dragon_target_order"] = targetOrder
 	if err := placeHundredDragonLock(rt, user, target); err != nil {
 		return err
 	}
-	rt.Log(fmt.Sprintf("%s 的 [百式幻龙拳] 锁定目标：%s", user.Name, target.Name))
+	qi := engineplayer.AddToken(user, "fighter_qi", -3, fighterQiCap)
+	clearChargeStrikeState(rt, user)
+	engineplayer.SetForm(user, model.FormFighterHundredDragon)
+	// 百式状态跨回合持续，禁用蓄力一击的门控同样持续到状态取消（ClearHundredDragon 负责清理）。
+	rt.ApplySkillGateRule(
+		user.ID,
+		hundredDragonDisableChargeModifierID,
+		"fighter_hundred_dragon",
+		[]string{"fighter_charge_strike"},
+		model.RuleLifePermanent,
+	)
+	rt.Log(fmt.Sprintf("%s 的 [百式幻龙拳]：移除3斗气（剩余%d），进入持续状态，锁定目标：%s", user.Name, qi, target.Name))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		// 规则：百式幻龙拳的"锁定目标"仅是中间步骤，结算后必须回到 waiting_phase 指定的行动窗口。

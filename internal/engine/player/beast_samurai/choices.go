@@ -321,36 +321,61 @@ func handleReversalX(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 	if user.TurnState.SkillFlowState == nil {
 		user.TurnState.SkillFlowState = map[string]int{}
 	}
+	// 攻击前①只移除兽魂并记下 X；命中时②才改为目标弃置 X+2 张（见 postAttackHitHook）。
 	user.TurnState.SkillFlowState["bs_reversal_pending_x"] = x
+	user.TurnState.SkillFlowState[reversalArmedKey] = 1
+	rt.Log(fmt.Sprintf("%s 的 [逆反居合斩] 发动：移除%d点兽魂，残心同步+%d，本次攻击命中时改为 %s 弃置%d张手牌", user.Name, consumed, consumed, target.Name, x+2))
+	finishResume(rt, resumePointFromCtx(ctxData, model.TurnStageActionExecution))
+	return nil
+}
 
-	// Zero-out the pending attack damage (if still queued) by setting Damage to 0.
-	zeroPendingAttackDamage(rt, ctxData)
-
+// startReversalHitDiscard 逆反居合斩命中时②：本次攻击伤害归零，改为目标弃置 X+2 张手牌。
+// 返回 true 表示推入了弃牌中断。
+func startReversalHitDiscard(rt engineplayer.ChoiceRuntime, user, target *model.Player, x int, pd *model.PendingDamage, card *model.Card) bool {
+	if pd != nil {
+		pd.Damage = 0
+	}
 	need := x + 2
-	resumePoint := resumePointFromCtx(ctxData, model.CombatStageCalcDamage)
-	rt.Log(fmt.Sprintf("%s 的 [逆反居合斩] 结算：移除%d点兽魂，残心同步+%d，改写本次攻击为弃牌效果", user.Name, consumed, consumed))
-
+	userCtx := rt.BuildContext(user, target, model.TimingAttackHit, &model.EventContext{
+		Type:     model.EventAttack,
+		SourceID: user.ID,
+		TargetID: target.ID,
+		Card:     card,
+		AttackInfo: &model.AttackEventInfo{
+			ActionType: string(model.ActionAttack),
+			IsHit:      true,
+		},
+	})
+	rt.Log(fmt.Sprintf("%s 的 [逆反居合斩] 命中：本次攻击改为 %s 弃置%d张手牌", user.Name, target.Name, need))
 	discardCount := need
 	if discardCount > len(target.Hand) {
 		discardCount = len(target.Hand)
 	}
-	if discardCount > 0 {
-		discardCtx := map[string]interface{}{
-			"choice_type":   "bs_reversal_target_discard",
-			"user_id":       user.ID,
-			"target_id":     target.ID,
-			"x_value":       x,
-			"discard_count": discardCount,
-			"prompt":        reversalDiscardPromptText(need, discardCount),
-			"resume_phase":  resumePoint,
-			"user_ctx":      ctxData["user_ctx"],
+	if discardCount <= 0 {
+		if need > 0 {
+			loss := applyCampMoraleLoss(rt, target.Camp, 1)
+			rt.Log(fmt.Sprintf("%s 的 [逆反居合斩] 生效：%s 实际弃牌0/%d，%s方士气-%d", user.Name, target.Name, need, target.Camp, loss))
 		}
-		model.SetPromptFlowContext(discardCtx, initBeastReversalDiscardFlow(need))
-		replaceDiscardInterrupt(rt, target.ID, discardCtx)
-		return nil
+		return false
 	}
-	finishReversal(rt, ctxData, target, need, 0, resumePoint)
-	return nil
+	discardCtx := map[string]interface{}{
+		"choice_type":     "bs_reversal_target_discard",
+		"user_id":         user.ID,
+		"target_id":       target.ID,
+		"x_value":         x,
+		"discard_count":   discardCount,
+		"prompt":          reversalDiscardPromptText(need, discardCount),
+		"resume_phase":    model.CombatStageCalcDamage,
+		"user_ctx":        userCtx,
+		"discard_subflow": true,
+	}
+	model.SetPromptFlowContext(discardCtx, initBeastReversalDiscardFlow(need))
+	rt.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: target.ID,
+		Context:  discardCtx,
+	})
+	return true
 }
 
 func handleIaijutsuStyleMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -462,6 +487,15 @@ func handleAlertSourceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]
 }
 
 func handleBeastReturnSelfDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
+	return handleBeastReturnSelfDiscardSelections(rt, ctxData, []int{selectionIndex})
+}
+
+func handleBeastReturnSelfDiscardMultiSelect(rt engineplayer.ChoiceRuntime, _ string, selections []int, ctxData map[string]interface{}) (bool, error) {
+	return true, handleBeastReturnSelfDiscardSelections(rt, ctxData, selections)
+}
+
+// handleBeastReturnSelfDiscardSelections 兽返自弃 X 张：必须一次选满 discard_count 张。
+func handleBeastReturnSelfDiscardSelections(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selections []int) error {
 	userID, _ := ctxData["user_id"].(string)
 	sourceID, _ := ctxData["source_id"].(string)
 	user := rt.GetPlayers()[userID]
@@ -469,10 +503,21 @@ func handleBeastReturnSelfDiscard(rt engineplayer.ChoiceRuntime, ctxData map[str
 	if user == nil {
 		return fmt.Errorf("兽返弃牌执行者不存在")
 	}
+	discardCount := runtimeutil.ToIntContextValue(ctxData["discard_count"])
+	if discardCount <= 0 || discardCount > len(user.Hand) {
+		discardCount = len(user.Hand)
+	}
+	if len(selections) != discardCount {
+		return fmt.Errorf("兽返需要弃置%d张手牌，你选择了%d张", discardCount, len(selections))
+	}
 
-	removed, _ := engineplayer.RemoveCardsByIndicesFromHand(user, []int{selectionIndex})
+	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, append([]int{}, selections...))
+	if err != nil {
+		return err
+	}
 	if len(removed) > 0 {
-		rt.NotifyCardRevealed(user.ID, removed, "discard")
+		// 兽返"你弃X张牌"文案没有［展示］：面朝下弃置，不公开、不触发展示类时点。
+		notifyCardsDiscardedFaceDown(rt, user.ID, removed)
 		rt.AppendToDiscard(removed)
 	}
 
@@ -738,29 +783,17 @@ func discardedMagicCount(cards []model.Card) int {
 // Combat helpers
 // ---------------------------------------------------------------------------
 
-// zeroPendingAttackDamage walks the pending-damage queue and sets Damage to 0
-// for any attack-type damage whose source/target match the context's
-// user_ctx EventCtx (if present).
-func zeroPendingAttackDamage(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) {
-	rawCtx, _ := ctxData["user_ctx"].(*model.Context)
-	if rawCtx == nil || rawCtx.EventCtx == nil {
-		return
-	}
-	// Walk the pending damage queue via ChoiceRuntime and zero-out the matching attack damage.
-	queue := rt.GetPendingDamageQueue()
-	for i := range queue {
-		pd := &queue[i]
-		if pd == nil {
-			continue
-		}
-		if pd.SourceID == rawCtx.User.ID && pd.DamageType == model.AttackDamage && pd.Card != nil {
-			pd.Damage = 0
-		}
-	}
-}
-
 // applyCampMoraleLoss reduces camp morale by the given amount (respecting
 // floor and role modifier chain). Returns the actual loss applied.
 func applyCampMoraleLoss(rt engineplayer.ChoiceRuntime, camp model.Camp, wantLoss int) int {
 	return rt.ApplyCampMoraleLoss(camp, wantLoss)
+}
+
+// notifyCardsDiscardedFaceDown 面朝下弃牌：只通知弃牌数量，不公开牌面。
+func notifyCardsDiscardedFaceDown(rt engineplayer.ChoiceRuntime, playerID string, cards []model.Card) {
+	if hidden, ok := rt.(interface {
+		NotifyCardHidden(playerID string, cards []model.Card, actionType model.DamageType)
+	}); ok {
+		hidden.NotifyCardHidden(playerID, cards, "discard")
+	}
 }

@@ -17,7 +17,8 @@ type BaseHandler = engineplayer.BaseHandler
 type BacklashHandler struct{ BaseHandler }
 
 func (h *BacklashHandler) CanUse(ctx *model.Context) bool {
-	if ctx == nil || !ctx.DamageTakenPhase() || ctx.EventCtx == nil {
+	// 文案时点⑥：实际承受伤害（治疗抵挡、摸牌之后）。DamageResolved 时 DamageVal 已扣除治疗抵挡。
+	if ctx == nil || !ctx.DamageResolvedPhase() || ctx.EventCtx == nil {
 		return false
 	}
 	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
@@ -68,6 +69,21 @@ func (h *WaterShadowHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	return ctx.User.HasElement(model.ElementWater)
+}
+
+// DiscardCandidateIndices 水影合法弃牌候选：水系牌；潜行状态下额外允许法术牌。
+func (h *WaterShadowHandler) DiscardCandidateIndices(ctx *model.Context) []int {
+	if ctx == nil || ctx.User == nil {
+		return nil
+	}
+	stealthed := engineplayer.HasForm(ctx.User, model.FormAssassinStealth)
+	indices := make([]int, 0, len(ctx.User.Hand))
+	for i, c := range ctx.User.Hand {
+		if c.Element == model.ElementWater || (stealthed && c.Type == model.CardTypeMagic) {
+			indices = append(indices, i)
+		}
+	}
+	return indices
 }
 
 func (h *WaterShadowHandler) Execute(ctx *model.Context) error {

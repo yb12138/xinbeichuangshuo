@@ -140,7 +140,7 @@ func (h *BeastSamuraiBeastSoulAlertHandler) Execute(ctx *model.Context) error {
 	if InIaijutsuForm(ctx.User) {
 		return fmt.Errorf("已处于御魂流居合形态，无法发动兽魂警戒")
 	}
-	leftSoul := engineplayer.AddToken(ctx.User, "bs_beast_soul", -1, beastSamuraiBeastSoulCap)
+	leftSoul := AddBeastSoul(ctx.User, -1, true)
 	nowZanshin := engineplayer.AddToken(ctx.User, "bs_zanshin", 1, beastSamuraiZanshinCap)
 	ctx.User.Orientation = model.OrientationTapped
 	ctx.User.Form = "beast_samurai_iaijutsu_form"
@@ -220,23 +220,18 @@ func (h *BeastSamuraiReversalIaijutsuSlashHandler) CanUse(ctx *model.Context) bo
 	if ctx == nil || ctx.User == nil || ctx.Game == nil || ctx.EventCtx == nil {
 		return false
 	}
-	if !ctx.AttackHitPhase() {
+	// 攻击前①发动：主动攻击宣告时询问，命中时②再改为弃牌。
+	if !ctx.AttackDeclarePhase() {
 		return false
 	}
-	if ctx.EventCtx.AttackInfo == nil {
-		return false
-	}
-	if ctx.EventCtx.AttackInfo.ActionType != string(model.ActionAttack) {
-		return false
-	}
-	if ctx.EventCtx.AttackInfo.CounterInitiator != "" {
+	if ctx.EventCtx.AttackInfo != nil && ctx.EventCtx.AttackInfo.CounterInitiator != "" {
 		return false
 	}
 	if ctx.User.Form != "beast_samurai_iaijutsu_form" {
 		return false
 	}
 	target := ctx.Target
-	if target == nil {
+	if target == nil || target.Camp == ctx.User.Camp {
 		return false
 	}
 	return len(target.Hand) < 4

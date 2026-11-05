@@ -4,7 +4,14 @@ import { ROLE_NAME_MAP } from '../constants/roleNameMap'
 import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
-import type { AvailableSkill, CharacterView, PlayerView, SkillView } from '../types/game'
+import { skillTargetBounds } from '../constants/skillFlowRules'
+import {
+  cannotBeActiveAttackTarget,
+  hasFieldEffect as hasEffect,
+  isSkillTargetSelectionValid,
+  legalSkillTargets,
+} from '../constants/skillTargetRules'
+import type { AvailableSkill, CharacterView, SkillView } from '../types/game'
 
 const BASIC_EFFECT_BY_MAGIC_CARD_NAME: Record<string, string> = {
   '中毒': 'Poison',
@@ -12,18 +19,6 @@ const BASIC_EFFECT_BY_MAGIC_CARD_NAME: Record<string, string> = {
   '圣盾': 'Shield'
 }
 const ELF_BLESSING_EFFECT = 'ElfBlessing'
-
-function isBasicEffect(effect?: string | null): boolean {
-  return effect === 'Shield' || effect === 'Weak' || effect === 'Poison' ||
-    effect === 'SealFire' || effect === 'SealWater' || effect === 'SealEarth' ||
-    effect === 'SealWind' || effect === 'SealThunder' ||
-    effect === 'PowerBlessing' || effect === 'SwiftBlessing'
-}
-
-function hasEffect(player: PlayerView | undefined, effect: string): boolean {
-  if (!player || !Array.isArray(player.field)) return false
-  return player.field.some((fc) => fc?.mode === 'Effect' && fc.effect === effect)
-}
 
 export function useBattleInteractionState() {
   const sessionStore = useSessionStore()
@@ -162,9 +157,7 @@ export function useBattleInteractionState() {
 
   const targetablePlayers = computed(() => {
     if (actionMode.value === 'attack') {
-      return opponentPlayers.value.filter((player) =>
-        !player.field?.some((fieldCard) => fieldCard.mode === 'Effect' && fieldCard.effect === 'Stealth')
-      )
+      return opponentPlayers.value.filter((player) => !cannotBeActiveAttackTarget(player))
     }
     if (actionMode.value === 'magic') {
       if (selectedActionIsMagicBullet.value) return []
@@ -176,46 +169,12 @@ export function useBattleInteractionState() {
     return []
   })
 
-  const targetablePlayersForSkill = computed(() => {
-    const skill = selectedSkill.value
-    if (!skill) return []
-    const allPlayers = Object.values(players.value)
-    const me = myPlayerId.value
-    const camp = myCamp.value
-    const baseTargets = (() => {
-      switch (skill.target_type) {
-        case 0:
-          return []
-        case 1:
-          return allPlayers.filter((player) => player.id === me)
-        case 2:
-          return allPlayers.filter((player) => player.camp !== camp)
-        case 3:
-          return allPlayers.filter((player) => player.camp === camp && player.id !== me)
-        case 4:
-          return allPlayers.filter((player) => player.camp === camp)
-        case 5:
-        case 6:
-          return allPlayers
-        default:
-          return allPlayers
-      }
-    })()
-
-    if (skill.id === 'seal_break') {
-      return baseTargets.filter((player) =>
-        Array.isArray(player.field) && player.field.some((fieldCard) =>
-          fieldCard.mode === 'Effect' && isBasicEffect(fieldCard.effect)
-        )
-      )
-    }
-
-    if (skill.place_card && isBasicEffect(skill.place_effect)) {
-      return baseTargets.filter((player) => !hasEffect(player, skill.place_effect || ''))
-    }
-
-    return baseTargets
-  })
+  const targetablePlayersForSkill = computed(() =>
+    legalSkillTargets(selectedSkill.value, Object.values(players.value), {
+      me: myPlayerId.value,
+      camp: myCamp.value,
+    })
+  )
 
   const canTargetOpponent = computed(() =>
     actionMode.value !== 'none' &&
@@ -273,10 +232,8 @@ export function useBattleInteractionState() {
     const skill = selectedSkill.value
     if (!skill) return false
     if (skill.target_type === 0) return true
-    const targetCount = skillTargetIds.value.length
-    const minTargets = (skill.min_targets ?? 0) || (skill.target_type >= 2 ? 1 : 0)
-    const maxTargets = (skill.max_targets ?? 99) || (skill.target_type >= 2 ? 1 : 99)
-    return targetCount >= minTargets && targetCount <= maxTargets
+    const candidateIds = new Set(targetablePlayersForSkill.value.map((player) => player.id))
+    return isSkillTargetSelectionValid(skillTargetIds.value, skillTargetBounds(skill), candidateIds)
   })
 
   return {

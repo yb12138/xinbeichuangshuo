@@ -35,6 +35,21 @@ func RoleEntry() player.RoleEntry {
 				}
 			},
 		},
+		// 冒险者天堂：自身能量已满时，只要有能承接的队友，仍可执行提炼（交给队友）。
+		ExtractAtFullEnergy: func(game model.IGameEngine, p *model.Player) bool {
+			if !hasParadiseSkill(p) {
+				return false
+			}
+			for _, ally := range game.GetAllPlayers() {
+				if ally == nil || ally.Camp != p.Camp || ally.ID == p.ID {
+					continue
+				}
+				if ally.Gem+ally.Crystal < game.GetPlayerEnergyCap(ally) {
+					return true
+				}
+			}
+			return false
+		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"adventurer_fraud": CheckFraudUsability,
 		},
@@ -52,7 +67,6 @@ func SkillEntries() []player.SkillEntry {
 			},
 		},
 		{ID: "adventurer_lucky_fortune", Handler: &AdventurerLuckyFortuneHandler{}},
-		{ID: "adventurer_underground_law", Handler: &AdventurerUndergroundLawHandler{}},
 		{ID: "adventurer_steal_sky", Handler: &AdventurerStealSkyHandler{}},
 	}
 }

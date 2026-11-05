@@ -82,6 +82,14 @@ func (e *GameEngine) useSkillInCause(playerID, skillID string, targetIDs []strin
 	if err := e.validateSkillActivation(use); err != nil {
 		return err
 	}
+	// 取消退费：在任何消耗之前快照；只有 Execute 推出提示且期间无其他效果时才会登记退费。
+	refund := e.beginSkillRefundCapture(use.player, use.skillDef, use.skillDef.Type == model.SkillTypeAction)
+	committed := false
+	defer func() {
+		if !committed {
+			e.abortSkillRefundCapture(refund)
+		}
+	}()
 	if err := e.consumeSkillCoverCost(use); err != nil {
 		return err
 	}
@@ -126,6 +134,8 @@ func (e *GameEngine) useSkillInCause(playerID, skillID string, targetIDs []strin
 	if err := e.finishSkillUse(use); err != nil {
 		return err
 	}
+	committed = true
+	e.commitSkillRefundCapture(refund)
 
 	// 如果 Execute() 推入了中断，立即通知前端
 	// 因为 Drive() 在检测到 PendingInterrupt 时会直接返回而不通知
@@ -187,6 +197,7 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 			SkillDef:         *skillDef,
 			RequiredDiscards: requiredDiscards,
 			TargetIDs:        append([]string{}, targetIDs...),
+			HandSize:         len(player.Hand),
 		})
 	}
 

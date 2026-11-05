@@ -638,3 +638,10 @@ func (r hookRuntime) StartExtractForPlayer(playerID string) error {
 	}
 	return r.GameEngine.StartExtractForPlayer(playerID)
 }
+
+func (r hookRuntime) StartExtractToRecipient(extractorID, recipientID string, extractorEnergyCost int) error {
+	if r.GameEngine == nil {
+		return fmt.Errorf("引擎未初始化")
+	}
+	return r.GameEngine.StartExtractToRecipient(extractorID, recipientID, extractorEnergyCost)
+}

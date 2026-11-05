@@ -200,40 +200,31 @@ func TestCrimsonKnightCrimsonCross_SelfDamageResolvesBeforeTargetDamage(t *testi
 	}
 }
 
-func TestCrimsonKnightCrimsonCross_OnlyTargetsEnemy(t *testing.T) {
-	game := engine.NewGameEngine(testutils.NoopObserver{})
-	if err := game.AddPlayer("p1", "Crimson", "crimson_knight", model.RedCamp); err != nil {
-		t.Fatal(err)
-	}
-	if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
-		t.Fatal(err)
-	}
-	if err := game.AddPlayer("p3", "Enemy", "angel", model.BlueCamp); err != nil {
-		t.Fatal(err)
-	}
-
-	p1 := game.State.Players["p1"]
-	p1.IsActive = true
-	p1.TurnState = model.NewPlayerTurnState()
-	p1.Crystal = 1
-	p1.Tokens["crk_blood_mark"] = 1
-	p1.Hand = []model.Card{
-		{ID: "m1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementFire},
-		{ID: "m2", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementWater},
-	}
-	game.State.TurnStage = model.TurnStageActionExecution
-
-	if err := game.UseSkill("p1", "crk_crimson_cross", []string{"p2"}, []int{0, 1}); err == nil {
-		t.Fatalf("expected crimson cross to reject ally target")
-	}
-
-	p1.Crystal = 1
-	p1.Tokens["crk_blood_mark"] = 1
-	p1.Hand = []model.Card{
-		{ID: "m1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementFire},
-		{ID: "m2", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementWater},
-	}
-	if err := game.UseSkill("p1", "crk_crimson_cross", []string{"p3"}, []int{0, 1}); err != nil {
-		t.Fatalf("expected crimson cross to accept enemy target: %v", err)
+func TestCrimsonKnightCrimsonCross_TargetsAnyCharacter(t *testing.T) {
+	// 文案为"目标角色"：队友、敌方都可以指定
+	for _, targetID := range []string{"p2", "p3"} {
+		game := engine.NewGameEngine(testutils.NoopObserver{})
+		if err := game.AddPlayer("p1", "Crimson", "crimson_knight", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p3", "Enemy", "angel", model.BlueCamp); err != nil {
+			t.Fatal(err)
+		}
+		p1 := game.State.Players["p1"]
+		p1.IsActive = true
+		p1.TurnState = model.NewPlayerTurnState()
+		p1.Crystal = 1
+		p1.Tokens["crk_blood_mark"] = 1
+		p1.Hand = []model.Card{
+			{ID: "m1", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementFire},
+			{ID: "m2", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementWater},
+		}
+		game.State.TurnStage = model.TurnStageActionExecution
+		if err := game.UseSkill("p1", "crk_crimson_cross", []string{targetID}, []int{0, 1}); err != nil {
+			t.Fatalf("expected crimson cross to accept target %s: %v", targetID, err)
+		}
 	}
 }

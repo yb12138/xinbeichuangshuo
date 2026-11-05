@@ -15,6 +15,7 @@ import { createStageQueueBridge } from './stageQueueBridge'
 import { cardArtSrc } from '../constants/cardArt'
 import { useUiStore } from '../stores/ui.store'
 import { playSfx } from '../audio/sfx'
+import { recoverFromRejectedSubmission } from './submissionRecovery'
 import { endCueFor } from '../audio/endCue'
 
 export interface GameplayMessageHandlerDeps {
@@ -190,6 +191,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
   function clearPromptGate() {
     gatedPrompt = null
+    interruptStore.setPromptGated(false)
     if (gateTimer) clearTimeout(gateTimer)
     gateTimer = null
     stopGateWatch?.()
@@ -220,6 +222,8 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     gatedPrompt = prompt
     interruptStore.setPrompt(null)
     interruptStore.setWaiting('')
+    // 压着期间界面角落提示"即将轮到你"，并压住行动枢纽
+    interruptStore.setPromptGated(true)
     stopGateWatch = watch(
       () => stageQueue.isPlaying,
       (playing) => {
@@ -228,6 +232,15 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
       { flush: 'sync' },
     )
     gateTimer = setTimeout(releaseGatedPrompt, PROMPT_GATE_MAX_MS)
+  }
+
+  /**
+   * 游戏结束有两条入口：game_end 事件，或 state_update 里星杯 / 士气已到终局（可能先到）。
+   * 哪条先把游戏标记为结束，就由哪条放结尾音；另一条看到已结束就不会重复。
+   */
+  function playEndCueFor(message: string) {
+    const myCamp = snapshotStore.players[sessionStore.myPlayerId]?.camp || sessionStore.myCamp
+    playEndCue(endCueFor(message, myCamp))
   }
 
   /** 结尾音乐等最后一手演出播完再响，免得盖住决胜的那一下；最多等 END_CUE_MAX_WAIT_MS。 */
@@ -283,6 +296,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
     if (payload.target_user_id === sessionStore.myPlayerId) {
       battleFxStore.startActingPlayerFocus(payload.target_user_id, 'skill')
+      interruptStore.endSubmit()
       interruptStore.setWaiting('')
     } else {
       clearPromptGate()
@@ -340,6 +354,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const fallbackEndMsg = deriveEndMessageFromState(event.state)
           if (fallbackEndMsg && !uiStore.isGameEnded) {
             matchLifecycleStore.setGameEnded(fallbackEndMsg)
+            playEndCueFor(fallbackEndMsg)
             battleReviewStore.addLog(`游戏结束: ${fallbackEndMsg}`)
           }
           const nextCurrent = event.state.current_player
@@ -401,13 +416,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
         {
           const msg = event.message || '游戏错误'
           interruptStore.showError(msg)
-          if (msg.includes('技能发动失败')) {
-            interruptStore.clearSkillMode()
-            interruptStore.clearActionMode()
-          }
-          if (msg.includes('无效的卡牌索引')) {
-            interruptStore.clearActionMode()
-          }
+          recoverFromRejectedSubmission(interruptStore, msg)
         }
         break
 
@@ -417,7 +426,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const isFirstEndSignal = !uiStore.isGameEnded
           matchLifecycleStore.setGameEnded(message)
           if (isFirstEndSignal) {
-            playEndCue(endCueFor(message, snapshotStore.players[sessionStore.myPlayerId]?.camp))
+            playEndCueFor(message)
             battleReviewStore.addBattleFeed({
               type: 'system',
               title: message,

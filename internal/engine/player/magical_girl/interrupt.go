@@ -45,7 +45,11 @@ func buildMagicMissilePrompt(rt player.ChoiceRuntime) *model.Prompt {
 	counterCardIDs, defendCardIDs := magicMissileResponseCards(rt, p, chain)
 	options := []model.PromptOption{{ID: "take", Label: takeLabel}}
 	if len(counterCardIDs) > 0 {
-		options = append(options, model.PromptOption{ID: "counter", Label: "打出【魔弹】传递"})
+		counterLabel := "打出【魔弹】传递"
+		if player.IsCharacter(p, "magical_girl") && hasFusionCard(p) {
+			counterLabel = "打出【魔弹】或地/火系牌（魔弹融合）传递"
+		}
+		options = append(options, model.PromptOption{ID: "counter", Label: counterLabel})
 	}
 	if len(defendCardIDs) > 0 {
 		options = append(options, model.PromptOption{ID: "defend", Label: "使用【圣光】抵挡"})
@@ -255,7 +259,7 @@ func validateMagicMissileCounterCard(rt player.ChoiceRuntime, p *model.Player, c
 	if err := rt.DispatchHitCheckMagicMissileCounter(p, chain, &card); err != nil {
 		return err
 	}
-	if card.Name != "魔弹" {
+	if card.Name != "魔弹" && !canFuseAsMagicBullet(p, card) {
 		return fmt.Errorf("必须使用【魔弹】进行传递")
 	}
 	for _, pid := range chain.InvolvedIDs {
@@ -308,10 +312,32 @@ func resolveMagicMissileCounter(rt player.ChoiceRuntime, p *model.Player, chain 
 	if err != nil {
 		return err
 	}
+	fused := consumed.Name != "魔弹"
+	if fused {
+		// 【魔弹融合】：地/火系牌视为魔弹传递，直接在魔弹响应面板里完成（不再单独弹响应技能窗口）。
+		rt.NotifyCardRevealed(p.ID, []model.Card{consumed}, "counter")
+		rt.Log(fmt.Sprintf("[Skill] %s 发动【魔弹融合】，将 %s 视为魔弹继续传递！伤害+1", p.Name, consumed.Name))
+	} else {
+		rt.Log(fmt.Sprintf("[Magic] %s 打出魔弹，将伤害传递给下一位！伤害+1", p.Name))
+	}
 	rt.AppendToDiscard([]model.Card{consumed})
-	rt.Log(fmt.Sprintf("[Magic] %s 打出魔弹，将伤害传递给下一位！伤害+1", p.Name))
 
-	return passMagicMissileToNext(rt, p, chain)
+	if err := passMagicMissileToNext(rt, p, chain); err != nil {
+		return err
+	}
+	if fused {
+		var targetIDs []string
+		if next := rt.GetMagicBulletChain(); next != nil && next.TargetID != "" {
+			targetIDs = []string{next.TargetID}
+		}
+		player.NotifySkillActivated(rt, p, p.ID, "magic_bullet_fusion_chain", targetIDs...)
+	}
+	return nil
+}
+
+// canFuseAsMagicBullet 魔法少女被魔弹指向时，可把地/火系牌当魔弹传递（魔弹融合）。
+func canFuseAsMagicBullet(p *model.Player, card model.Card) bool {
+	return player.IsCharacter(p, "magical_girl") && isFusionElement(card)
 }
 
 func resolveMagicMissileDefend(rt player.ChoiceRuntime, p *model.Player, chain *model.MagicBulletChain, act model.PlayerAction) error {
@@ -626,11 +652,61 @@ func enterMagicBlastCasterForcedDiscard(rt player.ChoiceRuntime, data map[string
 	return nil
 }
 
+// magicBlastAutoRuntime 是自动结算魔爆冲击目标所需的最小能力集（技能 handler 与中断 runtime 共用）。
+type magicBlastAutoRuntime interface {
+	GetPlayers() map[string]*model.Player
+	InflictDamage(sourceID, targetID string, amount int, damageType model.DamageType)
+	Log(message string)
+}
+
+func hasMagicCardInHand(p *model.Player) bool {
+	if p == nil {
+		return false
+	}
+	for _, c := range p.Hand {
+		if c.Type == model.CardTypeMagic {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveMagicBlastAutoTargets 从 idx 开始，跳过没有法术牌的目标：直接按"不弃牌"处理（受到2点伤害），
+// 之后若施法者仍有手牌则进入施法者强制弃牌阶段。
+// 返回下一个需要交互的目标序号与阶段；done=true 表示所有目标已结算完毕。
+func resolveMagicBlastAutoTargets(rt magicBlastAutoRuntime, casterID string, targetIDs []string, idx int) (int, string, bool) {
+	players := rt.GetPlayers()
+	for idx < len(targetIDs) {
+		target := players[targetIDs[idx]]
+		if target == nil {
+			idx++
+			continue
+		}
+		if hasMagicCardInHand(target) {
+			return idx, magicBlastStageTargetDiscard, false
+		}
+		rt.InflictDamage(casterID, target.ID, 2, model.MagicAttack)
+		rt.Log(fmt.Sprintf("[Skill] %s 没有法术牌，自动不弃牌，受到2点伤害", target.Name))
+		idx++
+		if caster := players[casterID]; caster != nil && len(caster.Hand) > 0 {
+			return idx, magicBlastStageCasterForcedDiscard, false
+		}
+	}
+	return idx, "", true
+}
+
 func advanceMagicBlastToNextTarget(rt player.ChoiceRuntime, data map[string]interface{}, targetIDs []string, nextTargetIdx int) error {
-	if nextTargetIdx >= len(targetIDs) {
+	casterID, _ := data["caster_id"].(string)
+	idx, stage, done := resolveMagicBlastAutoTargets(rt, casterID, targetIDs, nextTargetIdx)
+	if done {
 		rt.PopInterrupt()
 		return nil
 	}
+	if stage == magicBlastStageCasterForcedDiscard {
+		return enterMagicBlastCasterForcedDiscard(rt, data, casterID, idx)
+	}
+	nextTargetIdx = idx
+	data["current_target"] = nextTargetIdx
 	data["stage"] = magicBlastStageTargetDiscard
 	nextTargetID := targetIDs[nextTargetIdx]
 	if intr := rt.GetPendingInterrupt(); intr != nil {

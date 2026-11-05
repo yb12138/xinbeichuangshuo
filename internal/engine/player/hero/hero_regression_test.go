@@ -1043,3 +1043,46 @@ func TestHeroDeadDuel_MagicOverflowMoraleLossFlooredToOne(t *testing.T) {
 		t.Fatalf("expected dead duel add 3 anger, got %d", got)
 	}
 }
+
+// 勇者-1：怒吼未命中给知性时上限是 4（heroTokenCap），不是 3。
+func TestHeroRoar_MissWisdomCapIsFour(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Hero", "hero", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Tokens["hero_anger"] = 1
+	p1.Tokens["hero_wisdom"] = 3
+	p1.Crystal = 0
+	p1.Gem = 0
+	p1.Hand = []model.Card{
+		heroTestCard("a1", "雷斩", model.CardTypeAttack, model.ElementThunder, 2),
+	}
+	p2.Hand = []model.Card{
+		heroTestCard("m1", "圣光", model.CardTypeMagic, model.ElementLight, 0),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2",
+		CardID: testutils.PlayableCardID(t, game, "p1", 0),
+	})
+	testutils.ChooseResponseSkillByID(t, game, "p1", "hero_roar")
+	testutils.RequireChoicePrompt(t, game, "p1", "hero_roar_draw")
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p2", Type: model.CmdRespond,
+		CardID: testutils.PlayableCardID(t, game, "p2", 0), ExtraArgs: []string{"defend"},
+	})
+	if got := p1.Tokens["hero_wisdom"]; got != 4 {
+		t.Fatalf("expected roar miss raise wisdom 3->4, got %d", got)
+	}
+}

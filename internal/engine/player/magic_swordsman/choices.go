@@ -60,7 +60,11 @@ func handleMagicSwordsmanShadowMeteorReleaseConfirmChoice(rt engineplayer.Choice
 		if remain > 0 {
 			rt.ModifyGem(camp, -remain)
 		}
-		user.Form = ""
+		// 转正：清空形态并恢复直立，派发姿态变化
+		func() {
+			defer rt.PoseChangeGuard()()
+			LeaveShadowForm(user)
+		}()
 		gainedGem := engineplayer.AddPlayerGemWithCap(rt, user, 1)
 		rt.Log(fmt.Sprintf("%s 通过[暗影流星]额外效果转正并获得%d红宝石", user.Name, gainedGem))
 	}

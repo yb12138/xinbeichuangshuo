@@ -20,7 +20,8 @@ func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) pl
 	}
 	action := model.Action{Type: ctx.ActionType, Card: ctx.Card}
 	delta := 0
-	if darkBonus := rt.ConsumeAttackDamageRuleBonus(p, "ml_dark_release_next_attack_bonus", action); darkBonus > 0 {
+	if darkBonus := player.GetSkillFlowState(p, darkReleaseArmedKey); darkBonus > 0 {
+		player.SetSkillFlowState(p, darkReleaseArmedKey, 0)
 		delta += darkBonus
 		rt.Log(fmt.Sprintf("[Passive] %s 的 [暗之解放] 生效，本次主动攻击伤害 +1", p.Name))
 	}
@@ -31,6 +32,34 @@ func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) pl
 	if delta != 0 {
 		return player.TimingHookResult{DamageDelta: delta}
 	}
+	return player.TimingHookResult{}
+}
+
+// darkReleaseArmedKey 暗之解放 +1 已被本回合第一次主动攻击领取，等待该次攻击的伤害计算。
+const darkReleaseArmedKey = "ml_dark_release_armed_bonus"
+
+// darkReleaseAttackDeclareHook 主动攻击宣言：暗之解放的 +1 只属于进入幻影形态那个回合的第一次主动攻击。
+// 宣言时就消耗规则修正，不论之后命中与否；上一次攻击未用掉的 +1 在下一次宣言时作废。
+func darkReleaseAttackDeclareHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || !rt.IsCharacter(p, "magic_lancer") {
+		return player.TimingHookResult{}
+	}
+	player.SetSkillFlowState(p, darkReleaseArmedKey, 0)
+	bonus := rt.ConsumeAttackDamageRuleBonus(p, "ml_dark_release_next_attack_bonus", model.Action{Type: model.ActionAttack})
+	if bonus > 0 {
+		player.SetSkillFlowState(p, darkReleaseArmedKey, bonus)
+	}
+	return player.TimingHookResult{}
+}
+
+// darkReleaseAttackMissHook 第一次主动攻击未命中：已领取的 +1 随之作废。
+func darkReleaseAttackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
+	p := rt.GetPlayer(ctx.SourceID)
+	if p == nil || !rt.IsCharacter(p, "magic_lancer") || ctx.IsCounter {
+		return player.TimingHookResult{}
+	}
+	player.SetSkillFlowState(p, darkReleaseArmedKey, 0)
 	return player.TimingHookResult{}
 }
 
@@ -50,6 +79,9 @@ func postDamageResolvedHook(rt player.HookRuntime, ctx player.TimingHookContext)
 	// If waiting for pending discard, defer
 	if rt.HasPendingDiscardFor(source.ID) {
 		source.TurnState.SkillFlowState["ml_stardust_wait_discard"] = 1
+		// 自伤摸牌导致爆牌：在引擎推出的弃牌中断上挂续接标记，弃牌（含士气结算）完成后
+		// 由 FlowContinuationAfterDiscard -> handleMagicLancerAfterDiscard 继续结算幻影星尘。
+		attachStardustDiscardContinuation(rt.PendingInterrupt(), source.ID)
 		return player.TimingHookResult{}
 	}
 	before := source.TurnState.SkillFlowState["ml_stardust_morale_before"]
@@ -142,4 +174,21 @@ func magicMissileCounterHook(rt player.HookRuntime, ctx player.TimingHookContext
 	return player.TimingHookResult{
 		ValidationError: fmt.Errorf("魔枪受[黑暗束缚]影响，不能使用法术牌"),
 	}
+}
+
+// attachStardustDiscardContinuation 给待处理的弃牌中断挂上魔枪的续接字段。
+func attachStardustDiscardContinuation(intr *model.Interrupt, playerID string) {
+	if intr == nil {
+		return
+	}
+	data, ok := intr.Context.(map[string]interface{})
+	if !ok || data == nil {
+		return
+	}
+	if existing, _ := data["flow_continuation_role_id"].(string); existing != "" {
+		return
+	}
+	data["flow_continuation_role_id"] = "magic_lancer"
+	data["flow_continuation_player_id"] = playerID
+	data["flow_continuation_skill_id"] = "ml_phantom_stardust"
 }

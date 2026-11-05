@@ -306,3 +306,50 @@ func TestAssassinStealth_DrawSkipResponse_ResumesStartupFlow(t *testing.T) {
 		t.Fatalf("stealth draw should not incorrectly fall into damage resolution combat stages")
 	}
 }
+
+// 暗杀者-2：水影弃牌框只提供合法候选（非潜行时仅水系牌），选了非法牌要把错误返回给玩家。
+func TestAssassinWaterShadow_DiscardCandidatesFilteredAndErrorReturned(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Assassin", "assassin", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		{ID: "fire-1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "water-1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+		{ID: "magic-1", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight},
+	}
+
+	game.DrawCards("p1", 2)
+	testutils.RequireResponseSkillPrompt(t, game, "p1")
+	testutils.ChooseResponseSkillByID(t, game, "p1", "water_shadow")
+
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil {
+		t.Fatalf("expected water shadow discard prompt")
+	}
+	if len(prompt.Options) != 1 || prompt.Options[0].CardID != "water-1" {
+		t.Fatalf("expected only the water card as candidate (not stealthed), got %+v", prompt.Options)
+	}
+
+	err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	if err == nil {
+		t.Fatalf("expected error when discarding a non-water card for water shadow")
+	}
+	if len(p1.Hand) != 3 {
+		t.Fatalf("invalid selection must not discard anything, hand=%d", len(p1.Hand))
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	if got := len(p1.Hand); got != 4 {
+		t.Fatalf("expected hand 4 after discarding 1 water and drawing 2, got %d", got)
+	}
+}

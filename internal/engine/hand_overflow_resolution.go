@@ -195,6 +195,12 @@ func (e *GameEngine) buildDiscardMoraleLossContext(victim *model.Player, player 
 	lossCtx.Selections["morale_loss_is_damage_resolution"] = isDamageResolution
 	lossCtx.Selections["damage_source_id"] = data["damage_source_id"]
 	lossCtx.Selections["damage_source_skill"] = data["damage_source_skill"]
+	// 续接字段随士气响应窗口一起保存，恢复时仍能触发角色的弃牌后续接。
+	for _, key := range afterDiscardContinuationKeys {
+		if v, ok := data[key]; ok {
+			lossCtx.Selections[key] = v
+		}
+	}
 	return lossCtx
 }
 
@@ -205,6 +211,13 @@ func (e *GameEngine) hasQueuedMoraleLossResponse() bool {
 		}
 	}
 	return false
+}
+
+// afterDiscardContinuationKeys 弃牌中断上用于弃牌后续接的字段。
+var afterDiscardContinuationKeys = []string{
+	"flow_continuation_role_id",
+	"flow_continuation_player_id",
+	"flow_continuation_skill_id",
 }
 
 func (e *GameEngine) processAfterDiscardFlowContinuations(playerID string, discardedCards []model.Card, data map[string]interface{}) bool {
@@ -314,7 +327,13 @@ func (e *GameEngine) resumePendingMoraleLoss(ctx *model.Context) bool {
 
 	if discardPlayer != nil {
 		e.Log(fmt.Sprintf("[System] %s 丢弃了 %d 张牌！士气 -%d", discardPlayer.Name, len(discardedCards), finalLoss))
-		e.processAfterDiscardFlowContinuations(discardPlayer.ID, discardedCards, nil)
+		contData := map[string]interface{}{}
+		for _, key := range afterDiscardContinuationKeys {
+			if v, ok := ctx.Selections[key]; ok {
+				contData[key] = v
+			}
+		}
+		e.processAfterDiscardFlowContinuations(discardPlayer.ID, discardedCards, contData)
 	}
 
 	ctx.Selections["morale_loss_pending"] = false

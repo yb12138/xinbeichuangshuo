@@ -229,7 +229,7 @@ func TestCrimsonDanceTurnEnd_DoesNotSynthesizeRoseCourtyardWithoutFieldCard(t *t
 	}
 
 	p1 := g.State.Players["p1"]
-	p1.Tokens["css_blood_cap"] = 4
+	p1.Tokens["css_blood_cap"] = 3
 	p1.Tokens["css_blood"] = 4
 	p1.Field = append(p1.Field, &model.FieldCard{
 		Card: model.Card{
@@ -250,8 +250,9 @@ func TestCrimsonDanceTurnEnd_DoesNotSynthesizeRoseCourtyardWithoutFieldCard(t *t
 	if p1.Tokens["css_blood_cap"] != 3 {
 		t.Fatalf("expected blood cap reset to 3, got %d", p1.Tokens["css_blood_cap"])
 	}
-	if p1.Tokens["css_blood"] != 3 {
-		t.Fatalf("expected blood trimmed to 3, got %d", p1.Tokens["css_blood"])
+	// 血色剑灵-1：散华轮舞留下的超额鲜血不在回合结束时截回。
+	if p1.Tokens["css_blood"] != 4 {
+		t.Fatalf("expected blood above cap kept, got %d", p1.Tokens["css_blood"])
 	}
 	if p1.HasExclusiveCard(p1.Character.ID, "血蔷薇庭院") {
 		t.Fatalf("expected no synthetic courtyard card restored without field card")

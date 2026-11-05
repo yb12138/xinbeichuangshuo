@@ -384,6 +384,8 @@ type IGameEngine interface {
 	// 日志
 	// 提炼流程（由角色包调用）
 	StartExtractForPlayer(playerID string) error
+	// StartExtractToRecipient extractor 执行提炼，星石交给 recipient，然后移除 extractor 的能量。
+	StartExtractToRecipient(extractorID, recipientID string, extractorEnergyCost int) error
 
 	Log(msg string)
 
@@ -449,6 +451,12 @@ type SkillHandler interface {
 
 	// 执行效果
 	Execute(ctx *Context) error
+}
+
+// DiscardCandidateProvider 可选接口：弃牌交互技能声明合法的弃牌候选（手牌下标）。
+// 引擎据此过滤弃牌框，并在提交时校验。
+type DiscardCandidateProvider interface {
+	DiscardCandidateIndices(ctx *Context) []int
 }
 
 // RoomCharacterSelection 房间角色选择模型

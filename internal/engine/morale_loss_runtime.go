@@ -9,6 +9,29 @@ import (
 	"starcup-engine/internal/model"
 )
 
+// runAfterCampMoraleLossHooks 为不经过爆牌流程的士气下降（技能直接扣士气）补发后置钩子。
+// victim 取该阵营按座次的第一名玩家，钩子只依赖其阵营。
+func (e *GameEngine) runAfterCampMoraleLossHooks(camp model.Camp, loss int) {
+	if e == nil || loss <= 0 {
+		return
+	}
+	var victim *model.Player
+	for _, pid := range e.State.PlayerOrder {
+		if p := e.State.Players[pid]; p != nil && p.Camp == camp {
+			victim = p
+			break
+		}
+	}
+	if victim == nil {
+		return
+	}
+	for _, entry := range roleRegistry.Entries() {
+		if entry.AfterMoraleLossHook != nil {
+			entry.AfterMoraleLossHook(e, victim, loss, false)
+		}
+	}
+}
+
 // ApplyMoraleLossAfterTimingWindow 在 TimingMoraleLossCheck 窗口处理完毕后应用士气损失与联动效果。
 func (e *GameEngine) ApplyMoraleLossAfterTimingWindow(victim *model.Player, moraleLoss int, isMagic bool, fromDamageDraw bool, overflowMoraleLossFixed int, discardedCards []model.Card, lossCtx *model.Context) int {
 	if victim == nil {

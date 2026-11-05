@@ -586,12 +586,15 @@ describe('GameBoard target picker', () => {
 
     interruptStore.setSkillMode('choosing_target')
     await userEvent.click(screen.getByTestId('player-area-p2'))
-    expect(submitUseSkillMock).toHaveBeenCalledWith(
-      'prayer_power_blessing',
-      ['p2'],
-      [0],
-      { clearSkillMode: true },
-    )
+    // 点头像只选中，发动走「确认发动」按钮
+    expect(interruptStore.skillTargetIds).toEqual(['p2'])
+    expect(interruptStore.skillDiscardHandIndexes).toEqual([0])
+    expect(submitUseSkillMock).not.toHaveBeenCalled()
+
+    // 再点已选目标 = 取消选中，而不是发动
+    await userEvent.click(screen.getByTestId('player-area-p2'))
+    expect(interruptStore.skillTargetIds).toEqual([])
+    expect(submitUseSkillMock).not.toHaveBeenCalled()
   })
 
   it('selects a single hand card picker card without auto-submitting', async () => {
@@ -708,6 +711,67 @@ describe('GameBoard target picker', () => {
     store.setCounterFlowStage('target')
     await nextTick()
     expect(screen.getByTestId('player-area-p9')).not.toBeDisabled()
+  })
+
+  it('distinct_elements card picker: cards sharing an already selected element become unselectable', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '贤者',
+      camp: 'Red',
+      role: 'sage',
+      hand: [
+        buildCard({ id: 'f1', name: '火焰斩', element: 'Fire' }),
+        buildCard({ id: 'f2', name: '烈焰击', element: 'Fire' }),
+        buildCard({ id: 'w1', name: '水涟斩', element: 'Water' }),
+      ],
+      hand_count: 3,
+    })
+    const players = { p1: me }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'sage')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const store = useInterruptStore()
+    store.setPrompt({
+      type: 'choose_cards',
+      player_id: 'p1',
+      message: '【圣洁法典】请选择异系牌（选几张X即为几）：',
+      options: [
+        { id: '0', label: '1: 火焰斩', card_id: 'f1' },
+        { id: '1', label: '2: 烈焰击', card_id: 'f2' },
+        { id: '2', label: '3: 水涟斩', card_id: 'w1' },
+      ],
+      min: 3,
+      max: 3,
+      presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'distinct_elements' },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const selectableFlags = () =>
+      Array.from(container.querySelectorAll('.hand-card-row .card-shell')).map((c) => c.classList.contains('selectable'))
+
+    expect(selectableFlags()).toEqual([true, true, true])
+
+    // 选中一张火系后，另一张火系不可再选，已选的与其他系仍可点
+    store.setSelectedHandIndexes([0])
+    await nextTick()
+    expect(selectableFlags()).toEqual([true, false, true])
   })
 
   it('only lights up hand cards the engine listed for counter/defend', () => {

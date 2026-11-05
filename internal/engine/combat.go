@@ -143,7 +143,7 @@ func (e *GameEngine) ApplyPassiveAttackEffects(attacker, target *model.Player, b
 }
 
 // applyDamageWithOptions 应用伤害逻辑 (治疗抵消 + 摸牌)
-func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, damageType model.DamageType, capToHandLimit bool, sourceID string, sourceSkillID string, overflowMoraleLossFixed int) {
+func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, damageType model.DamageType, capToHandLimit bool, sourceID string, sourceSkillID string, overflowMoraleLossFixed int, noMoraleLoss bool) {
 
 	// 5. 造成伤害 (摸牌)
 	if damage > 0 {
@@ -172,7 +172,7 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 		if overflowMoraleLossFixed > 0 {
 			drawCtx.Selections["overflow_morale_loss_fixed"] = overflowMoraleLossFixed
 		}
-		if strings.EqualFold(string(damageType), "magic_no_morale") {
+		if noMoraleLoss || strings.EqualFold(string(damageType), "magic_no_morale") {
 			drawCtx.Flags["NoMoraleLoss"] = true
 		}
 
@@ -188,7 +188,7 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 
 // applyDamage 应用伤害逻辑 (治疗抵消 + 摸牌)
 func (e *GameEngine) applyDamage(target *model.Player, damage int, damageType model.DamageType) {
-	e.applyDamageWithOptions(target, damage, damageType, false, "", "", 0)
+	e.applyDamageWithOptions(target, damage, damageType, false, "", "", 0, false)
 }
 
 // resolveCounterAttack resolves a counter attack by popping the current combat

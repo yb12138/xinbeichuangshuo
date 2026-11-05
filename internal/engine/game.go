@@ -54,6 +54,10 @@ type GameEngine struct {
 	narrativeTrace *narrativeTraceState
 	// causeRuntime 当前效果因果（见 cause_runtime.go）；为公开事件与状态变化提供技能归属。
 	causeRuntime *causeState
+	// skillRefundCapture 正在执行的技能的退费快照捕获（见 skill_cancel_refund.go）。
+	skillRefundCapture *skillRefundCapture
+	// skillRefunds 中断 -> 取消时可退回的技能费用/次数快照。
+	skillRefunds map[*model.Interrupt]*skillRefundEntry
 }
 
 type skillResumeState struct {

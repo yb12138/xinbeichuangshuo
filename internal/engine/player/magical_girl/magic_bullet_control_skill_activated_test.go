@@ -66,3 +66,38 @@ func TestMagicBulletControl_ForwardDoesNotEmitSkillActivated(t *testing.T) {
 		t.Fatalf("forward direction is not a control activation, got %d", n)
 	}
 }
+
+// 审计 魔法少女-1：方向只在魔法少女主动使用魔弹时选一次；传递过程中（包括魔法少女自己接到并传递魔弹）不再询问方向。
+func TestMagicBulletControl_DirectionAskedOnlyOncePerBullet(t *testing.T) {
+	game := newMagicBulletControlGame(t, testutils.NoopObserver{})
+	// 座位 p1(红) p2(红) p3(蓝) p4(蓝)；逆向（索引递增找下一名对手）：p1 → p3 → p1 → p4。
+	// 正向会是 p1 → p4 → p2，所以第二跳落在 p1 说明逆向被保留。
+	game.State.Players["p3"].Hand = []model.Card{{ID: "mb3", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	for _, step := range []struct{ responder, card, next string }{{"p3", "mb3", "p1"}} {
+		intr := game.State.PendingInterrupt
+		if intr == nil || intr.Type != model.InterruptMagicMissile || intr.PlayerID != step.responder {
+			t.Fatalf("expected missile on %s, got %+v", step.responder, intr)
+		}
+		testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: step.responder, Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: step.card})
+		intr = game.State.PendingInterrupt
+		if intr != nil && intr.Type == model.InterruptMagicBulletDirection {
+			t.Fatalf("direction must not be asked again while passing (after %s)", step.responder)
+		}
+		if intr == nil || intr.PlayerID != step.next {
+			t.Fatalf("expected reverse direction kept, next=%s, got %+v", step.next, intr)
+		}
+	}
+}
+
+// 魔法少女不是施法者、只是接到魔弹并传递时，也不询问方向。
+func TestMagicBulletControl_PassingMagicalGirlNotAskedDirection(t *testing.T) {
+	game := buildMagicBulletFusionChainGame(t, "magical_girl")
+	game.State.Players["p1"].Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
+	game.State.Players["p2"].Hand = []model.Card{{ID: "mb2", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementWater, Damage: 2}}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"counter"}, CardID: "mb2"})
+	if intr := game.State.PendingInterrupt; intr == nil || intr.Type != model.InterruptMagicMissile || intr.PlayerID != "p3" {
+		t.Fatalf("expected missile passed to p3 without direction prompt, got %+v", intr)
+	}
+}

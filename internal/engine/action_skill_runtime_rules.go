@@ -6,6 +6,7 @@ import (
 	"starcup-engine/internal/engine/player"
 	skills "starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
+	"starcup-engine/internal/types"
 )
 
 func (e *GameEngine) hasUsableActionSkillForExtraMagic(playerObj *model.Player) bool {
@@ -126,6 +127,16 @@ func (e *GameEngine) probeActionSkillTarget(user *model.Player, targetType model
 
 func (e *GameEngine) CanSatisfyActionSkillDiscardRequirement(playerObj *model.Player, skillDef model.SkillDefinition) bool {
 	requiredDiscards := skillDef.CostDiscards
+	// 允许“部分发动”的技能（如神官的水之神力、神圣领域）由策略按当前手牌数折算弃牌张数。
+	if policy := resolveSkillUsePolicy(skillDef.ID); policy.ResolveDiscardCount != nil && playerObj != nil {
+		requiredDiscards = policy.ResolveDiscardCount(types.PolicyContext{
+			SkillID:          skillDef.ID,
+			PlayerID:         playerObj.ID,
+			SkillDef:         skillDef,
+			RequiredDiscards: requiredDiscards,
+			HandSize:         len(playerObj.Hand),
+		})
+	}
 	if requiredDiscards <= 0 {
 		return true
 	}

@@ -160,14 +160,17 @@ func TestSwordEmperor_SwordSoulGuard_StopsAtCap(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	p1 := prepareSwordEmperorActiveTurn(game, "p1", []model.Card{
+		swordEmperorTestCard("atk_cap", "上限测试斩", model.CardTypeAttack, model.ElementFire, 2),
+	})
 	for i := 0; i < 3; i++ {
 		giveSwordEmperorSwordSoul(t, game, "p1", "soul_cap_"+string(rune('a'+i)))
 	}
-	p1 := game.State.Players["p1"]
-	attackCard := swordEmperorTestCard("atk_cap", "上限测试斩", model.CardTypeAttack, model.ElementFire, 2)
-	game.State.DiscardPile = append(game.State.DiscardPile, attackCard)
-
-	swordemperor.ResolveAttackMiss(engine.NewRoleChoiceRuntime(game), "p1", &attackCard, false)
+	p2 := game.State.Players["p2"]
+	p2.Hand = []model.Card{swordEmperorTestCard("def_cap", "圣光", model.CardTypeMagic, model.ElementLight, 0)}
+	// 走真实的攻击未命中链路（被圣光抵挡），由 attackMissHook 结算剑魂守护/佯攻。
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, CardID: testutils.PlayableCardID(t, game, "p2", 0), ExtraArgs: []string{"defend"}})
 
 	if got := swordemperor.SwordSoulCount(p1); got != 3 {
 		t.Fatalf("expected sword soul stay at cap 3, got %d", got)
@@ -178,7 +181,13 @@ func TestSwordEmperor_SwordSoulGuard_StopsAtCap(t *testing.T) {
 	if got := p1.Tokens["se_sword_qi"]; got != 1 {
 		t.Fatalf("expected feint still add 1 sword qi at cap, got %d", got)
 	}
-	if len(game.State.DiscardPile) == 0 || game.State.DiscardPile[len(game.State.DiscardPile)-1].ID != "atk_cap" {
+	foundAtk := false
+	for _, c := range game.State.DiscardPile {
+		if c.ID == "atk_cap" {
+			foundAtk = true
+		}
+	}
+	if !foundAtk {
 		t.Fatalf("expected attack card remain in discard when cap reached, got %+v", game.State.DiscardPile)
 	}
 }

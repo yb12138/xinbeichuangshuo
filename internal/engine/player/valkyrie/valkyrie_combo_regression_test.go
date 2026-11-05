@@ -74,14 +74,16 @@ func TestValkyrie_ComboChain_FullFlow(t *testing.T) {
 	testutils.RequireResponseSkillPrompt(t, game, "p1")
 	testutils.ChooseResponseSkillByID(t, game, "p1", "valkyrie_heroic_summon")
 
-	// 4) 英灵召唤额外流程：直接选择法术牌（可取消）-> 当前战斗目标自动+1治疗
+	// 4) 英灵召唤额外流程：选择法术牌（可取消）-> 玩家任选目标角色+1治疗（这里选 p2）
 	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_heroic_discard_card")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_heroic_heal_target")
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
 	if p2.Heal != 1 {
-		t.Fatalf("expected heroic summon extra heal to apply to current combat target, got %d", p2.Heal)
+		t.Fatalf("expected heroic summon extra heal to apply to chosen target p2, got %d", p2.Heal)
 	}
 
-	// 5) 当前文档口径下，额外治疗只能给当前战斗目标，因此不会再给自己补治疗触发第二次神圣追击。
+	// 5) 额外治疗给了 p2 而非自己，因此不会触发第二次神圣追击。
 	if !player.HasForm(p1, model.FormValkyrieHeroic) {
 		t.Fatalf("expected enter heroic form after heroic summon on self turn, got form=%q", p1.Form)
 	}

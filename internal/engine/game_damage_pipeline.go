@@ -148,7 +148,7 @@ func (e *GameEngine) applyAndPopPendingDamage(pd *model.PendingDamage) model.Pen
 	}
 	if target != nil {
 		// 扣血/摸牌等基础结算
-		e.applyDamageWithOptions(target, pd.Damage, pd.DamageType, pd.CapDrawToHandLimit, pd.SourceID, pd.SourceSkillID, pd.OverflowMoraleLossFixed)
+		e.applyDamageWithOptions(target, pd.Damage, pd.DamageType, pd.CapDrawToHandLimit, pd.SourceID, pd.SourceSkillID, pd.OverflowMoraleLossFixed, pd.NoMoraleLoss)
 		// 扣血后角色/状态清理由 hooks 注入。
 		e.applyDamageAfterApplyRules(pd, target)
 	}

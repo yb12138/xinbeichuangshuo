@@ -6,7 +6,6 @@ import (
 	"fmt"
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
-	"strings"
 )
 
 // --- Helper functions ---
@@ -147,9 +146,24 @@ func (h *HomunculusGlyphFusionHandler) CanUse(ctx *model.Context) bool {
 	if engineplayer.GetToken(ctx.User, "hom_magic_rune") <= 0 {
 		return false
 	}
-	// 魔纹融合：只要有至少2张手牌就可以发动，选择的牌彼此异系即可（不要求与攻击牌异系）
-	// 至少需要2张牌才能选择彼此异系的牌
-	return len(ctx.User.Hand) >= 2
+	// 魔纹融合：选择的牌彼此异系即可（不要求与攻击牌异系），
+	// 所以手牌里至少要有 2 张不同系的牌，否则选不出合法组合。
+	return distinctHandElements(ctx.User) >= 2
+}
+
+// distinctHandElements 统计手牌中不同系别的数量。
+func distinctHandElements(p *model.Player) int {
+	if p == nil {
+		return 0
+	}
+	seen := map[model.Element]struct{}{}
+	for _, c := range p.Hand {
+		if c.Element == "" {
+			continue
+		}
+		seen[c.Element] = struct{}{}
+	}
+	return len(seen)
 }
 
 func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
@@ -164,8 +178,8 @@ func (h *HomunculusGlyphFusionHandler) Execute(ctx *model.Context) error {
 	for i := range ctx.User.Hand {
 		candidates = append(candidates, i)
 	}
-	if len(candidates) < 2 {
-		return fmt.Errorf("手牌不足2张")
+	if len(candidates) < 2 || distinctHandElements(ctx.User) < 2 {
+		return fmt.Errorf("手牌中没有2张不同系的牌")
 	}
 	maxY := 0
 	if engineplayer.HasForm(ctx.User, model.FormWarHomunculusBurst) {
@@ -236,12 +250,7 @@ func (h *HomunculusDualEchoHandler) CanUse(ctx *model.Context) bool {
 	if ctx.EventCtx.SourceID != ctx.User.ID {
 		return false
 	}
-	if damageType, _ := ctx.Selections["damage_type"].(string); damageType != "" {
-		lower := strings.ToLower(strings.TrimSpace(damageType))
-		if lower != "attack" && !strings.Contains(lower, "magic") {
-			return false
-		}
-	}
+	// 双重回响不限于攻击/法术伤害（中毒等伤害同样可触发），这里不校验伤害类型。
 	if ctx.EventCtx.DamageVal == nil || *ctx.EventCtx.DamageVal <= 0 {
 		return false
 	}

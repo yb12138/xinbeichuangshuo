@@ -102,26 +102,28 @@ type GameStateUpdate struct {
 
 // PlayerView represents a player's view (hiding other players' hands).
 type PlayerView struct {
-	ID                 string             `json:"id"`
-	Name               string             `json:"name"`
-	Camp               string             `json:"camp"`
-	Role               string             `json:"role"`
-	Orientation        string             `json:"orientation,omitempty"`
-	Form               string             `json:"form,omitempty"`
-	HandCount          int                `json:"hand_count"`
-	MaxHand            int                `json:"max_hand"`
-	ExclusiveCardCount int                `json:"exclusive_card_count"`
-	Hand               []model.Card       `json:"hand,omitempty"`            // Only for self
-	ExclusiveCards     []model.Card       `json:"exclusive_cards,omitempty"` // Only for self (专属技能卡区)
-	Field              []*model.FieldCard `json:"field"`
-	Heal               int                `json:"heal"`
-	MaxHeal            int                `json:"max_heal"`
-	Gem                int                `json:"gem"`     // 个人能量：宝石
-	Crystal            int                `json:"crystal"` // 个人能量：水晶
-	IsActive           bool               `json:"is_active"`
-	Buffs              []model.Buff       `json:"buffs"`
-	Tokens             map[string]int     `json:"tokens,omitempty"`     // 纯游戏状态指示物；不含 Field / RuleModifier / TurnState 派生镜像
-	Indicators         map[string]int     `json:"indicators,omitempty"` // Field / RuleModifier / TurnState 派生展示状态
+	ID                  string             `json:"id"`
+	Name                string             `json:"name"`
+	Camp                string             `json:"camp"`
+	Role                string             `json:"role"`
+	Orientation         string             `json:"orientation,omitempty"`
+	Form                string             `json:"form,omitempty"`
+	HandCount           int                `json:"hand_count"`
+	MaxHand             int                `json:"max_hand"`
+	ExclusiveCardCount  int                `json:"exclusive_card_count"`
+	Hand                []model.Card       `json:"hand,omitempty"`            // Only for self
+	ExclusiveCards      []model.Card       `json:"exclusive_cards,omitempty"` // Only for self (专属技能卡区)
+	Field               []*model.FieldCard `json:"field"`
+	Heal                int                `json:"heal"`
+	MaxHeal             int                `json:"max_heal"`
+	Gem                 int                `json:"gem"`     // 个人能量：宝石
+	Crystal             int                `json:"crystal"` // 个人能量：水晶
+	IsActive            bool               `json:"is_active"`
+	Buffs               []model.Buff       `json:"buffs"`
+	Tokens              map[string]int     `json:"tokens,omitempty"`                // 纯游戏状态指示物；不含 Field / RuleModifier / TurnState 派生镜像
+	Indicators          map[string]int     `json:"indicators,omitempty"`            // Field / RuleModifier / TurnState 派生展示状态
+	CannotCastMagic     bool               `json:"cannot_cast_magic,omitempty"`     // 行动阶段不能使用法术牌（如魔枪黑暗束缚、魔剑士暗影抗拒）
+	NotAttackTargetable bool               `json:"not_attack_targetable,omitempty"` // 不能成为主动攻击目标（如暗杀者潜行）
 
 	// 额外行动约束（仅自身可见）
 	CurrentExtraAction  string   `json:"current_extra_action,omitempty"`

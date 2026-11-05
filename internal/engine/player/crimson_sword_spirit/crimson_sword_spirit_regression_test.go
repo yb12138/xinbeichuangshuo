@@ -82,7 +82,7 @@ func TestRoseCourtyard_ReturnsOnlyOnFinalTurnEndAfterExtraActions(t *testing.T) 
 
 	p1 := g.State.Players["p1"]
 	p1.TurnState = model.NewPlayerTurnState()
-	p1.Tokens["css_blood_cap"] = 4
+	p1.Tokens["css_blood_cap"] = 3
 	p1.Tokens["css_blood"] = 4
 	p1.Field = append(p1.Field, &model.FieldCard{
 		Card: model.Card{
@@ -109,7 +109,7 @@ func TestRoseCourtyard_ReturnsOnlyOnFinalTurnEndAfterExtraActions(t *testing.T) 
 	if p1.HasExclusiveCard(p1.Character.ID, "血蔷薇庭院") {
 		t.Fatalf("rose courtyard should not return to exclusive zone before final turn end")
 	}
-	if p1.Tokens["css_blood_cap"] != 4 || p1.Tokens["css_blood"] != 4 {
+	if p1.Tokens["css_blood_cap"] != 3 || p1.Tokens["css_blood"] != 4 {
 		t.Fatalf("rose courtyard blood cap should stay active before final turn end, cap=%d blood=%d", p1.Tokens["css_blood_cap"], p1.Tokens["css_blood"])
 	}
 	if len(p1.TurnState.PendingActions) != 1 || p1.TurnState.PendingActions[0].Source != "赤色一闪" {
@@ -128,8 +128,8 @@ func TestRoseCourtyard_ReturnsOnlyOnFinalTurnEndAfterExtraActions(t *testing.T) 
 	if p1.Tokens["css_blood_cap"] != 3 {
 		t.Fatalf("expected blood cap reset to 3 at final turn end, got %d", p1.Tokens["css_blood_cap"])
 	}
-	if p1.Tokens["css_blood"] != 3 {
-		t.Fatalf("expected blood trimmed to 3 at final turn end, got %d", p1.Tokens["css_blood"])
+	if p1.Tokens["css_blood"] != 4 {
+		t.Fatalf("expected blood above cap kept at final turn end, got %d", p1.Tokens["css_blood"])
 	}
 }
 

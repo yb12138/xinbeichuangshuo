@@ -81,7 +81,7 @@ func TestPlagueOutbreak_UsesTurnEndRewardInsteadOfImmediateHeal(t *testing.T) {
 	}
 }
 
-func TestPlagueDeathTouch_TargetsEnemyOnlyAndSuppressesImmortal(t *testing.T) {
+func TestPlagueDeathTouch_TargetsAnyCharacterAndSuppressesImmortal(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Plague", "plague_mage", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -110,29 +110,16 @@ func TestPlagueDeathTouch_TargetsEnemyOnlyAndSuppressesImmortal(t *testing.T) {
 		{ID: "fire-b", Name: "火牌B", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
 	}
 
-	if err := game.HandleAction(model.PlayerAction{
-		PlayerID: "p1",
-		Type:     model.CmdSkill,
-		SkillID:  "plague_death_touch",
-		TargetID: "p2",
-	}); err == nil {
-		t.Fatalf("expected death touch to reject allied target")
-	}
-
+	// 文案为"目标角色"：可以指定队友（含自己）。
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
 		Type:     model.CmdSkill,
 		SkillID:  "plague_death_touch",
-		TargetID: "p3",
+		TargetID: "p2",
 	})
-	ctx := testutils.RequireChoiceContext(t, game, "p1", "plague_death_touch_element")
-	flow := testutils.RequirePromptFlow(t, ctx, "plague_death_touch", "element")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
-	ctx = testutils.RequireChoiceContext(t, game, "p1", "plague_death_touch_x")
-	flow = testutils.RequirePromptFlow(t, ctx, "plague_death_touch", "x")
-	if flow.Selection("element").Element != string(model.ElementFire) {
-		t.Fatalf("expected death touch flow to accumulate element selection, got %+v", flow)
-	}
+	// 不再单独声明系别：第一步直接选 X。
+	ctx := testutils.RequireChoiceContext(t, game, "p1", "plague_death_touch_x")
+	flow := testutils.RequirePromptFlow(t, ctx, "plague_death_touch", "x")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	// After X selection, directly multi-select cards (no Y selection anymore)
 	ctx = testutils.RequireChoiceContext(t, game, "p1", "plague_death_touch_cards")
@@ -147,6 +134,11 @@ func TestPlagueDeathTouch_TargetsEnemyOnlyAndSuppressesImmortal(t *testing.T) {
 	}
 	if len(p1.Hand) != 0 {
 		t.Fatalf("expected death touch to discard exactly 2 same-element cards, remaining hand=%+v", p1.Hand)
+	}
+	driveSeveralSteps(game, 8)
+	// X=2,Y=2 → 1点法术伤害落在队友 p2 身上（摸1张），敌方 p3 不受影响。
+	if len(p2.Hand) != 1 || len(p3.Hand) != 0 {
+		t.Fatalf("expected death touch damage on allied p2 only, p2 hand=%d p3 hand=%d", len(p2.Hand), len(p3.Hand))
 	}
 
 	driveSeveralSteps(game, 8)
@@ -219,7 +211,7 @@ func TestPlagueDeathTouch_CancelChoiceRestoresActionWindow(t *testing.T) {
 		SkillID:  "plague_death_touch",
 		TargetID: "p2",
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_element")
+	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_x")
 
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID: "p1",
@@ -277,8 +269,6 @@ func TestPlagueDeathTouch_CancelAtCardPickRestoresActionWindow(t *testing.T) {
 		SkillID:  "plague_death_touch",
 		TargetID: "p2",
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_element")
-	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_x")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 	// After X selection, directly go to multi-select cards (no Y selection)
@@ -340,5 +330,66 @@ func TestPlagueToxicNova_ConsumesExactlyOneGem(t *testing.T) {
 	}
 	if p1.Heal != 2 {
 		t.Fatalf("expected toxic nova to grant +1治疗 and dispatch immortal once, got %d", p1.Heal)
+	}
+}
+
+// 死亡之触合并选牌：不再声明系别，一步选出 ≥2 张同系牌；混系、单系不足 2 张都被拒绝。
+func TestPlagueDeathTouch_SingleStepSameElementCardPick(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Plague", "plague_mage", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	game.State.Players["p2"].TurnState = model.NewPlayerTurnState()
+	p1.Heal = 2
+	p1.Hand = []model.Card{
+		{ID: "fire-a", Name: "火牌A", Type: model.CardTypeMagic, Element: model.ElementFire},
+		{ID: "water-a", Name: "水牌A", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+		{ID: "lone-wind", Name: "风牌", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+		{ID: "fire-b", Name: "火牌B", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "water-b", Name: "水牌B", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+		{ID: "fire-c", Name: "火牌C", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1", Type: model.CmdSkill, SkillID: "plague_death_touch", TargetID: "p2",
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_x")
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	testutils.RequireChoicePrompt(t, game, "p1", "plague_death_touch_cards")
+
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || prompt.Type != model.PromptChooseCards || prompt.Min != 2 {
+		t.Fatalf("expected choose_cards prompt with min 2, got %+v", prompt)
+	}
+	got := map[string]bool{}
+	for _, opt := range prompt.Options {
+		got[opt.CardID] = true
+	}
+	if len(prompt.Options) != 5 || got["lone-wind"] {
+		t.Fatalf("expected all cards of elements with >=2 copies (5 cards, no lone wind), got %+v", prompt.Options)
+	}
+
+	// 混系：火 + 水 被拒绝
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}}); err == nil {
+		t.Fatalf("expected mixed-element selection to be rejected")
+	}
+	// 三张火牌：Y=3，伤害 X+Y-3 = 2
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 3, 5}})
+	if len(p1.Hand) != 3 {
+		t.Fatalf("expected 3 cards discarded, remaining %+v", p1.Hand)
+	}
+	driveSeveralSteps(game, 8)
+	if got := len(game.State.Players["p2"].Hand); got != 2 {
+		t.Fatalf("expected death touch damage X+Y-3=2 (target draws 2), got hand=%d", got)
 	}
 }

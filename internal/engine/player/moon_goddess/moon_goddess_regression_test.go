@@ -982,7 +982,7 @@ func TestMoonGoddessBlasphemy_OncePerTurnAndResetNextTurn(t *testing.T) {
 	testutils.RequireChoicePrompt(t, game, "p1", "mg_blasphemy_target")
 }
 
-func TestMoonGoddessBlasphemy_TargetLockedToDamagedEnemyAndSelfTurn(t *testing.T) {
+func TestMoonGoddessBlasphemy_TargetLockedToDamagedEnemyAndOpponentTurn(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Moon", "moon_goddess", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -1031,8 +1031,23 @@ func TestMoonGoddessBlasphemy_TargetLockedToDamagedEnemyAndSelfTurn(t *testing.T
 	moon.Heal = 1
 	game.State.PendingInterrupt = nil
 	game.State.PendingDamageQueue = nil
+	if !moonplayer.TryQueueBlasphemy(engine.NewRoleChoiceRuntime(game), &pd) {
+		t.Fatalf("blasphemy should also queue during opponent turn")
+	}
+	prompt = game.GetCurrentPrompt()
+	if prompt == nil || prompt.ChoiceType != "mg_blasphemy_target" {
+		t.Fatalf("expected blasphemy prompt in opponent turn, got %+v", prompt)
+	}
+	if got := len(prompt.Options); got != 2 {
+		t.Fatalf("expected only current damaged enemy + decline in opponent turn, got %d options", got)
+	}
+
+	// 回合限定仍生效：本回合已使用过则不再触发。
+	game.State.PendingInterrupt = nil
+	moon.TurnState.UsedSkillCounts["mg_blasphemy"] = 1
+	moon.TurnState.SkillFlowState["mg_blasphemy_pending"] = 0
 	if moonplayer.TryQueueBlasphemy(engine.NewRoleChoiceRuntime(game), &pd) {
-		t.Fatalf("blasphemy should not queue outside self turn")
+		t.Fatalf("blasphemy should respect per-turn limit")
 	}
 }
 

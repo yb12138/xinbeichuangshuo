@@ -9,7 +9,7 @@ import (
 	"starcup-engine/internal/testutils"
 )
 
-func TestMagicMissileResponseSkillUsesDedicatedTimingContext(t *testing.T) {
+func TestMagicMissileFusionOfferedInMissilePanel(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	game.State.Deck = rules.InitDeck()
 	if err := game.AddPlayer("p1", "Caster", "berserker", model.RedCamp); err != nil {
@@ -41,21 +41,19 @@ func TestMagicMissileResponseSkillUsesDedicatedTimingContext(t *testing.T) {
 		t.Fatalf("cast magic missile failed: %v", err)
 	}
 
+	// 魔弹融合已并入魔弹响应面板：不再先弹响应技能窗口，融合牌直接作为"传递"牌给出。
 	intr := game.State.PendingInterrupt
-	if intr == nil || intr.Type != model.InterruptResponseSkill {
-		t.Fatalf("expected response skill interrupt, got %+v", intr)
+	if intr == nil || intr.Type != model.InterruptMagicMissile || intr.PlayerID != "p2" {
+		t.Fatalf("expected magic missile prompt on p2, got %+v", intr)
 	}
-	ctx, ok := intr.Context.(*model.Context)
-	if !ok || ctx == nil {
-		t.Fatalf("expected model.Context on response skill interrupt, got %T", intr.Context)
+	prompt := game.GetCurrentPrompt()
+	found := false
+	for _, id := range prompt.CounterCardIDs {
+		if id == "fusion-card" {
+			found = true
+		}
 	}
-	if ctx.Timing != model.TimingMagicMissileResponseSkill {
-		t.Fatalf("response skill timing = %q, want %q", ctx.Timing, model.TimingMagicMissileResponseSkill)
-	}
-	if !ctx.MagicMissileResponseSkillPhase() {
-		t.Fatalf("magic missile response skill helper should match timing %q", ctx.Timing)
-	}
-	if ctx.AttackResponsePhase() {
-		t.Fatalf("magic missile response skill context must not be treated as attack response")
+	if !found {
+		t.Fatalf("expected fusion card offered as counter, got %v", prompt.CounterCardIDs)
 	}
 }

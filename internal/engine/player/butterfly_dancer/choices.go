@@ -518,18 +518,7 @@ func handleDanceMode(rt engineplayer.ChoiceRuntime, ctxData map[string]interface
 	}
 	// Draw mode: draw 1 card to hand, draw 1 cocoon
 	rt.DrawCards(user.ID, 1)
-	rt.DrawCardsWithOptions(user.ID, 1, model.DrawOptions{Reason: "bt_dance_cocoon"})
-	// The DrawCardsWithOptions call draws into hand. For cocoon placement we
-	// need to take the last card added and place it as cocoon instead.
-	// However, the IGameEngine interface doesn't have a "draw to cocoon" method.
-	// The original code uses rules.DrawCards to draw directly from deck state.
-	// Since we can't access deck directly, we use an alternative approach:
-	// draw to hand, then remove the last card and place as cocoon.
-	if len(user.Hand) > 0 {
-		lastCard := user.Hand[len(user.Hand)-1]
-		user.Hand = user.Hand[:len(user.Hand)-1]
-		AddCocoonCards(user, []model.Card{lastCard})
-	}
+	placeDanceCocoonFromDeckTop(rt, user)
 	rt.Log(fmt.Sprintf("%s 发动 [舞动]：摸1张牌，并将牌库顶1张牌放置为茧", user.Name))
 	rt.CheckHandLimit(user.ID, false)
 	overflow := CocoonCount(user) - ButterflyCocoonCap
@@ -560,16 +549,11 @@ func handleDanceDiscard(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	}
 	card := user.Hand[selectionIndex]
 	user.Hand = append(user.Hand[:selectionIndex], user.Hand[selectionIndex+1:]...)
-	rt.NotifyCardRevealed(user.ID, []model.Card{card}, model.DamageType("discard"))
+	// 舞动的弃牌文案没有［展示］：面朝下弃置，不公开、不触发展示类时点。
+	notifyCardsDiscardedFaceDown(rt, user.ID, []model.Card{card})
 	rt.AppendToDiscard([]model.Card{card})
 
-	// Draw 1 cocoon from deck
-	rt.DrawCardsWithOptions(user.ID, 1, model.DrawOptions{Reason: "bt_dance_cocoon"})
-	if len(user.Hand) > 0 {
-		lastCard := user.Hand[len(user.Hand)-1]
-		user.Hand = user.Hand[:len(user.Hand)-1]
-		AddCocoonCards(user, []model.Card{lastCard})
-	}
+	placeDanceCocoonFromDeckTop(rt, user)
 
 	rt.Log(fmt.Sprintf("%s 发动 [舞动]：弃1张牌，并将牌库顶1张牌放置为茧", user.Name))
 	overflow := CocoonCount(user) - ButterflyCocoonCap
@@ -1327,4 +1311,24 @@ func queueWitherChoice(rt engineplayer.ChoiceRuntime, user *model.Player) {
 			"target_ids":  allPlayerIDs(rt),
 		},
 	})
+}
+
+// placeDanceCocoonFromDeckTop 舞动：将牌库顶 1 张牌面朝下放置为茧。
+// 直接从牌库取牌并按取到的牌放置，不经过手牌（避免摸牌被打断时误把别的手牌当成茧，
+// 也避免前端看到手牌先 +1 再 -1）。
+func placeDanceCocoonFromDeckTop(rt engineplayer.ChoiceRuntime, user *model.Player) {
+	cards, ok := rt.DrawRawCards(1)
+	if !ok || len(cards) == 0 {
+		return
+	}
+	AddCocoonCards(user, cards)
+}
+
+// notifyCardsDiscardedFaceDown 面朝下弃牌：只通知弃牌数量，不公开牌面。
+func notifyCardsDiscardedFaceDown(rt engineplayer.ChoiceRuntime, playerID string, cards []model.Card) {
+	if hidden, ok := rt.(interface {
+		NotifyCardHidden(playerID string, cards []model.Card, actionType model.DamageType)
+	}); ok {
+		hidden.NotifyCardHidden(playerID, cards, "discard")
+	}
 }

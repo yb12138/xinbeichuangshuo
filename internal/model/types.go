@@ -270,6 +270,7 @@ type PendingDamage struct {
 	DamageType                DamageType                     `json:"damage_type"`
 	OverflowMoraleLossFixed   int                            `json:"overflow_morale_loss_fixed,omitempty"` // 本次伤害摸牌若导致士气下降，则固定为该值
 	IgnoreHeal                bool                           `json:"ignore_heal,omitempty"`                // 本次伤害是否不可被治疗抵御
+	NoMoraleLoss              bool                           `json:"no_morale_loss,omitempty"`             // 本次伤害摸牌爆牌时不导致士气下降
 	CapDrawToHandLimit        bool                           `json:"cap_draw_to_hand_limit,omitempty"`     // 本次伤害摸牌是否“最多摸到手牌上限”
 	AllowCrimsonFaithHeal     bool                           `json:"allow_crimson_faith_heal,omitempty"`   // 红莲骑士[腥红信仰]是否可用治疗抵御本次自伤
 	EffectTypeToRemove        EffectType                     `json:"effect_type_to_remove,omitempty"`      // 伤害结算后需要移除的场上效果 (例如封印)

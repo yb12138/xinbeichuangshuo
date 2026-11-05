@@ -322,8 +322,11 @@ func (e *GameEngine) emitBuffAddedDispatch(sourceID, targetID string, effect mod
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 
+// RemoveFieldCard 被动移除场上效果（伤害结算后封印自动移除、赐福被持有者用掉等）。
+// 被动移除没有"移除者"，sourceID 留空，避免被当成持有者主动移除了基础效果（如误触发天使羁绊）。
+// 需要记录移除者的主动移除请用 RemoveFieldCardBy / RemoveFieldCardAt。
 func (e *GameEngine) RemoveFieldCard(targetID string, effect model.EffectType) bool {
-	return e.RemoveFieldCardBy(targetID, effect, targetID)
+	return e.RemoveFieldCardBy(targetID, effect, "")
 }
 
 func (e *GameEngine) RemoveFieldCardBy(targetID string, effect model.EffectType, sourceID string) bool {

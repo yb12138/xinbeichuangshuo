@@ -35,6 +35,7 @@ func RoleEntry() player.RoleEntry {
 func ChoiceSpecs() []player.ChoiceSpec {
 	return []player.ChoiceSpec{
 		{ChoiceType: "bs_reversal_target_discard", HandleMultiSelect: handleReversalTargetDiscardMultiSelect},
+		{ChoiceType: "bs_beast_return_self_discard", HandleMultiSelect: handleBeastReturnSelfDiscardMultiSelect},
 	}
 }
 

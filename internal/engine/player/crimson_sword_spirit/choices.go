@@ -23,8 +23,15 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	case "css_blood_rose_gain_heal_target":
 		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【血染蔷薇】请选择获得治疗的队友：", data, false)
 		if prompt != nil {
-			prompt.EffectHints = []string{"仅可选择我方角色"}
+			prompt.EffectHints = []string{"仅可选择队友（不含自己）"}
 			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}
+		}
+		return prompt
+	case "css_blood_barrier_target":
+		// 费用与减伤已在发动时生效，此提示不可取消。
+		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【血气屏障】请选择一名对手，对其造成1点法术伤害：", data, false)
+		if prompt != nil {
+			prompt.EffectHints = []string{"仅可选择对手"}
 		}
 		return prompt
 	case "css_dance_mode":
@@ -58,11 +65,51 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		return true, handleBloodRoseRemoveHealTargetChoice(rt, selectionIndex, ctxData)
 	case "css_blood_rose_gain_heal_target":
 		return true, handleBloodRoseGainHealTargetChoice(rt, selectionIndex, ctxData)
+	case "css_blood_barrier_target":
+		return true, handleBloodBarrierTargetChoice(rt, selectionIndex, ctxData)
 	case "css_dance_mode":
 		return true, handleCrimsonSwordSpiritDanceModeChoice(rt, selectionIndex, ctxData)
 	default:
 		return false, nil
 	}
+}
+
+// handleBloodBarrierTargetChoice 结算血气屏障反伤：对选定对手造成1点法术伤害，随后恢复原伤害结算。
+func handleBloodBarrierTargetChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	targetIDs := runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"])
+	if selectionIndex < 0 || selectionIndex >= len(targetIDs) {
+		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
+	}
+	target := rt.GetPlayers()[targetIDs[selectionIndex]]
+	if target == nil {
+		return fmt.Errorf("目标不存在")
+	}
+	if target.Camp == user.Camp {
+		return fmt.Errorf("血气屏障的反伤目标必须是对手")
+	}
+
+	rt.PopInterrupt()
+	// 反伤追加到伤害队列尾部，排在当前正在结算的原伤害之后。
+	rt.AddPendingDamage(model.PendingDamage{
+		SourceID:   user.ID,
+		TargetID:   target.ID,
+		Damage:     1,
+		DamageType: model.MagicAttack,
+	})
+	rt.Log(fmt.Sprintf("%s 的 [血气屏障] 对 %s 造成1点法术伤害", user.Name, target.Name))
+	if rt.GetPendingInterrupt() == nil {
+		if len(rt.GetPendingDamageQueue()) > 0 {
+			rt.EnterDamageResolution(nil)
+		} else if len(rt.GetActionQueue()) > 0 {
+			rt.EnterResponseWindow()
+		}
+	}
+	return nil
 }
 
 // handleBloodRoseRemoveHealTargetChoice 处理血染蔷薇第1步：选择移除治疗目标后切换到第2步
@@ -83,15 +130,17 @@ func handleBloodRoseRemoveHealTargetChoice(rt engineplayer.ChoiceRuntime, select
 		return fmt.Errorf("目标不存在")
 	}
 
-	// 构建第2阶段的目标列表（仅队友）
+	// 构建第2阶段的目标列表：文案为"任意1名队友"，队友不含自己。
 	allyIDs := make([]string, 0, len(rt.GetPlayers()))
 	for _, p := range rt.GetAllPlayers() {
-		if p.Camp == user.Camp {
+		if p != nil && p.Camp == user.Camp && p.ID != user.ID {
 			allyIDs = append(allyIDs, p.ID)
 		}
 	}
 	if len(allyIDs) == 0 {
-		return fmt.Errorf("血染蔷薇需要至少1名队友作为治疗目标")
+		// 没有队友：+1治疗部分无从结算，其余效果照常结算。
+		ctxData["remove_heal_target_id"] = removeHealTargetID
+		return resolveBloodRose(rt, ctxData, user, removeHealTarget, nil)
 	}
 
 	// 存储移除目标，切换到队友治疗选择阶段
@@ -132,11 +181,15 @@ func handleBloodRoseGainHealTargetChoice(rt engineplayer.ChoiceRuntime, selectio
 		return fmt.Errorf("治疗目标不存在")
 	}
 
-	// 验证阵营约束
-	if gainHealTarget.Camp != user.Camp {
-		return fmt.Errorf("血染蔷薇的治疗目标必须是我方角色")
+	// 验证阵营约束：队友不含自己
+	if gainHealTarget.Camp != user.Camp || gainHealTarget.ID == user.ID {
+		return fmt.Errorf("血染蔷薇的治疗目标必须是队友（不含自己）")
 	}
+	return resolveBloodRose(rt, ctxData, user, removeHealTarget, gainHealTarget)
+}
 
+// resolveBloodRose 结算血染蔷薇；gainHealTarget 为 nil 表示没有可选队友，跳过 +1 治疗。
+func resolveBloodRose(rt engineplayer.ChoiceRuntime, _ map[string]interface{}, user, removeHealTarget, gainHealTarget *model.Player) error {
 	// 消耗鲜血
 	addBlood(user, -2)
 
@@ -156,7 +209,11 @@ func handleBloodRoseGainHealTargetChoice(rt engineplayer.ChoiceRuntime, selectio
 	}
 
 	// 队友获得治疗
-	rt.Heal(gainHealTargetID, 1)
+	gainName := "（无队友）"
+	if gainHealTarget != nil {
+		rt.Heal(gainHealTarget.ID, 1)
+		gainName = gainHealTarget.Name
+	}
 
 	// 血蔷薇庭院在场效果
 	hasRoseCourtyard := false
@@ -177,7 +234,7 @@ func handleBloodRoseGainHealTargetChoice(rt engineplayer.ChoiceRuntime, selectio
 		}
 	}
 
-	rt.Log(fmt.Sprintf("%s 发动 [血染蔷薇]：%s -2治疗，阵营1水晶转1宝石，%s +1治疗", user.Name, removeHealTarget.Name, gainHealTarget.Name))
+	rt.Log(fmt.Sprintf("%s 发动 [血染蔷薇]：%s -2治疗，阵营1水晶转1宝石，%s +1治疗", user.Name, removeHealTarget.Name, gainName))
 	rt.PopInterrupt()
 	return nil
 }
@@ -205,6 +262,24 @@ func handleCrimsonSwordSpiritDanceModeChoice(rt engineplayer.ChoiceRuntime, sele
 		return fmt.Errorf("角色信息缺失")
 	}
 
+	if user.Tokens == nil {
+		user.Tokens = map[string]int{}
+	}
+	if !user.HasExclusiveCard(user.Character.ID, "血蔷薇庭院") {
+		return fmt.Errorf("未找到【血蔷薇庭院】专属技能卡")
+	}
+	// 先扣费，扣费成功后再放置庭院，避免扣费失败时庭院已上场。
+	if mode == 0 {
+		if !rt.ConsumeCrystalCost(user.ID, 1) {
+			return fmt.Errorf("蓝水晶不足（红宝石可替代）")
+		}
+	} else {
+		if user.Gem <= 0 {
+			return fmt.Errorf("红宝石不足")
+		}
+		user.Gem--
+	}
+
 	courtyardCard, ok := user.ConsumeExclusiveCard(user.Character.ID, "血蔷薇庭院")
 	if !ok {
 		return fmt.Errorf("未找到【血蔷薇庭院】专属技能卡")
@@ -214,25 +289,12 @@ func handleCrimsonSwordSpiritDanceModeChoice(rt engineplayer.ChoiceRuntime, sele
 		return err
 	}
 
+	user.Tokens["css_blood_cap"] = 3
 	if mode == 0 {
-		if !rt.ConsumeCrystalCost(user.ID, 1) {
-			return fmt.Errorf("蓝水晶不足（红宝石可替代）")
-		}
-		if user.Tokens == nil {
-			user.Tokens = map[string]int{}
-		}
-		user.Tokens["css_blood_cap"] = 3
 		addBlood(user, 2)
 	} else {
-		if user.Gem <= 0 {
-			return fmt.Errorf("红宝石不足")
-		}
-		user.Gem--
-		if user.Tokens == nil {
-			user.Tokens = map[string]int{}
-		}
-		user.Tokens["css_blood_cap"] = 4
-		addBlood(user, 2)
+		// 本次 +2 无视鲜血上限，但最高为 4；鲜血上限本身仍为 3。
+		addBloodWithCap(user, 2, 4)
 		if len(user.Hand) > 4 {
 			rt.PushInterrupt(&model.Interrupt{
 				Type:     model.InterruptChoice,
@@ -258,11 +320,25 @@ func addBlood(player *model.Player, delta int) int {
 	if player.Tokens == nil {
 		player.Tokens = map[string]int{}
 	}
-	cap := player.Tokens["css_blood_cap"]
+	return addBloodWithCap(player, delta, player.Tokens["css_blood_cap"])
+}
+
+// addBloodWithCap 按指定上限增减鲜血。增加时若当前值已超过 cap（如散华轮舞宝石分支留下的 4 点），
+// 不会被截回 cap，只是不再增加。
+func addBloodWithCap(player *model.Player, delta int, cap int) int {
+	if player == nil {
+		return 0
+	}
+	if player.Tokens == nil {
+		player.Tokens = map[string]int{}
+	}
 	current := player.Tokens["css_blood"]
 	newVal := current + delta
-	if cap > 0 && newVal > cap {
+	if delta > 0 && cap > 0 && newVal > cap {
 		newVal = cap
+		if current > cap {
+			newVal = current
+		}
 	}
 	if newVal < 0 {
 		newVal = 0

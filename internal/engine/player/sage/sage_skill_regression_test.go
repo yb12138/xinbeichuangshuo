@@ -123,17 +123,17 @@ func TestSageMagicRebound_SameElementDiscardChain(t *testing.T) {
 		t.Fatalf("expected rebound flow finished, got pending interrupt %+v", g.State.PendingInterrupt)
 	}
 
-	// 反弹后应前插两段伤害：自己 X=3 先结算，目标 X-1=2 后结算。
+	// 反弹后应前插两段伤害：目标 X-1=2 先结算，自己 X=3 后结算。
 	if got := len(g.State.PendingDamageQueue); got < 2 {
 		t.Fatalf("expected at least 2 queued damages after rebound, got %d", got)
 	}
 	first := g.State.PendingDamageQueue[0]
 	second := g.State.PendingDamageQueue[1]
-	if first.TargetID != "p1" || first.Damage != 3 || !strings.EqualFold(string(first.DamageType), string(model.MagicAttack)) {
-		t.Fatalf("unexpected first rebound damage: %+v", first)
+	if first.TargetID != "p2" || first.Damage != 2 || !strings.EqualFold(string(first.DamageType), string(model.MagicAttack)) {
+		t.Fatalf("expected damage to target resolve first, got first=%+v", first)
 	}
-	if second.TargetID != "p2" || second.Damage != 2 || !strings.EqualFold(string(second.DamageType), string(model.MagicAttack)) {
-		t.Fatalf("unexpected second rebound damage: %+v", second)
+	if second.TargetID != "p1" || second.Damage != 3 || !strings.EqualFold(string(second.DamageType), string(model.MagicAttack)) {
+		t.Fatalf("expected self damage resolve second, got second=%+v", second)
 	}
 	if got := len(p1.Hand); got != 1 {
 		t.Fatalf("expected 1 card left after discarding 3 same-element cards, got %d", got)

@@ -139,3 +139,52 @@ func TestAssassinBacklash_RunsOnAttackDamage(t *testing.T) {
 			len(game.State.PendingDamageQueue), game.State.PendingInterrupt)
 	}
 }
+
+// 暗杀者-1：反噬在⑥（实际承受伤害后）触发；治疗完全抵挡攻击伤害时，攻击者不摸牌。
+func TestAssassinBacklash_NotTriggeredWhenHealFullyBlocks(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Attacker", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Assassin", "assassin", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.Deck = rules.InitDeck()
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p2.Heal = 2
+	p1.Hand = []model.Card{
+		{ID: "atk-fire-1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
+	if len(p1.Hand) != 0 {
+		t.Fatalf("backlash must not trigger before heal is resolved, attacker hand=%d", len(p1.Hand))
+	}
+	// 治疗抵挡：用满2点治疗
+	testutils.RequireChoicePrompt(t, game, "p2", "heal")
+	prompt := game.GetCurrentPrompt()
+	healIdx := -1
+	for i, opt := range prompt.Options {
+		if opt.ID == "2" {
+			healIdx = i
+		}
+	}
+	if healIdx < 0 {
+		t.Fatalf("expected heal option 2, got %+v", prompt.Options)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdSelect, Selections: []int{healIdx}})
+
+	if got := len(p1.Hand); got != 0 {
+		t.Fatalf("heal fully blocked: backlash should not make attacker draw, got hand=%d", got)
+	}
+	if got := len(p2.Hand); got != 0 {
+		t.Fatalf("heal fully blocked: assassin should not draw, got hand=%d", got)
+	}
+}

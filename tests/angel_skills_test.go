@@ -141,7 +141,7 @@ func TestAngel_Skills(t *testing.T) {
 		p2 := game.State.Players["p2"]
 		p1.IsActive = true
 		p1.TurnState = model.NewPlayerTurnState()
-		game.State.TurnStage = model.TurnStageActionStart // 回合开始阶段
+		game.State.TurnStage = model.TurnStageTurnBeforeStart // 天使之歌在"回合开始前"发动（早于中毒/虚弱结算）
 
 		// P1 需要 1 水晶
 		p1.Crystal = 1
@@ -150,7 +150,7 @@ func TestAngel_Skills(t *testing.T) {
 			Mode: model.FieldEffect, Effect: model.EffectPoison, SourceID: "enemy",
 		})
 
-		// Startup 阶段会自动检查回合开始响应技并推送中断
+		// 回合开始前阶段会自动检查响应技并推送中断
 		game.Drive()
 
 		// 检查中断

@@ -260,7 +260,8 @@ func TestHolyBow_LightBurstModeA_RequiresOtherAlly(t *testing.T) {
 	}
 }
 
-func TestHolyBow_MeteorBullet_RequiresOtherAlly(t *testing.T) {
+// 圣弓-3：流星圣弹文案为"我方目标角色"，没有其他队友时也能以自己为目标发动。
+func TestHolyBow_MeteorBullet_CanTargetSelf(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -283,8 +284,23 @@ func TestHolyBow_MeteorBullet_RequiresOtherAlly(t *testing.T) {
 			CounterInitiator: "",
 		},
 	})
-	if game.Dispatcher().IsSkillStillUsable("hb_meteor_bullet", p1, ctx) {
-		t.Fatalf("expected hb_meteor_bullet disabled when no other ally is available")
+	if !game.Dispatcher().IsSkillStillUsable("hb_meteor_bullet", p1, ctx) {
+		t.Fatalf("expected hb_meteor_bullet usable with self as the only ally target")
+	}
+
+	game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: "p1",
+		Context: map[string]interface{}{
+			"choice_type":      "hb_meteor_bullet_target",
+			"user_id":          "p1",
+			"chosen_cost_mode": "heal",
+			"ally_ids":         []string{"p1"},
+		},
+	})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	if p1.Heal != 1 {
+		t.Fatalf("expected remove 1 heal then self +1 heal (net 1), got %d", p1.Heal)
 	}
 }
 
@@ -799,6 +815,106 @@ func TestHolyBow_LightBurstModeB_XYBoundaries(t *testing.T) {
 	}
 }
 
+// 圣弓-2：自动填充可以选择不发动，不消耗资源并继续回合结束流程。
+func TestHolyBow_AutoFillCanDecline(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.TurnState.UsedSkillCounts["hb_special"] = 0
+	p1.TurnState.UsedSkillCounts["hb_auto_fill"] = 0
+	p1.Crystal = 1
+	p1.Gem = 1
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageTurnEnd
+
+	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p1", "hb_auto_fill_resource")
+	prompt := game.BuildChoicePrompt()
+	if prompt == nil || len(prompt.Options) != 3 || prompt.Options[2].Label != "不发动" {
+		t.Fatalf("expected crystal/gem/decline options, got %+v", prompt)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{2},
+	})
+
+	if p1.Crystal != 1 || p1.Gem != 1 || p1.Tokens["hb_faith"] != 0 || p1.Heal != 0 {
+		t.Fatalf("expected no resource change on decline, crystal=%d gem=%d faith=%d heal=%d", p1.Crystal, p1.Gem, p1.Tokens["hb_faith"], p1.Heal)
+	}
+	if pi := game.State.PendingInterrupt; pi != nil {
+		if data, _ := pi.Context.(map[string]interface{}); data != nil {
+			if ct, _ := data["choice_type"].(string); ct == "hb_auto_fill_resource" || ct == "hb_auto_fill_gain" {
+				t.Fatalf("expected auto fill prompt closed after decline, got %s", ct)
+			}
+		}
+	}
+	if game.State.CurrentTurn == 0 && game.State.TurnStage != model.TurnStageTurnEnd {
+		t.Fatalf("expected turn to continue past turn end, stage=%s turn=%d", game.State.TurnStage, game.State.CurrentTurn)
+	}
+}
+
+// 圣弓-1：普通形态下执行过特殊行动，回合结束时自动填充不再询问。
+func TestHolyBow_AutoFillSkippedAfterSpecialActionInNormalForm(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = ""
+	p1.Crystal = 1
+	p1.Gem = 1
+	p1.Heal = 0
+	game.State.Deck = []model.Card{
+		holyBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire, 2),
+		holyBowTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWater, 2),
+		holyBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementThunder, 2),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdBuy,
+	})
+	if got := p1.TurnState.UsedSkillCounts["hb_special"]; got != 1 {
+		t.Fatalf("expected special action recorded in normal form, got %d", got)
+	}
+	if got := p1.Heal; got != 0 {
+		t.Fatalf("expected no heal from form exit in normal form, got %d", got)
+	}
+
+	// 直接走回合结束，确认自动填充不询问。
+	if game.State.PendingInterrupt == nil && game.State.CurrentTurn == 0 {
+		game.State.TurnStage = model.TurnStageTurnEnd
+		game.Drive()
+	}
+	if n := obs.CountLogContains("[自动填充] 触发"); n != 0 {
+		t.Fatalf("expected auto fill not to trigger after special action, got %d triggers", n)
+	}
+	if pi := game.State.PendingInterrupt; pi != nil {
+		data, _ := pi.Context.(map[string]interface{})
+		if ct, _ := data["choice_type"].(string); ct == "hb_auto_fill_resource" {
+			t.Fatalf("expected auto fill not to prompt after special action")
+		}
+	}
+}
+
 // 回归：圣光爆裂若两个分支都不满足发动条件，不应进入空选项弹窗。
 func TestHolyBow_LightBurst_NoAvailableModeCannotUse(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
@@ -837,7 +953,8 @@ func TestHolyBow_LightBurst_NoAvailableModeCannotUse(t *testing.T) {
 	}
 }
 
-func TestHolyBow_RadiantCannon_CannotUseWhenMoraleNotBehind(t *testing.T) {
+// 圣弓-4：我方士气不落后时也可发动，额外移除 0 点信仰（成本仅 4 点信仰）。
+func TestHolyBow_RadiantCannon_CanUseWhenMoraleNotBehind(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -847,27 +964,185 @@ func TestHolyBow_RadiantCannon_CannotUseWhenMoraleNotBehind(t *testing.T) {
 	}
 
 	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p1.Form = model.FormHolyBowHolyGlory
 	p1.Tokens["hb_cannon"] = 1
-	p1.Tokens["hb_faith"] = 8
+	p1.Tokens["hb_faith"] = 4
+	p1.Hand = []model.Card{
+		holyBowTestCard("c1", "卡1", model.CardTypeAttack, model.ElementFire, 2),
+		holyBowTestCard("c2", "卡2", model.CardTypeAttack, model.ElementWater, 2),
+		holyBowTestCard("c3", "卡3", model.CardTypeAttack, model.ElementThunder, 2),
+		holyBowTestCard("c4", "卡4", model.CardTypeMagic, model.ElementLight, 0),
+	}
+	p2.Hand = []model.Card{
+		holyBowTestCard("e1", "敌卡1", model.CardTypeAttack, model.ElementFire, 2),
+		holyBowTestCard("e2", "敌卡2", model.CardTypeAttack, model.ElementWater, 2),
+		holyBowTestCard("e3", "敌卡3", model.CardTypeAttack, model.ElementEarth, 2),
+		holyBowTestCard("e4", "敌卡4", model.CardTypeMagic, model.ElementDark, 0),
+	}
 	game.State.RedMorale = 9
 	game.State.BlueMorale = 6
 	game.State.CurrentTurn = 0
 	game.State.TurnStage = model.TurnStageActionExecution
 
+	ctx := game.BuildContext(p1, p2, model.TimingActionDuring, &model.EventContext{
+		Type:     model.EventPhaseEnd,
+		SourceID: p1.ID,
+	})
+	handler := &holybow.HolyBowRadiantCannonHandler{}
+	if !handler.CanUse(ctx) {
+		t.Fatalf("expected radiant cannon usable when morale is not behind, blocked: %s", handler.BlockedReason(ctx))
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "hb_radiant_cannon",
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "hb_radiant_cannon_side")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{1}, // 蓝方士气调整为红方
+	})
+	if got := p1.Tokens["hb_faith"]; got != 0 {
+		t.Fatalf("expected faith cost 4 when morale not behind, got remaining %d", got)
+	}
+	if got := p1.Tokens["hb_cannon"]; got != 0 {
+		t.Fatalf("expected cannon consumed, got %d", got)
+	}
+	if got := game.State.BlueMorale; got != 9 {
+		t.Fatalf("expected blue morale aligned to 9, got %d", got)
+	}
+}
+
+// 圣弓-4：信仰不足 4 点时仍不可发动。
+func TestHolyBow_RadiantCannon_CannotUseWithoutFourFaith(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormHolyBowHolyGlory
+	p1.Tokens["hb_cannon"] = 1
+	p1.Tokens["hb_faith"] = 3
+	game.State.RedMorale = 9
+	game.State.BlueMorale = 6
 	ctx := game.BuildContext(p1, game.State.Players["p2"], model.TimingActionDuring, &model.EventContext{
 		Type:     model.EventPhaseEnd,
 		SourceID: p1.ID,
 	})
 	handler := &holybow.HolyBowRadiantCannonHandler{}
 	if handler.CanUse(ctx) {
-		t.Fatal("expected radiant cannon unavailable when morale is not behind enemy")
+		t.Fatal("expected radiant cannon unavailable with only 3 faith")
 	}
-	err := handler.Execute(ctx)
-	if err == nil {
-		t.Fatal("expected radiant cannon execute to fail when morale is not behind enemy")
+	if err := handler.Execute(ctx); err == nil {
+		t.Fatal("expected radiant cannon execute to fail with only 3 faith")
+	}
+}
+
+// 圣弓-5：手牌超过 4 张的每名角色各自选择弃哪些牌，弃牌不公开。
+func TestHolyBow_RadiantCannon_EachPlayerChoosesDiscardsHidden(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "HolyBow", "holy_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormHolyBowHolyGlory
+	p1.Tokens["hb_cannon"] = 1
+	p1.Tokens["hb_faith"] = 4
+	p1.Crystal = 0 // 避免回合结束时自动填充询问干扰断言
+	p1.Gem = 0
+	p1.Hand = []model.Card{
+		holyBowTestCard("c1", "卡1", model.CardTypeAttack, model.ElementFire, 2),
+		holyBowTestCard("c2", "卡2", model.CardTypeAttack, model.ElementWater, 2),
+		holyBowTestCard("c3", "卡3", model.CardTypeAttack, model.ElementThunder, 2),
+		holyBowTestCard("c4", "卡4", model.CardTypeMagic, model.ElementLight, 0),
+		holyBowTestCard("c5", "卡5", model.CardTypeMagic, model.ElementDark, 0),
+	}
+	p2.Hand = []model.Card{
+		holyBowTestCard("e1", "敌卡1", model.CardTypeAttack, model.ElementFire, 2),
+		holyBowTestCard("e2", "敌卡2", model.CardTypeAttack, model.ElementWater, 2),
+		holyBowTestCard("e3", "敌卡3", model.CardTypeAttack, model.ElementEarth, 2),
+		holyBowTestCard("e4", "敌卡4", model.CardTypeMagic, model.ElementDark, 0),
+		holyBowTestCard("e5", "敌卡5", model.CardTypeMagic, model.ElementLight, 0),
+		holyBowTestCard("e6", "敌卡6", model.CardTypeAttack, model.ElementWind, 2),
+	}
+	game.State.RedMorale = 9
+	game.State.BlueMorale = 9
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSkill,
+		SkillID:  "hb_radiant_cannon",
+	})
+	testutils.RequireChoicePrompt(t, game, "p1", "hb_radiant_cannon_side")
+	obs.Reset()
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:   "p1",
+		Type:       model.CmdSelect,
+		Selections: []int{0},
+	})
+
+	// p1 自己选择弃 c1（而不是系统默认的末尾 c5）。
+	testutils.RequireChoicePrompt(t, game, "p1", "system_discard_cards")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdSelect,
+		CardIDs:  []string{"c1"},
+	})
+	// p2 自己选择弃 e1、e2。
+	testutils.RequireChoicePrompt(t, game, "p2", "system_discard_cards")
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p2",
+		Type:     model.CmdSelect,
+		CardIDs:  []string{"e1", "e2"},
+	})
+
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after discards, got %+v", game.State.PendingInterrupt)
+	}
+	if game.State.CurrentTurn == 0 && game.State.TurnStage == model.TurnStageActionExecution {
+		t.Fatalf("expected flow to resume past radiant cannon, got %s", game.State.TurnStage)
+	}
+	hasCard := func(hand []model.Card, id string) bool {
+		for _, c := range hand {
+			if c.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+	if len(p1.Hand) != 4 || hasCard(p1.Hand, "c1") || !hasCard(p1.Hand, "c5") {
+		t.Fatalf("expected p1 to keep c2..c5, got %+v", p1.Hand)
+	}
+	if len(p2.Hand) != 4 || hasCard(p2.Hand, "e1") || hasCard(p2.Hand, "e2") {
+		t.Fatalf("expected p2 to discard e1,e2, got %+v", p2.Hand)
+	}
+	if game.State.RedMorale != 9 || game.State.BlueMorale != 9 {
+		t.Fatalf("expected discards not to cost morale, got red=%d blue=%d", game.State.RedMorale, game.State.BlueMorale)
+	}
+	for _, ev := range obs.Events {
+		if ev.Type == model.EventCardRevealed && ev.CardRevealed != nil && !ev.CardRevealed.Hidden {
+			t.Fatalf("expected radiant cannon discards to stay hidden, got revealed event %+v", ev.CardRevealed)
+		}
 	}
 }
 
@@ -944,6 +1219,13 @@ func TestHolyBow_RadiantCannon_MoraleAlignBothSides(t *testing.T) {
 				PlayerID:   "p1",
 				Type:       model.CmdSelect,
 				Selections: []int{c.sideSelect},
+			})
+			// p1 手牌 5 张，自己选择弃 1 张。
+			testutils.RequireChoicePrompt(t, game, "p1", "system_discard_cards")
+			testutils.MustHandleAction(t, game, model.PlayerAction{
+				PlayerID: "p1",
+				Type:     model.CmdSelect,
+				CardIDs:  []string{"c5"},
 			})
 
 			if got := p1.Tokens["hb_cannon"]; got != 0 {

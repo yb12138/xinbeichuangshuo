@@ -547,3 +547,92 @@ func TestBlazeWitchFlameForm_ReleasesAfterRealTurnCycle(t *testing.T) {
 		t.Fatalf("expected flame form released at the witch's next turn, got %q", p1.Form)
 	}
 }
+
+// 苍炎魔女-2：魔女之怒的恢复点写在 resume_phase，选完摸牌后回到行动阶段并进入行动选择。
+func TestBlazeWitchWitchWrath_ResumesActionAfterDrawChoice(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	game.State.CurrentTurn = 0
+	game.State.Deck = rules.InitDeck()
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = makeBlazeWitchTestCards(2)
+	game.State.TurnStage = model.TurnStageActionStart
+	game.Drive()
+	intr := game.State.PendingInterrupt
+	if intr == nil || intr.Type != model.InterruptStartupSkill {
+		t.Fatalf("expected startup interrupt, got %+v", intr)
+	}
+	idx := -1
+	for i, id := range intr.SkillIDs {
+		if id == "bw_witch_wrath" {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("bw_witch_wrath not offered: %v", intr.SkillIDs)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{idx}})
+	testutils.RequireChoicePrompt(t, game, "p1", "bw_witch_wrath_draw")
+	data, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	if _, ok := data["resume_phase"]; !ok {
+		t.Fatalf("witch wrath draw choice must carry resume_phase, got %+v", data)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{2}})
+	if got := len(p1.Hand); got != 4 {
+		t.Fatalf("expected draw 2 (hand 4), got %d", got)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected no pending interrupt after draw choice, got %+v", game.State.PendingInterrupt)
+	}
+	if got := game.State.TurnStage; got != model.TurnStageActionExecution {
+		t.Fatalf("expected action execution window after witch wrath, got %s", got)
+	}
+}
+
+// 苍炎魔女-3：我方士气低于对方时，对对手发动两段各 4 点；对我方角色发动两段各 3 点。
+func TestBlazeWitchHeavenfireCleave_MoraleBonusOnlyAgainstEnemy(t *testing.T) {
+	setup := func(t *testing.T) *engine.GameEngine {
+		game := engine.NewGameEngine(testutils.NoopObserver{})
+		if err := game.AddPlayer("p1", "Blaze", "blaze_witch", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p3", "Ally", "angel", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		p1 := game.State.Players["p1"]
+		p1.IsActive = true
+		p1.TurnState = model.NewPlayerTurnState()
+		p1.Tokens["bw_rebirth"] = 1
+		p1.Hand = []model.Card{
+			{ID: "f1", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "血", Damage: 2},
+			{ID: "f2", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "血", Damage: 2},
+		}
+		game.State.RedMorale = 5
+		game.State.BlueMorale = 10
+		game.State.CurrentTurn = 0
+		game.State.TurnStage = model.TurnStageActionExecution
+		return game
+	}
+	check := func(t *testing.T, game *engine.GameEngine, target string, want int) {
+		t.Helper()
+		if err := game.UseSkill("p1", "bw_heavenfire_cleave", []string{target}, []int{0, 1}); err != nil {
+			t.Fatalf("heavenfire cleave on %s failed: %v", target, err)
+		}
+		q := game.State.PendingDamageQueue
+		if len(q) != 2 || q[0].TargetID != target || q[1].TargetID != "p1" || q[0].Damage != want || q[1].Damage != want {
+			t.Fatalf("expected both segments %d (target %s then self), got %+v", want, target, q)
+		}
+	}
+	t.Run("enemy", func(t *testing.T) { check(t, setup(t), "p2", 4) })
+	t.Run("ally", func(t *testing.T) { check(t, setup(t), "p3", 3) })
+}

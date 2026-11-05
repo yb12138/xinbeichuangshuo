@@ -21,11 +21,15 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "elementalist_freeze_damage_target":
-		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【冰冻】请选择法术伤害目标：", data, false)
+		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【冰冻】请选择法术伤害目标：", data, false)
+		if prompt != nil && prompt.Presentation != nil {
+			prompt.Presentation.CancelPolicy = model.CancelPolicyAbort
+		}
+		return prompt
 	case "elementalist_freeze_heal_target":
 		prompt := engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【冰冻】请选择治疗目标（可选择自己）：", data, false)
 		if prompt != nil {
-			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom"}
+			prompt.Presentation = &model.PromptPresentation{Kind: model.PresentationTargetPicker, TargetFilter: "custom", CancelPolicy: model.CancelPolicyBack}
 		}
 		return prompt
 	case "elementalist_bonus_card":
@@ -82,10 +86,55 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, _ string, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
-	if choiceType != "elementalist_bonus_card" {
+	switch choiceType {
+	case "elementalist_freeze_damage_target":
+		return true, cancelFreeze(rt, ctxData)
+	case "elementalist_freeze_heal_target":
+		return true, backToFreezeDamageTarget(rt, ctxData)
+	case "elementalist_bonus_card":
+		return true, resolveElementalistBonus(rt, ctxData, false, -1)
+	default:
 		return false, nil
 	}
-	return true, resolveElementalistBonus(rt, ctxData, false, -1)
+}
+
+// cancelFreeze 冰冻第1步取消：收回发动时弃置的独有技手牌，撤销本次行动标记，回到行动选择。
+func cancelFreeze(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) error {
+	userID, _ := ctxData["user_id"].(string)
+	user := rt.GetPlayers()[userID]
+	if user == nil {
+		return fmt.Errorf("玩家不存在")
+	}
+	for _, cardID := range runtimeutil.ParseStringSliceContextValue(ctxData["cost_card_ids"]) {
+		if card, ok := rt.TakeDiscardPileCardByID(cardID); ok {
+			user.Hand = append(user.Hand, card)
+		}
+	}
+	if user.TurnState.UsedSkillCounts["elementalist_freeze"] > 0 {
+		user.TurnState.UsedSkillCounts["elementalist_freeze"]--
+	}
+	user.TurnState.HasActed = runtimeutil.ToBoolContextValue(ctxData["prev_has_acted"])
+	user.TurnState.LastActionType, _ = ctxData["prev_last_action"].(string)
+	user.TurnState.LastActionCard, _ = ctxData["prev_last_action_card"].(*model.Card)
+	rt.PopInterrupt()
+	rt.Log(fmt.Sprintf("%s 取消了 [冰冻] 的发动，收回发动所弃的牌", user.Name))
+	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) == 0 {
+		rt.EnterActionExecutionStage()
+	}
+	return nil
+}
+
+// backToFreezeDamageTarget 冰冻第2步返回：重新选择法术伤害目标。
+func backToFreezeDamageTarget(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) error {
+	allPlayerIDs := make([]string, 0, len(rt.GetPlayers()))
+	for _, p := range rt.GetAllPlayers() {
+		allPlayerIDs = append(allPlayerIDs, p.ID)
+	}
+	delete(ctxData, "damage_target_id")
+	ctxData["target_ids"] = allPlayerIDs
+	ctxData["choice_type"] = "elementalist_freeze_damage_target"
+	engineplayer.NotifyChoiceContext(rt, ctxData)
+	return nil
 }
 
 func handleElementalistBonusCardChoice(rt engineplayer.ChoiceRuntime, selectionIndex int, ctxData map[string]interface{}) error {
