@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject } from 'vue'
 import { DECISION_DOCKED } from '../dockContext'
+import { stagePortalTarget } from '../../../composables/useStageScale'
 type DirectionPromptOption = {
   id: string
   label: string
@@ -32,7 +33,7 @@ function splitLabel(label: string): { title: string; detail: string } {
 </script>
 
 <template>
-  <Teleport to="body" :disabled="docked">
+  <Teleport :to="stagePortalTarget()" defer :disabled="docked">
     <Transition name="modal">
       <div
         v-if="visible"
@@ -123,8 +124,8 @@ function splitLabel(label: string): { title: string; detail: string } {
 
 .overlay-panel {
   position: relative;
-  width: min(480px, calc(100vw - 2rem));
-  max-height: 85vh;
+  width: min(480px, calc(100 * var(--vw, 1vw) - 2rem));
+  max-height: calc(85 * var(--vh, 1vh));
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -248,9 +249,9 @@ function splitLabel(label: string): { title: string; detail: string } {
   word-break: break-word;
 }
 
-@media (max-width: 560px) {
+@container stage (max-width: 560px) {
   .overlay-panel {
-    width: min(94vw, 480px);
+    width: min(calc(94 * var(--vw, 1vw)), 480px);
   }
 
   .overlay-panel-body {
@@ -260,8 +261,8 @@ function splitLabel(label: string): { title: string; detail: string } {
 
 /* 停靠面板：紧凑尺寸，金色强调当前待决策 */
 .overlay-panel-root .overlay-panel {
-  width: min(300px, calc(100vw - 24px));
-  max-height: min(62vh, 520px);
+  width: min(300px, calc(100 * var(--vw, 1vw) - 24px));
+  max-height: min(calc(62 * var(--vh, 1vh)), 520px);
   pointer-events: auto;
   border-color: #26354f;
   box-shadow:
@@ -293,7 +294,7 @@ function splitLabel(label: string): { title: string; detail: string } {
   word-break: break-word;
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .overlay-panel-root {
     left: max(8px, calc(var(--safe-left, 0px) + 6px));
     right: max(8px, calc(var(--safe-right, 0px) + 6px));
@@ -303,7 +304,7 @@ function splitLabel(label: string): { title: string; detail: string } {
 
   .overlay-panel-root .overlay-panel {
     width: 100%;
-    max-height: 55vh;
+    max-height: calc(55 * var(--vh, 1vh));
   }
 }
 

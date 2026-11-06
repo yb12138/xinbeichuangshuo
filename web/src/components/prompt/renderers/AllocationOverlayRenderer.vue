@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { DECISION_DOCKED } from '../dockContext'
+import { stagePortalTarget } from '../../../composables/useStageScale'
 import { computed, inject } from 'vue'
 
 type AllocationRow = {
@@ -44,7 +45,7 @@ const docked = inject(DECISION_DOCKED, false)
 </script>
 
 <template>
-  <Teleport to="body" :disabled="docked">
+  <Teleport :to="stagePortalTarget()" defer :disabled="docked">
     <Transition name="modal">
       <div
         v-if="visible"
@@ -155,8 +156,8 @@ const docked = inject(DECISION_DOCKED, false)
 
 .overlay-panel {
   position: relative;
-  width: min(480px, calc(100vw - 2rem));
-  max-height: 85vh;
+  width: min(480px, calc(100 * var(--vw, 1vw) - 2rem));
+  max-height: calc(85 * var(--vh, 1vh));
   overflow: hidden;
   display: flex;
   flex-direction: column;

@@ -226,8 +226,15 @@ function handleClick() {
               {{ cardTypeLabel }}<span class="card-ribbon-sep">·</span>{{ elementLabel }}<template v-if="hasEffectiveElementHint"><span class="card-ribbon-arrow">→</span>{{ effectiveElementLabel }}</template>
             </span>
           </div>
-          <button class="card-desc-btn" type="button" @click.stop="openDescriptionModal">
-            查看描述
+          <button
+            class="card-desc-btn"
+            type="button"
+            aria-label="查看描述"
+            title="查看描述"
+            @click.stop="openDescriptionModal"
+          >
+            <span class="card-desc-btn__label" aria-hidden="true">查看描述</span>
+            <span class="card-desc-btn__icon" aria-hidden="true">i</span>
           </button>
         </div>
         <div v-if="exclusiveSkills.length" class="card-exclusive-row" :title="exclusiveSkillText">
@@ -466,7 +473,7 @@ function handleClick() {
   justify-content: center;
   background: var(--bt-panel-raised);
   color: var(--bt-text);
-  font-size: 7px;
+  font-size: 9.5px;
   font-weight: 800;
   line-height: 1;
   box-shadow:
@@ -541,6 +548,18 @@ function handleClick() {
   transition: box-shadow 140ms ease, color 140ms ease;
 }
 
+.card-desc-btn__icon {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .card-desc-btn:hover {
   color: var(--bt-select);
   box-shadow: inset 0 0 0 1px var(--bt-select);
@@ -553,12 +572,15 @@ function handleClick() {
 
 .card-exclusive-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
   gap: 2px;
   min-width: 0;
 }
 
 .card-exclusive-corner {
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 100%;
   padding: 0 3px;
   border-radius: 999px;
@@ -624,35 +646,56 @@ function handleClick() {
   font-size: 0.8em;
 }
 
-/* 尺寸 */
-.card-size-battle-mini .card-title-text { font-size: 7.5px; }
-.card-size-battle-mini .card-fate-seal { font-size: 7px; }
-.card-size-small .card-fate-seal { font-size: 9px; }
-.card-size-medium .card-fate-seal { font-size: 10px; }
+/* 尺寸：缩放为 1 时屏幕字号不低于 9.5px，标题不低于 11px */
+.card-size-battle-mini .card-title-text { font-size: 9.5px; }
+.card-size-battle-mini .card-fate-seal { font-size: 9.5px; }
+.card-size-small .card-fate-seal { font-size: 10px; }
+.card-size-medium .card-fate-seal { font-size: 11px; }
 .card-size-default .card-fate-seal { font-size: 12px; }
-.card-size-small .card-title-text { font-size: 9px; }
-.card-size-medium .card-title-text { font-size: 10px; }
-.card-size-default .card-title-text { font-size: 11px; }
+.card-size-small .card-title-text { font-size: 11px; }
+.card-size-medium .card-title-text { font-size: 11px; }
+.card-size-default .card-title-text { font-size: 12px; }
 
-.card-size-battle-mini .card-ribbon-text { font-size: 5.5px; }
-.card-size-small .card-ribbon-text { font-size: 6.5px; }
-.card-size-medium .card-ribbon-text { font-size: 7px; }
-.card-size-default .card-ribbon-text { font-size: 8px; }
+.card-size-battle-mini .card-ribbon-text { font-size: 9.5px; }
+.card-size-small .card-ribbon-text { font-size: 9.5px; }
+.card-size-medium .card-ribbon-text { font-size: 10px; }
+.card-size-default .card-ribbon-text { font-size: 10px; }
 
-.card-size-battle-mini .card-desc-btn { font-size: 5.5px; padding: 0 2px; }
-.card-size-small .card-desc-btn { font-size: 6.5px; }
-.card-size-medium .card-desc-btn { font-size: 7px; }
-.card-size-default .card-desc-btn { font-size: 8px; }
+.card-size-battle-mini .card-desc-btn { font-size: 9.5px; }
+.card-size-small .card-desc-btn { font-size: 10px; }
+.card-size-medium .card-desc-btn { font-size: 10px; }
+.card-size-default .card-desc-btn { font-size: 10px; }
 
-.card-size-battle-mini .card-exclusive-corner { font-size: 5.5px; }
-.card-size-small .card-exclusive-corner { font-size: 6.5px; }
-.card-size-medium .card-exclusive-corner { font-size: 7px; }
-.card-size-default .card-exclusive-corner { font-size: 8px; }
+.card-size-battle-mini .card-exclusive-corner { font-size: 9.5px; }
+.card-size-small .card-exclusive-corner { font-size: 9.5px; }
+.card-size-medium .card-exclusive-corner { font-size: 9.5px; }
+.card-size-default .card-exclusive-corner { font-size: 10px; }
 
-.card-size-battle-mini .card-effective-element-badge { font-size: 5.5px; }
-.card-size-default .card-effective-element-badge { font-size: 8px; }
+.card-size-battle-mini .card-effective-element-badge { font-size: 9.5px; }
+.card-size-default .card-effective-element-badge { font-size: 10px; }
 
 .card-size-battle-mini .card-text-panel { padding: 2px 3px; gap: 1px; }
+
+/* 窄牌（≤112px）放不下「查看描述」四个字：换成靠左的 ⓘ 圆钮（左侧在扇形手牌里不会被下一张压住） */
+.card-size-battle-mini .card-desc-btn,
+.card-size-small .card-desc-btn,
+.card-size-medium .card-desc-btn {
+  order: -1;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.card-size-battle-mini .card-desc-btn__label,
+.card-size-small .card-desc-btn__label,
+.card-size-medium .card-desc-btn__label {
+  display: none;
+}
+
+.card-size-battle-mini .card-desc-btn__icon,
+.card-size-small .card-desc-btn__icon,
+.card-size-medium .card-desc-btn__icon {
+  display: inline-flex;
+}
 
 /* 描述弹窗 */
 .card-desc-modal-overlay {
@@ -735,6 +778,58 @@ function handleClick() {
 
   .card-shell.selectable:hover:not(.selected) {
     transform: none;
+  }
+}
+
+/* 手机横屏紧凑模式：系别标签、独有技角标太小看不清，隐藏（信息在 title 和描述弹窗里）；
+ * 底栏只留放大的 ⓘ 按钮作为「查看描述」入口。 */
+@container stage (max-height: 620px) {
+  .card-size-battle-mini .card-info-ribbon,
+  .card-size-small .card-info-ribbon,
+  .card-size-medium .card-info-ribbon,
+  .card-size-battle-mini .card-exclusive-row,
+  .card-size-small .card-exclusive-row,
+  .card-size-medium .card-exclusive-row {
+    display: none;
+  }
+
+  .card-size-battle-mini .card-text-panel,
+  .card-size-small .card-text-panel,
+  .card-size-medium .card-text-panel {
+    /* 扇形手牌里右侧会被下一张压住，ⓘ 靠左 */
+    right: auto;
+    left: 4%;
+    padding: 2px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .card-size-battle-mini .card-desc-btn,
+  .card-size-small .card-desc-btn,
+  .card-size-medium .card-desc-btn {
+    font-size: 15px;
+    box-shadow: inset 0 0 0 1px var(--bt-chrome), 0 1px 4px rgba(0, 0, 0, 0.7);
+  }
+
+  .card-size-battle-mini .card-desc-btn__icon,
+  .card-size-small .card-desc-btn__icon,
+  .card-size-medium .card-desc-btn__icon {
+    width: 1.7em;
+    height: 1.7em;
+  }
+
+  .card-size-battle-mini .card-title-text,
+  .card-size-small .card-title-text,
+  .card-size-medium .card-title-text {
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+
+  .card-size-battle-mini .card-fate-seal,
+  .card-size-small .card-fate-seal,
+  .card-size-medium .card-fate-seal {
+    width: 18%;
+    font-size: 14px;
   }
 }
 </style>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch } from 'vue'
 import { DECISION_DOCKED } from '../dockContext'
+import { stagePortalTarget } from '../../../composables/useStageScale'
 import { optionPreview, sharedConsequence } from '../optionPreview'
 import { MARK_GLYPHS } from '../../marks/markGlyphs'
 type DecisionOverlayMode = 'numeric' | 'text' | 'activation-cost' | 'yes-no'
@@ -76,9 +77,28 @@ const dockedCards = computed(() => docked && props.mode === 'text')
 const cards = computed(() =>
   props.options.map((option) => {
     const preview = optionPreview(overlayDecisionOptionTitle(option), option.hint, props.handCount ?? null)
-    return { option, ...preview, path: MARK_GLYPHS[preview.glyph] || '' }
+    return { option, ...preview, path: MARK_GLYPHS[preview.glyph] || '', stones: stonesOf(preview.title) }
   }),
 )
+
+/** 选项文案里的宝石 / 水晶按星石颜色着色（纯文本切段，不走 v-html）。 */
+type TitleSegment = { text: string; stone: '' | 'gem' | 'crystal' }
+function titleSegments(title: string): TitleSegment[] {
+  return title
+    .split(/((?:红|蓝)?(?:宝石|水晶))/)
+    .filter(Boolean)
+    .map((text) => ({ text, stone: /宝石/.test(text) ? 'gem' : /水晶/.test(text) ? 'crystal' : '' }))
+}
+
+/** 选项涉及的星石（按出现顺序去重），用作卡面徽记：宝石 = 红菱形，水晶 = 蓝六棱。 */
+function stonesOf(title: string): Array<'gem' | 'crystal'> {
+  const out: Array<'gem' | 'crystal'> = []
+  for (const m of title.matchAll(/宝石|水晶/g)) {
+    const kind = m[0] === '宝石' ? 'gem' : 'crystal'
+    if (out[out.length - 1] !== kind) out.push(kind)
+  }
+  return out.slice(0, 2)
+}
 
 const shared = computed(() => (dockedCards.value ? sharedConsequence(props.skillDescription) : ''))
 
@@ -98,7 +118,7 @@ const pickedNumericHint = computed(() => {
 </script>
 
 <template>
-  <Teleport to="body" :disabled="docked">
+  <Teleport :to="stagePortalTarget()" defer :disabled="docked">
     <Transition name="modal">
       <div
         v-if="visible"
@@ -229,16 +249,33 @@ const pickedNumericHint = computed(() => {
                 :aria-pressed="picked === card.option.id"
                 @click="pick(card.option.id)"
               >
-                <span class="dc-tile__icon decision-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24"><path :d="card.path" /></svg>
+                <span class="decision-card__emblem" aria-hidden="true">
+                  <template v-if="card.stones.length">
+                    <template v-for="(stone, si) in card.stones" :key="si">
+                      <span v-if="si > 0" class="decision-card__emblem-arrow">›</span>
+                      <svg class="decision-card__stone-ico" viewBox="0 0 16 16">
+                        <polygon v-if="stone === 'gem'" class="decision-card__gem" points="8,1 13.4,5.6 8,15 2.6,5.6" />
+                        <polygon v-else class="decision-card__crystal" points="8,0.8 12.6,4.6 12.6,10.8 8,15.2 3.4,10.8 3.4,4.6" />
+                      </svg>
+                    </template>
+                  </template>
+                  <svg v-else class="decision-card__glyph" viewBox="0 0 24 24"><path :d="card.path" /></svg>
                 </span>
-                <span class="dc-tile__title decision-card__title" :data-testid="`prompt-option-${card.option.id}`">{{ card.title }}</span>
-                <span
-                  v-if="card.option.disabled && card.option.disabledReason"
-                  class="dc-tile__desc dc-tile__reason decision-card__reason"
-                  :data-testid="`decision-card-reason-${idx}`"
-                >{{ card.option.disabledReason }}</span>
-                <span v-else-if="card.desc" class="dc-tile__desc decision-card__desc">{{ card.desc }}</span>
+                <span class="decision-card__body">
+                  <span class="dc-tile__title decision-card__title" :data-testid="`prompt-option-${card.option.id}`"
+                    ><span
+                      v-for="(seg, si) in titleSegments(card.title)"
+                      :key="si"
+                      :class="seg.stone ? `decision-card__stone decision-card__stone--${seg.stone}` : undefined"
+                    >{{ seg.text }}</span
+                  ></span>
+                  <span
+                    v-if="card.option.disabled && card.option.disabledReason"
+                    class="dc-tile__desc dc-tile__reason decision-card__reason"
+                    :data-testid="`decision-card-reason-${idx}`"
+                  >{{ card.option.disabledReason }}</span>
+                  <span v-else-if="card.desc" class="dc-tile__desc decision-card__desc">{{ card.desc }}</span>
+                </span>
               </button>
             </div>
           </div>
@@ -308,8 +345,8 @@ const pickedNumericHint = computed(() => {
 
 .overlay-panel {
   position: relative;
-  width: min(480px, calc(100vw - 2rem));
-  max-height: 85vh;
+  width: min(480px, calc(100 * var(--vw, 1vw) - 2rem));
+  max-height: calc(85 * var(--vh, 1vh));
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -467,10 +504,10 @@ const pickedNumericHint = computed(() => {
   transform: scale(0.95) translateY(8px);
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .overlay-panel {
-    width: calc(100vw - 1.5rem);
-    max-height: 88vh;
+    width: calc(100 * var(--vw, 1vw) - 1.5rem);
+    max-height: calc(88 * var(--vh, 1vh));
   }
 
   .overlay-panel-body {
@@ -481,8 +518,8 @@ const pickedNumericHint = computed(() => {
 
 /* 停靠面板：紧凑尺寸，金色强调当前待决策 */
 .overlay-panel-root .overlay-panel {
-  width: min(300px, calc(100vw - 24px));
-  max-height: min(62vh, 520px);
+  width: min(300px, calc(100 * var(--vw, 1vw) - 24px));
+  max-height: min(calc(62 * var(--vh, 1vh)), 520px);
   pointer-events: auto;
   border-color: #26354f;
   box-shadow:
@@ -514,7 +551,7 @@ const pickedNumericHint = computed(() => {
   word-break: break-word;
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .overlay-panel-root {
     left: max(8px, calc(var(--safe-left, 0px) + 6px));
     right: max(8px, calc(var(--safe-right, 0px) + 6px));
@@ -524,7 +561,7 @@ const pickedNumericHint = computed(() => {
 
   .overlay-panel-root .overlay-panel {
     width: 100%;
-    max-height: 55vh;
+    max-height: calc(55 * var(--vh, 1vh));
   }
 }
 
@@ -582,8 +619,164 @@ const pickedNumericHint = computed(() => {
   font-size: 12px;
   line-height: 1.5;
   color: var(--bt-text-sub, #9aa4b5);
-  background: rgba(9, 14, 26, 0.7);
-  box-shadow: 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
+  background: rgba(9, 14, 26, 0.55);
+}
+
+/*
+ * 文字分支卡：做成"技能牌"的质感——深色牌面、单道金线描边、顶部一抹光；
+ * 左侧是星石徽记（宝石红菱 / 水晶蓝六棱），不再是圆形图标 + 双层边框的网页按钮。
+ * 这里整体覆盖 .dc-tile 的多层内描边，只留一道线。
+ */
+.decision-cards:not(.decision-cards--many) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 12px;
+}
+/* 外层是滚动容器，会裁掉发光；留出一圈余量 */
+.decision-cards {
+  padding: 6px 2px;
+}
+.decision-card.dc-tile {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  max-width: none;
+  min-height: 0;
+  padding: 16px 16px 16px 14px;
+  border-radius: 10px;
+  text-align: left;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 231, 166, 0.07), transparent 38%),
+    linear-gradient(160deg, rgba(34, 40, 58, 0.96), rgba(14, 17, 27, 0.98));
+  box-shadow:
+    0 0 0 1px rgba(240, 195, 90, 0.22);
+}
+.decision-cards--many .decision-card.dc-tile {
+  padding: 11px 16px 11px 14px;
+}
+.decision-card.dc-tile:hover:not(:disabled) {
+  transform: none;
+  box-shadow:
+    0 0 0 1px rgba(240, 195, 90, 0.55),
+    0 0 6px rgba(240, 195, 90, 0.18);
+}
+.decision-card.dc-tile--picked,
+.decision-card.dc-tile--picked:hover:not(:disabled) {
+  transform: none;
+  background:
+    linear-gradient(180deg, rgba(255, 231, 166, 0.16), transparent 45%),
+    linear-gradient(160deg, rgba(58, 46, 22, 0.96), rgba(20, 16, 10, 0.98));
+  box-shadow:
+    0 0 0 1.5px var(--dc-gold),
+    0 0 8px rgba(240, 195, 90, 0.35),
+    inset 0 0 18px rgba(240, 195, 90, 0.12);
+}
+/* 选中：右上角金色折角 + ✓ */
+.decision-card.dc-tile--picked::after {
+  content: '✓';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 26px;
+  height: 22px;
+  padding-left: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 20px;
+  text-align: center;
+  color: #2a1d00;
+  background: linear-gradient(135deg, var(--dc-gold-hi), var(--dc-gold));
+  border-bottom-left-radius: 12px;
+}
+
+.decision-card__emblem {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 34px;
+  height: 34px;
+}
+.decision-card__stone-ico {
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.6));
+}
+.decision-card__gem {
+  fill: #e0414f;
+  stroke: #ffd0d4;
+  stroke-width: 0.8;
+}
+.decision-card__crystal {
+  fill: #3f7fe6;
+  stroke: #d2e4ff;
+  stroke-width: 0.8;
+}
+.decision-card__emblem-arrow {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--dc-gold);
+}
+.decision-card__glyph {
+  width: 24px;
+  height: 24px;
+  fill: color-mix(in srgb, var(--dc-tone) 70%, #fff);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--dc-tone) 60%, transparent));
+}
+.decision-card:disabled .decision-card__emblem {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.decision-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.decision-card .dc-tile__title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  color: var(--bt-text, #e8ecf4);
+}
+.decision-card--picked .dc-tile__title {
+  color: #fff;
+}
+.decision-card .dc-tile__desc {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  width: auto;
+  text-align: left;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+.decision-card__stone {
+  font-weight: 800;
+  white-space: nowrap;
+}
+.decision-card__stone--gem {
+  color: #ff7d86;
+}
+.decision-card__stone--crystal {
+  color: #7fc1ff;
+}
+.decision-card:disabled .decision-card__stone {
+  color: inherit;
+}
+
+/* 停靠面板里的底部按钮：只留一道描边，不要三层环 */
+.decision-actions .dc-pill {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dc-pill-edge) 70%, transparent), 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+.decision-actions .dc-pill:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--dc-pill-edge), 0 0 14px var(--dc-pill-glow), 0 6px 14px rgba(0, 0, 0, 0.45);
+}
+.decision-actions .dc-pill:disabled {
+  box-shadow: inset 0 0 0 1px rgba(91, 99, 114, 0.45);
 }
 
 /* —— 停靠模板 2：是否发动 / 效果预览 —— */

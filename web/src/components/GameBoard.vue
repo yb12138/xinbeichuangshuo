@@ -3971,7 +3971,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .board-shell {
   width: 100%;
-  /* 舞台已按 1920×1080 等比放大，这里只限制超宽屏时座位间距不过大 */
+  /* 舞台已按 1600×900 等比放大，这里只限制超宽屏时座位间距不过大 */
   max-width: 1920px;
   margin: 0 auto;
   overflow: hidden;
@@ -3982,7 +3982,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   --battle-player-card-max-height: 341px;
   --battle-player-card-fit-height: min(30cqh, calc(54cqw / 1.04), var(--battle-player-card-max-height));
   --battle-player-card-width: clamp(126px, calc(var(--battle-player-card-fit-height) * 1.04), var(--battle-player-card-max-width));
-  --battle-player-card-height: clamp(122px, var(--battle-player-card-fit-height), var(--battle-player-card-max-height));
+  /* 下限不能超过环高的 1/3，否则一列三个座位互相压住（1280×720 下环高约 342px） */
+  --battle-player-card-height: clamp(96px, var(--battle-player-card-fit-height), var(--battle-player-card-max-height));
   --battle-seat-edge-inset: clamp(22px, calc(2.78 * var(--vw, 1vw)), 40px);
   --battle-seat-vertical-inset: clamp(12px, calc(2.95 * var(--vh, 1vh)), 20px);
   --self-status-card-width: clamp(126px, calc(9.72 * var(--vw, 1vw)), 140px);
@@ -4391,8 +4392,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .top-deck-label {
-  font-size: 8px;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  letter-spacing: 0.08em;
   line-height: 1;
   color: var(--bt-text-dim);
 }
@@ -5664,7 +5665,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   max-width: calc(100% - 22px);
   overflow: hidden;
   color: rgba(241, 247, 255, 0.96);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -5687,7 +5688,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px 4px;
   color: rgba(228, 237, 245, 0.92);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .my-status-overlay .player-overlay-stat {
@@ -5785,7 +5786,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   background: var(--bt-panel-raised);
   box-shadow: inset 0 0 0 1px var(--bt-chrome-mid);
   color: var(--bt-chrome-hi);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1.3;
   cursor: pointer;
@@ -6140,24 +6141,24 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-title-text) {
-  font-size: clamp(7.6px, calc(0.66 * var(--vw, 1vw)), 10px) !important;
+  font-size: clamp(11px, calc(0.78 * var(--vw, 1vw)), 13px) !important;
+  letter-spacing: 0.02em;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-element-medal > span) {
-  font-size: clamp(6.8px, calc(0.59 * var(--vw, 1vw)), 9px) !important;
+  font-size: clamp(9px, calc(0.66 * var(--vw, 1vw)), 11px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-ribbon-text) {
-  font-size: clamp(5.4px, calc(0.45 * var(--vw, 1vw)), 7px) !important;
+  font-size: clamp(9.5px, calc(0.66 * var(--vw, 1vw)), 11px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-desc-btn) {
-  font-size: clamp(6px, calc(0.5 * var(--vw, 1vw)), 7.5px) !important;
-  padding: clamp(1px, calc(0.18 * var(--vw, 1vw)), 2px) clamp(3px, calc(0.32 * var(--vw, 1vw)), 5px);
+  font-size: clamp(10px, calc(0.7 * var(--vw, 1vw)), 12px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-exclusive-corner) {
-  font-size: clamp(7px, calc(0.59 * var(--vw, 1vw)), 9px) !important;
+  font-size: clamp(9.5px, calc(0.66 * var(--vw, 1vw)), 11px) !important;
 }
 
 /* 扩展区：贴在立绘右侧，无边框。
@@ -7156,6 +7157,215 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .character-inspect-popout {
     display: none;
+  }
+}
+
+/*
+ * 手机横屏紧凑模式：逻辑高度约 560（舞台缩放 0.55–0.64）。
+ * 主要文字逻辑字号 ≥13px，缩放后屏幕上约 ≥8px；座位三行、手牌、行动面板纵向预算：
+ * 顶栏 ≈52 + 座位环 ≈290 + 底栏 192 ≈ 560。放在样式末尾，压过上面按宽度写的旧规则。
+ */
+@container stage (max-height: 620px) {
+  .board-shell {
+    padding-top: max(4px, var(--safe-top));
+    padding-bottom: calc(4px + var(--safe-bottom));
+    /* 座位：一列三个，每个占环高的 32%；宽度固定，名牌放得下 14px 角色名 */
+    --battle-player-card-max-height: 120px;
+    --battle-player-card-fit-height: min(32cqh, var(--battle-player-card-max-height));
+    --battle-player-card-height: clamp(80px, var(--battle-player-card-fit-height), var(--battle-player-card-max-height));
+    --battle-player-card-width: 156px;
+    --battle-seat-edge-inset: max(8px, var(--safe-left));
+    --battle-seat-vertical-inset: 4px;
+    --self-status-card-width: 136px;
+    --self-status-card-height: 184px;
+    --bottom-hud-height: 190px;
+  }
+
+  .battle-seat-ring {
+    inset: var(--battle-seat-vertical-inset) var(--battle-seat-edge-inset);
+  }
+
+  .center-battle {
+    width: calc(100% - var(--battle-player-card-width) * 2 - 40px);
+  }
+
+  .top-hud {
+    margin-bottom: 4px;
+    gap: 10px;
+    padding: 0 var(--battle-seat-edge-inset);
+  }
+
+  .camp-bar {
+    height: 40px;
+  }
+
+  .top-deck-indicator {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+  }
+
+  .top-deck-label {
+    display: none;
+  }
+
+  .top-deck-count {
+    font-size: 24px;
+  }
+
+  .camp-side-label {
+    display: none;
+  }
+
+  .camp-score {
+    font-size: 30px;
+  }
+
+  .camp-gem,
+  .camp-crystal,
+  .camp-cup {
+    font-size: 16px;
+  }
+
+  .camp-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .camp-effect {
+    font-size: 13px;
+  }
+
+  .turn-dock {
+    height: 32px;
+  }
+
+  .turn-dock__text {
+    font-size: 15px;
+    letter-spacing: 0.04em;
+  }
+
+  .turn-dock__verb {
+    font-size: 13px;
+  }
+
+  /* 回合数在窄条里会压住士气/星杯数值，紧凑模式只留「你的回合」 */
+  .turn-dock__sub {
+    display: none;
+  }
+
+  .camp-center-metrics {
+    gap: 8px;
+  }
+
+  .host-dissolve-btn {
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .bottom-hud {
+    --action-dock-width: 248px;
+    --hand-max-width: 100%;
+    --hud-main-gap: 8px;
+  }
+
+  .hand-rail {
+    --hand-card-width: 100px;
+    --hand-card-height: 140px;
+  }
+
+  .hand-rail--prompt-guide {
+    --hand-card-width: 94px;
+    --hand-card-height: 132px;
+  }
+
+  .hand-rail--overflow-discard {
+    --hand-card-width: 88px;
+    --hand-card-height: 124px;
+  }
+
+  .hand-card-row.hand-fan {
+    /* 外沿牌旋转下沉约 16px，留白要盖住，否则两端的牌出屏 */
+    padding-bottom: 18px;
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium) {
+    font-size: 14px;
+  }
+
+  /* 名称条让出左侧内边距，四字牌名 14px 放得下 */
+  .bottom-slot-hand :deep(.card-size-medium .card-title-banner) {
+    padding: 0 3px 0 calc(5% + 2px);
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium .card-title-banner.has-fate) {
+    right: 22%;
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium .card-title-text) {
+    font-size: 14px !important;
+    letter-spacing: 0;
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium .card-desc-btn) {
+    font-size: 15px !important;
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium .card-element-medal > span) {
+    font-size: 12px !important;
+  }
+
+  .prompt-card-guide-chip {
+    font-size: 13px;
+  }
+
+  .expansion-chip-label,
+  .expansion-chip-count {
+    font-size: 13px;
+  }
+
+  /* 自己的状态卡 */
+  .my-status-self-badge {
+    top: 6px;
+    left: 6px;
+    padding: 4px 7px;
+    font-size: 14px;
+  }
+
+  .my-status-state-badge {
+    top: 6px;
+    right: 6px;
+    padding: 4px 7px;
+    font-size: 14px;
+  }
+
+  .my-status-overlay.player-overlay {
+    padding: 4px 5px 6px;
+    gap: 2px;
+  }
+
+  .my-status-overlay .player-overlay-role {
+    font-size: 15px;
+  }
+
+  .my-status-skill-btn {
+    font-size: 13px;
+  }
+
+  .my-status-overlay .player-overlay-player {
+    font-size: 13px;
+  }
+
+  .my-status-skill-btn {
+    font-size: 14px;
+  }
+
+  .my-status-overlay .player-overlay-stats {
+    font-size: 15px;
+  }
+
+  .my-status-chip {
+    font-size: 12px;
   }
 }
 </style>

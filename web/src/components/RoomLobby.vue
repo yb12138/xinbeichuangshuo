@@ -1799,4 +1799,107 @@ select:focus-visible {
     padding: 28px 20px 22px;
   }
 }
+
+/* 手机横屏等矮屏（大厅不缩放，逻辑高度即视口高度 ≈320–430）：
+ * logo 与标题缩小、和登录卡左右并排，压缩卡片内边距，让输入框、「创建房间」「加入」都在首屏。 */
+@container stage (max-height: 520px) {
+  .lobby-shell {
+    padding: max(8px, var(--safe-top)) max(12px, var(--safe-right)) calc(8px + var(--safe-bottom)) max(12px, var(--safe-left));
+  }
+
+  .login-stage {
+    flex-direction: row;
+    gap: clamp(12px, calc(4 * var(--vw, 1vw)), 40px);
+    padding-bottom: 0;
+  }
+
+  .login-brand {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .brand-emblem {
+    width: clamp(44px, calc(16 * var(--vh, 1vh)), 72px);
+    height: clamp(44px, calc(16 * var(--vh, 1vh)), 72px);
+    margin-bottom: -8px;
+  }
+
+  .brand-title {
+    font-size: clamp(26px, min(calc(11 * var(--vh, 1vh)), calc(5.4 * var(--vw, 1vw))), 44px);
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
+  .brand-sub {
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+  }
+
+  .brand-line {
+    width: clamp(12px, calc(3 * var(--vw, 1vw)), 36px);
+  }
+
+  .login-card {
+    flex: 0 1 380px;
+    width: auto;
+    min-width: 0;
+    padding: 16px 18px 14px;
+    gap: 8px;
+  }
+
+  .panel-crest {
+    top: -11px;
+    font-size: 18px;
+  }
+
+  .field-label {
+    font-size: 14px;
+  }
+
+  .field input {
+    height: 42px;
+    font-size: 16px;
+  }
+
+  .login-create {
+    height: 42px;
+    margin-top: 2px;
+    font-size: 16px;
+  }
+
+  .login-divider {
+    font-size: 13px;
+  }
+
+  .login-join {
+    gap: 8px;
+  }
+
+  .login-join .blue-btn {
+    width: 84px;
+    height: 42px;
+    font-size: 16px;
+  }
+}
+
+/* 特别窄的横屏（iPhone SE 568 宽）：去掉副标题，名称标签收进占位文字 */
+@container stage (max-height: 520px) and (max-width: 640px) {
+  .brand-sub {
+    display: none;
+  }
+
+  .field-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .login-card {
+    padding-top: 14px;
+  }
+}
 </style>
