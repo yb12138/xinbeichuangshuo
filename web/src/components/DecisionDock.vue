@@ -701,4 +701,37 @@ const dockStyle = computed(() => {
     animation: none;
   }
 }
+
+/* 手机横屏等矮屏（逻辑高度约 560）：舞台缩到 0.55～0.65，正文按逻辑 13px 起步，屏幕上不小于约 8px。 */
+@container stage (max-height: 620px) {
+  .decision-dock {
+    width: min(600px, calc(100% - 340px));
+    max-height: calc(100% - var(--decision-dock-hand-clearance, 196px) - 56px);
+  }
+  .decision-dock__head {
+    padding: 8px 14px 4px;
+  }
+  .decision-dock__who,
+  .decision-dock__meta,
+  .decision-dock__desc-toggle,
+  .decision-dock__band,
+  .decision-dock-pill__sub {
+    font-size: 13px;
+  }
+  .decision-dock__title {
+    font-size: 18px;
+  }
+  .decision-dock--strip .decision-dock__title,
+  .decision-dock-pill__title {
+    font-size: 16px;
+  }
+  .decision-dock__message,
+  .decision-dock__desc-text {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .decision-dock__body {
+    padding: 6px 14px 10px;
+  }
+}
 </style>

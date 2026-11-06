@@ -889,7 +889,7 @@ function handleClick(e: MouseEvent) {
   border: 1px solid var(--bt-hairline);
   background: var(--bt-panel);
   color: var(--bt-text);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1.35;
   letter-spacing: 0.04em;
@@ -936,7 +936,7 @@ function handleClick(e: MouseEvent) {
   border: 1px solid var(--bt-hairline);
   background: var(--bt-panel);
   color: var(--bt-text);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1.3;
   box-shadow: 0 0 0 1px var(--bt-bg-0);
@@ -1026,7 +1026,7 @@ function handleClick(e: MouseEvent) {
   border: 1px solid var(--bt-hairline-soft);
   background: var(--bt-panel);
   color: var(--bt-text-sub);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -1087,7 +1087,7 @@ function handleClick(e: MouseEvent) {
   border-radius: 999px;
   background: var(--bt-panel);
   box-shadow: 0 0 0 1px var(--bt-hairline-soft);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -1279,7 +1279,7 @@ function handleClick(e: MouseEvent) {
 
 .player-overlay-role {
   min-width: 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1301,7 +1301,7 @@ function handleClick(e: MouseEvent) {
   border: 1px solid var(--bt-hairline);
   background: var(--bt-panel);
   color: var(--bt-chrome-hi);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.4;
   transition: border-color 0.2s ease, color 0.2s ease;
 }
@@ -1324,7 +1324,7 @@ function handleClick(e: MouseEvent) {
   width: 100%;
   min-height: 18px;
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--bt-text);
 }
 
@@ -1353,7 +1353,7 @@ function handleClick(e: MouseEvent) {
 
 .seat-stat-num {
   font-family: var(--bt-font-num);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -1386,7 +1386,7 @@ function handleClick(e: MouseEvent) {
   border-radius: 3px;
   border: 1px solid var(--bt-hairline-soft);
   color: var(--bt-text-sub);
-  font-size: 9px;
+  font-size: 10px;
   text-align: center;
 }
 
@@ -1510,6 +1510,87 @@ function handleClick(e: MouseEvent) {
   .btn-show-skills {
     font-size: 8px;
     padding: 0 3px;
+  }
+}
+
+/* 手机横屏紧凑模式（逻辑高度约 560，缩放约 0.6）：座位只留角色名、技能、治疗/手牌，字号放大到屏幕 ≥8px */
+@container stage (max-height: 620px) {
+  .player-area--compact {
+    height: 100%;
+  }
+
+  .player-overlay-title-row {
+    min-height: 22px;
+    padding: 1px 4px;
+    gap: 3px;
+  }
+
+  .player-overlay-role {
+    font-size: 15px;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-show-skills {
+    font-size: 14px;
+    padding: 0 4px;
+  }
+
+  .player-overlay-stats {
+    min-height: 20px;
+    padding: 1px 4px;
+    font-size: 13px;
+  }
+
+  .seat-stat-num {
+    font-size: 15px;
+  }
+
+  .seat-stat-icon {
+    width: 13px;
+    height: 13px;
+  }
+
+  .seat-heal-pip {
+    width: 12px;
+    height: 12px;
+  }
+
+  .player-state-badges {
+    top: 3px;
+    right: 3px;
+    flex-direction: row;
+    gap: 2px;
+  }
+
+  .player-state-badge {
+    min-height: 0;
+    padding: 0 5px;
+    font-size: 14px;
+  }
+
+  .player-portrait-badges {
+    top: 3px;
+    left: 3px;
+  }
+
+  .player-portrait-badge,
+  .player-portrait-badge--turn-order {
+    min-height: 0;
+    padding: 0 5px;
+    font-size: 13px;
+  }
+
+  .seat-chip-row {
+    max-height: 22px;
+  }
+
+  .seat-chip,
+  .seat-mark {
+    font-size: 12px;
+  }
+
+  .seat-stealth-hint {
+    display: none;
   }
 }
 </style>

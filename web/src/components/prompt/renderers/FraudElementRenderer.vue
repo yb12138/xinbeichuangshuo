@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject } from 'vue'
 import { DECISION_DOCKED } from '../dockContext'
+import { stagePortalTarget } from '../../../composables/useStageScale'
 import ElementGlyph from '../../card/ElementGlyph.vue'
 type FraudElementOption = {
   id: string
@@ -33,7 +34,7 @@ function glyphElement(element: string): string {
 </script>
 
 <template>
-  <Teleport to="body" :disabled="docked">
+  <Teleport :to="stagePortalTarget()" defer :disabled="docked">
     <Transition name="prompt-fraud-side-pop">
       <div
         v-if="visible && options.length > 0"
@@ -87,8 +88,8 @@ function glyphElement(element: string): string {
 
 .prompt-fraud-global-panel {
   pointer-events: auto;
-  width: min(860px, calc(100vw - 40px));
-  max-height: calc(100vh - 40px);
+  width: min(860px, calc(100 * var(--vw, 1vw) - 40px));
+  max-height: calc(100 * var(--vh, 1vh) - 40px);
   overflow: auto;
   border-radius: 14px;
   border: 1px solid rgba(146, 183, 207, 0.42);
@@ -130,15 +131,15 @@ function glyphElement(element: string): string {
   transform: translateX(18px) scale(0.98);
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .prompt-fraud-global-panel {
-    width: min(760px, calc(100vw - 28px));
-    max-height: calc(100vh - 28px);
+    width: min(760px, calc(100 * var(--vw, 1vw) - 28px));
+    max-height: calc(100 * var(--vh, 1vh) - 28px);
   }
 
 }
 
-@media (max-width: 560px) {
+@container stage (max-width: 560px) {
   .prompt-fraud-global-layer {
     justify-content: center;
     align-items: center;

@@ -2497,7 +2497,7 @@ function elementName(el: string): string {
 }
 
 .sk-desc {
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.3;
     color: var(--bt-text-dim);
     white-space: nowrap;
@@ -2506,13 +2506,13 @@ function elementName(el: string): string {
 }
 
 .sk-reason {
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.3;
     color: var(--bt-danger);
 }
 
 .sk-cost {
-    font-size: 10px;
+    font-size: 11px;
     padding: 2px 7px;
     border-radius: 999px;
     white-space: nowrap;
@@ -2702,7 +2702,7 @@ function elementName(el: string): string {
     align-items: center;
     padding: 2px 7px;
     border-radius: 999px;
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.3;
     white-space: nowrap;
     color: var(--bt-text);
@@ -3066,6 +3066,80 @@ function elementName(el: string): string {
         animation: none;
         width: 100%;
         opacity: 0.5;
+    }
+}
+
+/* 手机横屏紧凑模式（逻辑高度约 560，缩放约 0.6）：主要文字逻辑 ≥13px */
+@container stage (max-height: 620px) {
+    .dock-hd {
+        flex-basis: 34px;
+        height: 34px;
+        padding: 0 30px 0 10px;
+    }
+
+    .dock-title {
+        font-size: 15px;
+    }
+
+    .dock-hd-meta,
+    .dock-steps {
+        font-size: 13px;
+    }
+
+    .dock-bd {
+        gap: 6px;
+        padding: 6px 10px;
+    }
+
+    .dock-hint,
+    .dock-hint--sm,
+    .dock-hint--desc,
+    .dock-accent,
+    .dock-notice,
+    .dock-ft-center,
+    .dock-flow-arrow {
+        font-size: 13px;
+    }
+
+    .dock-hint--big,
+    .dock-counter {
+        font-size: 15px;
+    }
+
+    .dock-medal {
+        --medal-size: 60px;
+    }
+
+    .dock-medal-row:has(> :nth-child(4)) .dock-medal {
+        --medal-size: 52px;
+    }
+
+    .dock-medal-label {
+        font-size: 15px;
+        letter-spacing: 0.04em;
+    }
+
+    .sk-name {
+        font-size: 14px;
+    }
+
+    .sk-desc,
+    .sk-reason,
+    .sk-cost,
+    .turn-chip {
+        font-size: 13px;
+    }
+
+    .dock-ft {
+        flex-basis: 42px;
+        height: 42px;
+        padding: 0 10px;
+    }
+
+    .dock-btn {
+        height: 32px;
+        padding: 0 12px;
+        font-size: 14px;
     }
 }
 </style>
