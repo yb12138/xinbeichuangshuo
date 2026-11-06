@@ -39,7 +39,20 @@ func ApplyDefaults(p *model.Player) {
 func SkillEntries() []player.SkillEntry {
 	return []player.SkillEntry{
 		{ID: "prayer_enter_form", Handler: &PrayerEnterFormHandler{}},
-		{ID: "prayer_radiant_faith", Handler: &PrayerRadiantFaithHandler{}},
+		{
+			ID:      "prayer_radiant_faith",
+			Handler: &PrayerRadiantFaithHandler{},
+			Policy: types.SkillPolicy{
+				// "弃 2 张牌"是效果而非发动条件：按部分发动规则，手牌不足 2 张时有几张弃几张。
+				ResolveDiscardCount: func(ctx types.PolicyContext) int {
+					need := ctx.SkillDef.CostDiscards
+					if ctx.HandSize < need {
+						return ctx.HandSize
+					}
+					return need
+				},
+			},
+		},
 		{ID: "prayer_dark_curse", Handler: &PrayerDarkCurseHandler{}},
 		{ID: "prayer_power_blessing", Handler: &PrayerPowerBlessingHandler{}},
 		{ID: "prayer_swift_blessing", Handler: &PrayerSwiftBlessingHandler{}},
@@ -52,7 +65,7 @@ func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
 		"prayer_master_extra_action_pick": types.ChoiceRouteRole("prayer_master"),
 		"prayer_master_rune_pick":         types.ChoiceRouteRole("prayer_master"),
-		"prayer_power_blessing_response":  types.ChoiceRouteRole("prayer_master"),
-		"prayer_swift_blessing_response":  types.ChoiceRouteRole("prayer_master"),
+		"prayer_power_blessing_response":  types.ChoiceRouteRole("prayer_master").WithSkill("prayer_power_blessing"),
+		"prayer_swift_blessing_response":  types.ChoiceRouteRole("prayer_master").WithSkill("prayer_swift_blessing"),
 	}
 }

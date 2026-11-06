@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>行动面板重设计 · 各状态原型</title>
+<link rel="stylesheet" href="/src/styles/battle-theme.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px; background: #070a10; color: var(--bt-text);
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; color: var(--bt-chrome-hi); letter-spacing: .06em; }
+  .sub { font-size: 12px; color: var(--bt-text-sub); margin-bottom: 22px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 340px); gap: 26px 30px; }
+  .cell > .cap { font-size: 12px; color: var(--bt-text-sub); margin: 0 0 8px 2px; }
+  .cell > .cap b { color: var(--bt-chrome-hi); margin-right: 6px; }
+
+  /* ===== 面板外壳：头 / 身 / 脚 三段式 ===== */
+  .dock { position: relative; width: 340px; height: 232px; display: flex; flex-direction: column;
+    border-radius: 10px; background: linear-gradient(180deg, var(--bt-panel-raised), var(--bt-panel));
+    box-shadow: 0 0 0 1px var(--bt-hairline), 0 0 0 3px rgba(0,0,0,.6), 0 10px 26px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06); }
+  .dock::before, .dock::after { content: ''; position: absolute; width: 14px; height: 14px; border: 1px solid var(--bt-chrome); pointer-events: none; }
+  .dock::before { left: 5px; top: 5px; border-right: 0; border-bottom: 0; border-radius: 6px 0 0 0; }
+  .dock::after { right: 5px; bottom: 5px; border-left: 0; border-top: 0; border-radius: 0 0 6px 0; }
+  .dock.my-turn { box-shadow: 0 0 0 1px var(--bt-active), 0 0 0 3px rgba(0,0,0,.6), 0 0 22px var(--bt-active-glow), inset 0 1px 0 rgba(255,255,255,.06); }
+
+  .hd { flex: none; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 14px;
+    border-bottom: 1px solid var(--bt-hairline-soft); }
+  .hd .phase { font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--bt-chrome-hi); white-space: nowrap; }
+  .hd .crumbs { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--bt-text-dim); white-space: nowrap; }
+  .hd .crumbs .on { color: var(--bt-active); font-weight: 700; }
+  .hd .crumbs .done { color: var(--bt-text-sub); }
+  .hd .sp { flex: 1; }
+  .gear { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--bt-text-dim);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft); font-size: 12px; }
+  .turn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bt-active); box-shadow: 0 0 8px var(--bt-active); }
+
+  .bd { flex: 1; min-height: 0; padding: 10px 14px 6px; display: flex; flex-direction: column; justify-content: center; }
+  .ft { flex: none; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-top: 1px solid var(--bt-hairline-soft); }
+  .ft .sp { flex: 1; }
+
+  /* ===== 主行动徽章（SVG 图标，不再依赖印字的位图） ===== */
+  .hub { display: flex; justify-content: center; gap: 18px; }
+  .medal { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+  .medal .ring { width: 74px; height: 74px; border-radius: 50%; padding: 3px; background: var(--bt-chrome-gradient);
+    box-shadow: 0 0 0 1px var(--bt-bg-0), 0 0 0 2px var(--bt-chrome-lo), 0 5px 12px rgba(0,0,0,.6); transition: transform .15s, box-shadow .15s; }
+  .medal .face { width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 30%, #2a3446, #0d121b 70%); box-shadow: inset 0 0 0 1px var(--bt-bg-0), inset 0 0 0 2px var(--bt-hairline-soft), inset 0 -8px 14px rgba(0,0,0,.6); }
+  .medal svg { width: 36px; height: 36px; fill: none; stroke: var(--bt-chrome-hi); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
+  .medal .lb { font-size: 13px; font-weight: 700; letter-spacing: .1em; color: var(--bt-chrome-hi); }
+  .medal .why { font-size: 10px; color: var(--bt-text-dim); margin-top: -4px; height: 12px; }
+  .medal.hot .ring { transform: translateY(-2px); box-shadow: 0 0 0 1px var(--bt-bg-0), 0 0 0 2px var(--bt-select), 0 0 16px var(--bt-select-glow), 0 6px 14px rgba(0,0,0,.6); }
+  .medal.attack .face { background: radial-gradient(circle at 50% 30%, #3a2228, #110b0e 70%); }
+  .medal.magic .face { background: radial-gradient(circle at 50% 30%, #2b2442, #0d0b16 70%); }
+  .medal.off { cursor: not-allowed; }
+  .medal.off .ring { filter: grayscale(1) brightness(.55); }
+  .medal.off .lb { color: var(--bt-text-dim); }
+
+  /* ===== 底栏按钮 ===== */
+  .btn { height: 28px; padding: 0 14px; border-radius: 14px; font-size: 12px; font-weight: 700; letter-spacing: .06em;
+    display: inline-flex; align-items: center; gap: 6px; border: 0; cursor: pointer; white-space: nowrap; }
+  .btn.ghost { background: transparent; color: var(--bt-text-sub); box-shadow: inset 0 0 0 1px var(--bt-hairline-soft); }
+  .btn.primary { background: linear-gradient(180deg, #f6d98c, #c99a3f); color: #1d1406; box-shadow: 0 0 0 1px #000, 0 0 12px var(--bt-active-glow); }
+  .btn.primary.off { background: var(--bt-bg-1); color: var(--bt-text-dim); box-shadow: inset 0 0 0 1px var(--bt-hairline-soft); }
+  .btn.end { background: var(--bt-bg-0); color: var(--bt-chrome); box-shadow: inset 0 0 0 1px var(--bt-hairline); }
+
+  /* ===== 信息块 ===== */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(240,195,90,.12); color: var(--bt-active); box-shadow: inset 0 0 0 1px rgba(240,195,90,.35); }
+  .chip.cool { background: rgba(159,212,255,.1); color: var(--bt-select); box-shadow: inset 0 0 0 1px rgba(159,212,255,.3); }
+  .tip { font-size: 13px; color: var(--bt-text); line-height: 1.5; }
+  .tip small { display: block; font-size: 11px; color: var(--bt-text-sub); margin-top: 2px; }
+
+  /* 选牌 → 选目标 的小流程图 */
+  .flow { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; }
+  .slot { width: 46px; height: 62px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--bt-hairline-soft); display: grid; place-items: center;
+    font-size: 10px; color: var(--bt-text-dim); background: rgba(0,0,0,.25); overflow: hidden; }
+  .slot.filled { box-shadow: 0 0 0 1px var(--bt-select), 0 0 10px var(--bt-select-glow); }
+  .slot.filled img { width: 100%; height: 100%; object-fit: cover; }
+  .slot.round { width: 52px; height: 52px; border-radius: 50%; }
+  .slot.wait { box-shadow: inset 0 0 0 1px var(--bt-active); color: var(--bt-active); animation: pulse 1.2s infinite; }
+  .arrow { color: var(--bt-red); font-size: 18px; }
+
+  /* 技能列表 */
+  .skills { display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .sk { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 7px 10px; border-radius: 6px; background: var(--bt-bg-1);
+    box-shadow: inset 0 0 0 1px var(--bt-hairline-soft); cursor: pointer; }
+  .sk .n { font-size: 13px; font-weight: 700; color: var(--bt-chrome-hi); }
+  .sk .c { font-size: 10px; color: var(--bt-active); align-self: center; }
+  .sk .d { grid-column: 1 / -1; font-size: 11px; color: var(--bt-text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sk.hot { box-shadow: inset 0 0 0 1px var(--bt-select), 0 0 10px var(--bt-select-glow); }
+  .sk.off { opacity: .45; }
+  .sk.off .c { color: var(--bt-text-dim); }
+
+  /* 进度点 */
+  .dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--bt-hairline); }
+  .dots i.on { background: var(--bt-select); box-shadow: 0 0 8px var(--bt-select-glow); }
+
+  /* 等待 */
+  .waiting { display: flex; align-items: center; gap: 12px; }
+  .waiting img { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; object-position: center 20%; box-shadow: 0 0 0 2px var(--bt-red), 0 0 0 3px #000; }
+  .bar { height: 3px; border-radius: 2px; background: var(--bt-bg-0); overflow: hidden; margin-top: 8px; }
+  .bar i { display: block; height: 100%; width: 40%; background: linear-gradient(90deg, transparent, var(--bt-chrome), transparent); animation: sweep 1.6s infinite; }
+
+  @keyframes pulse { 50% { box-shadow: inset 0 0 0 1px var(--bt-active), 0 0 10px var(--bt-active-glow); } }
+  @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+
+  .notes { margin-top: 26px; max-width: 1080px; font-size: 12px; color: var(--bt-text-sub); line-height: 1.7; }
+  .notes b { color: var(--bt-chrome-hi); }
+</style>
+</head>
+<body>
+<h1>行动面板 · 重设计原型</h1>
+<div class="sub">统一三段式：顶栏＝当前阶段与步骤 ｜ 主体＝此刻唯一要做的事 ｜ 底栏＝固定位置的返回 / 确认 / 结束回合</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-attack" viewBox="0 0 40 40"><path d="M8 8 L26 26 M26 26 l4 4 M23 29 l6 -6 M32 8 L14 26 M14 26 l-4 4 M17 29 l-6 -6"/><path d="M8 8 l3 0 0 3 M32 8 l-3 0 0 3"/></symbol>
+  <symbol id="i-magic" viewBox="0 0 40 40"><circle cx="20" cy="20" r="11"/><path d="M20 6 v5 M20 29 v5 M6 20 h5 M29 20 h5"/><path d="M20 13 l2.2 4.6 5 .7 -3.6 3.5 .9 5 -4.5 -2.4 -4.5 2.4 .9 -5 -3.6 -3.5 5 -.7 z"/></symbol>
+  <symbol id="i-special" viewBox="0 0 40 40"><path d="M7 15 L20 7 L33 15 M10 15 h20 M12 15 v14 M28 15 v14 M20 15 v14 M8 29 h24 M11 33 h18"/></symbol>
+  <symbol id="i-skill" viewBox="0 0 40 40"><path d="M20 6 l4 9 10 1 -7.5 6.8 2.2 9.7 -8.7 -5.1 -8.7 5.1 2.2 -9.7 L6 16 l10 -1 z"/></symbol>
+  <symbol id="i-card" viewBox="0 0 40 40"><rect x="11" y="7" width="18" height="26" rx="2.5"/><path d="M15 13 h10 M15 27 h6"/><circle cx="20" cy="20" r="3.5"/></symbol>
+</svg>
+
+<div class="grid">
+
+  <!-- 1. 轮到我：行动选择 -->
+  <div class="cell">
+    <div class="cap"><b>① 轮到我 · 选择行动</b>默认态，金框提示"轮到你"</div>
+    <div class="dock my-turn">
+      <div class="hd"><span class="turn-dot"></span><span class="phase">你的回合</span><span class="crumbs">· 行动阶段</span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd">
+        <div class="hub">
+          <div class="medal attack hot"><div class="ring"><div class="face"><svg><use href="#i-attack"/></svg></div></div><div class="lb">攻击</div><div class="why"></div></div>
+          <div class="medal magic"><div class="ring"><div class="face"><svg><use href="#i-magic"/></svg></div></div><div class="lb">法术</div><div class="why"></div></div>
+          <div class="medal off"><div class="ring"><div class="face"><svg><use href="#i-special"/></svg></div></div><div class="lb">特殊</div><div class="why">本回合已用启动技</div></div>
+        </div>
+      </div>
+      <div class="ft"><span class="chips"><span class="chip">额外攻击：限风系</span></span><span class="sp"></span><button class="btn end">结束回合 ›</button></div>
+    </div>
+  </div>
+
+  <!-- 2. 攻击：选牌 -->
+  <div class="cell">
+    <div class="cap"><b>② 攻击 · 选牌</b>步骤写在顶栏，主体只说一件事</div>
+    <div class="dock my-turn">
+      <div class="hd"><span class="phase">攻击</span><span class="crumbs"><span class="on">① 选牌</span> › ② 选目标</span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd">
+        <div class="tip">从下方手牌选一张<b style="color:var(--bt-red)">攻击牌</b><small>可选的牌已高亮，不可选的会压暗</small></div>
+        <div class="flow"><div class="slot wait">牌</div><span class="arrow">➝</span><div class="slot round">目标</div></div>
+      </div>
+      <div class="ft"><button class="btn ghost">‹ 返回</button><span class="sp"></span></div>
+    </div>
+  </div>
+
+  <!-- 3. 攻击：选目标 -->
+  <div class="cell">
+    <div class="cap"><b>③ 攻击 · 选目标</b>已选的牌显示在流程里</div>
+    <div class="dock my-turn">
+      <div class="hd"><span class="phase">攻击</span><span class="crumbs"><span class="done">① 选牌 ✓</span> › <span class="on">② 选目标</span></span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd">
+        <div class="tip">点击场上<b style="color:var(--bt-red)">敌方角色</b>完成攻击<small>潜行中的角色无法被选中</small></div>
+        <div class="flow"><div class="slot filled"><img src="/image/huoYanZhan.png"></div><span class="arrow">➝</span><div class="slot round wait">目标</div></div>
+      </div>
+      <div class="ft"><button class="btn ghost">‹ 重选牌</button><span class="sp"></span><span class="chips"><span class="chip cool">火焰斩 · 伤害 2</span></span></div>
+    </div>
+  </div>
+
+  <!-- 4. 法术：二选一 -->
+  <div class="cell">
+    <div class="cap"><b>④ 法术 · 方式</b>与主行动同款徽章，减少新样式</div>
+    <div class="dock my-turn">
+      <div class="hd"><span class="phase">法术</span><span class="crumbs"><span class="on">选择方式</span></span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd">
+        <div class="hub">
+          <div class="medal magic hot"><div class="ring"><div class="face"><svg><use href="#i-card"/></svg></div></div><div class="lb">打出法术牌</div><div class="why"></div></div>
+          <div class="medal"><div class="ring"><div class="face"><svg><use href="#i-skill"/></svg></div></div><div class="lb">发动技能</div><div class="why">3 个可用</div></div>
+        </div>
+      </div>
+      <div class="ft"><button class="btn ghost">‹ 返回</button><span class="sp"></span></div>
+    </div>
+  </div>
+
+  <!-- 5. 技能列表 -->
+  <div class="cell">
+    <div class="cap"><b>⑤ 选择技能</b>紧凑行，代价放右侧，不可用直接说原因</div>
+    <div class="dock my-turn">
+      <div class="hd"><span class="phase">发动技能</span><span class="crumbs">共 3 个</span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd" style="justify-content:flex-start">
+        <div class="skills">
+          <div class="sk hot"><span class="n">天使祝福</span><span class="c">弃 1 水系</span><span class="d">指定目标给你 2 张牌，或 2 名角色各给你 1 张</span></div>
+          <div class="sk"><span class="n">风之洁净</span><span class="c">弃 1 风系</span><span class="d">移除场上任意 1 个基础效果</span></div>
+          <div class="sk off"><span class="n">天使之歌</span><span class="c">需 1 水晶</span><span class="d">水晶不足</span></div>
+        </div>
+      </div>
+      <div class="ft"><button class="btn ghost">‹ 返回</button><span class="sp"></span></div>
+    </div>
+  </div>
+
+  <!-- 6. 技能弃牌 / 需要确认 -->
+  <div class="cell">
+    <div class="cap"><b>⑥ 技能 · 弃牌并确认</b>进度点 + 底栏右侧固定"确认"</div>
+    <div class="dock my-turn">
+      <div class="hd"><span class="phase">天使祝福</span><span class="crumbs"><span class="on">① 弃牌</span> › ② 选目标</span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd">
+        <div class="tip">弃置 <b style="color:var(--bt-select)">1 张水系牌</b> 作为代价<small>在下方手牌点选，选满后确认</small></div>
+        <div class="dots"><i class="on"></i></div>
+      </div>
+      <div class="ft"><button class="btn ghost">‹ 取消</button><span class="sp"></span><span style="font-size:11px;color:var(--bt-text-sub)">已选 1 / 1</span><button class="btn primary">确认 ✓</button></div>
+    </div>
+  </div>
+
+  <!-- 7. 等待别人 -->
+  <div class="cell">
+    <div class="cap"><b>⑦ 等待其他玩家</b>告诉你在等谁、等什么</div>
+    <div class="dock">
+      <div class="hd"><span class="phase" style="color:var(--bt-text-sub)">对方回合</span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd">
+        <div class="waiting"><img src="/characters/art/sealer.webp"><div class="tip">封印师 正在行动<small>测试玩家4 · 选择行动类型中</small></div></div>
+        <div class="bar"><i></i></div>
+      </div>
+      <div class="ft"><span style="font-size:11px;color:var(--bt-text-dim)">下一位：你（暗杀者）</span></div>
+    </div>
+  </div>
+
+  <!-- 8. 爆牌弃牌 -->
+  <div class="cell">
+    <div class="cap"><b>⑧ 爆牌弃牌</b>提示与确认都在面板里，不再分离</div>
+    <div class="dock" style="box-shadow:0 0 0 1px var(--bt-danger),0 0 0 3px rgba(0,0,0,.6),0 0 22px rgba(226,82,94,.35)">
+      <div class="hd"><span class="phase" style="color:var(--bt-danger)">手牌超出上限</span><span class="crumbs">10 / 6</span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd">
+        <div class="tip">从下方手牌选择 <b style="color:var(--bt-danger)">4 张</b> 弃置<small>弃牌会公开展示</small></div>
+        <div class="dots"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+      </div>
+      <div class="ft"><span class="sp"></span><span style="font-size:11px;color:var(--bt-text-sub)">已选 2 / 4</span><button class="btn primary off">确认 ✓</button></div>
+    </div>
+  </div>
+
+  <!-- 9. 额外行动 -->
+  <div class="cell">
+    <div class="cap"><b>⑨ 额外行动</b>来源与限制放顶栏和标签里</div>
+    <div class="dock my-turn">
+      <div class="hd"><span class="turn-dot"></span><span class="phase">额外攻击</span><span class="crumbs">· 来自【风怒追击】</span><span class="sp"></span><span class="gear">⚙</span></div>
+      <div class="bd">
+        <div class="hub">
+          <div class="medal attack hot"><div class="ring"><div class="face"><svg><use href="#i-attack"/></svg></div></div><div class="lb">攻击</div><div class="why">仅风系</div></div>
+        </div>
+      </div>
+      <div class="ft"><span class="sp"></span><button class="btn end">放弃额外行动 ›</button></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="notes">
+  <b>设计要点</b><br>
+  1. 三段式骨架固定不变：顶栏（阶段 + 步骤面包屑 + 设置齿轮）、主体（只放这一步要做的事）、底栏（左＝返回/取消，右＝确认/结束回合），玩家的手和眼睛不用到处找按钮。<br>
+  2. 主行动用 SVG 线稿图标重画（攻击/法术/特殊/技能/出牌），不再用印着字的金色位图，文字统一放在徽章下方；不可用时直接写原因（如"本回合已用启动技"）。<br>
+  3. "结束回合 / 放弃额外行动"从主行动里拿出来，作为底栏右侧的次级按钮——它不是一种行动类型，和攻击法术并列容易误点。<br>
+  4. 多步流程用"牌 ➝ 目标"的小流程图 + 顶栏面包屑表示进度，已选的牌缩略图直接出现在面板里；需要凑张数的用进度点和"已选 X / N"。<br>
+  5. 状态用边框颜色区分：金＝轮到你，红＝爆牌/警告，无光＝等待别人。"调试"收成右上角齿轮。
+</div>
+</body>
+</html>

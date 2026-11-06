@@ -3,6 +3,7 @@ package magic_bow_test
 import (
 	"starcup-engine/internal/engine"
 	"starcup-engine/internal/testutils"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -328,7 +329,8 @@ func TestMagicBowCharge_DiscardFirstThenChooseX(t *testing.T) {
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
 }
 
-func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
+// 摸牌超上限按通用爆牌规则：先弃到上限（每弃 1 张士气 -1），弃完再从剩余手牌里选充能。
+func TestMagicBowCharge_DrawOverflowDiscardsThenPlacesCharges(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -364,18 +366,24 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_charge_draw_x")
 
-	// 选择X=4，4->8，默认上限6，爆士气2但不弃牌。
+	// 选择X=4，4->8，默认上限6：先爆牌弃 2 张。
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{4}}); err != nil {
 		t.Fatalf("choose charge draw x failed: %v", err)
 	}
+	if !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected an overflow discard before placing charges, got %+v", game.State.PendingInterrupt)
+	}
+	if got := game.State.RedMorale; got != redMoraleBefore {
+		t.Fatalf("morale should only drop when the cards are discarded, before=%d now=%d", redMoraleBefore, got)
+	}
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err != nil {
+		t.Fatalf("overflow discard failed: %v", err)
+	}
 	if got := game.State.RedMorale; got != redMoraleBefore-2 {
-		t.Fatalf("expected red morale -2 after overflow draw, before=%d after=%d", redMoraleBefore, got)
+		t.Fatalf("expected red morale -2 after discarding 2, before=%d after=%d", redMoraleBefore, got)
 	}
-	if got := len(p1.Hand); got != 8 {
-		t.Fatalf("expected no discard after overflow draw, hand should stay 8, got %d", got)
-	}
-	if engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
-		t.Fatalf("should not open discard interrupt after charge overflow draw")
+	if got := len(p1.Hand); got != 6 {
+		t.Fatalf("expected hand discarded down to 6, got %d", got)
 	}
 
 	// 新流程：直接进入盖牌多选（跳过数量选择步骤）
@@ -391,9 +399,57 @@ func TestMagicBowCharge_DrawOverflowMoraleLossWithoutDiscard(t *testing.T) {
 	if got := magicbowplayer.ChargeCount(p1, ""); got != 4 {
 		t.Fatalf("expected 4 charges placed, got %d", got)
 	}
+	if got := len(p1.Hand); got != 2 {
+		t.Fatalf("expected 2 cards left after discarding 2 and charging 4, got %d", got)
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("charge flow should be finished, got pending %+v", game.State.PendingInterrupt)
+	}
 }
 
-func TestMagicBowThunderScatter_ExtraDamageSplit(t *testing.T) {
+// 摸牌后刚好到上限（不爆牌）：不弹弃牌，直接选充能，士气不变。
+func TestMagicBowCharge_DrawToLimitPlacesWithoutDiscard(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("h3", "雷光斩", model.CardTypeAttack, model.ElementThunder),
+		magicBowTestCard("h4", "风神斩", model.CardTypeAttack, model.ElementWind),
+	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("d2", "补牌2", model.CardTypeMagic, model.ElementThunder),
+	}
+	redMoraleBefore := game.State.RedMorale
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, &model.EventContext{Type: model.EventTurnStart, SourceID: "p1"})
+	if err := (&magicbowplayer.MagicBowChargeHandler{}).Execute(ctx); err != nil {
+		t.Fatalf("execute charge failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil { // X=2: 4->6
+		t.Fatalf("choose charge draw x failed: %v", err)
+	}
+	if engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("hand at the limit should not discard")
+	}
+	if got := testutils.ChoiceTypeOfInterrupt(game.State.PendingInterrupt); got != "mb_charge_place_cards" {
+		t.Fatalf("expected place-cards choice, got %q", got)
+	}
+	if game.State.RedMorale != redMoraleBefore {
+		t.Fatalf("morale should be unchanged, before=%d after=%d", redMoraleBefore, game.State.RedMorale)
+	}
+}
+
+func TestMagicBowThunderScatter_ExtraDamageMergedIntoSingleHit(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -433,8 +489,9 @@ func TestMagicBowThunderScatter_ExtraDamageSplit(t *testing.T) {
 	if got := magicbowplayer.ChargeCount(p1, ""); got != 0 {
 		t.Fatalf("expected all thunder charges consumed, remaining=%d", got)
 	}
-	if len(game.State.PendingDamageQueue) != 3 {
-		t.Fatalf("expected 3 pending magic damages, got %d", len(game.State.PendingDamageQueue))
+	// 指定目标受一次 1+X 点伤害，而不是 1 点和 X 点两次独立伤害。
+	if len(game.State.PendingDamageQueue) != 2 {
+		t.Fatalf("expected 2 pending magic damages (one per opponent), got %d", len(game.State.PendingDamageQueue))
 	}
 
 	totalToP2 := 0
@@ -925,10 +982,15 @@ func TestMagicBowDemonEye_Branch1TargetDiscardsThenUserCharges(t *testing.T) {
 	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p2" {
 		t.Fatalf("expected demon eye force target discard interrupt, got %+v", game.State.PendingInterrupt)
 	}
-	if err := game.ConfirmDiscard("p2", []int{1}); err != nil {
+	// 真实客户端走 HandleAction：目标在魔弓的回合里提交弃牌。
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{1}}); err != nil {
 		t.Fatalf("confirm demon eye target discard failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_charge_card")
+	// 充能提示必须能真正构建出来，否则客户端收不到新提示、仍停在目标的弃牌框上。
+	if prompt := game.GetCurrentPrompt(); prompt == nil || prompt.PlayerID != "p1" || len(prompt.Options) == 0 {
+		t.Fatalf("expected demon eye charge prompt for p1 after target discard, got %+v", prompt)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
 		t.Fatalf("choose demon-eye charge card after target discard failed: %v", err)
 	}
@@ -1147,5 +1209,275 @@ func TestMagicBowCharge_StartupPromptPaysCrystalCostWithGem(t *testing.T) {
 	}
 	if got := p1.TurnState.UsedSkillCounts["mb_charge_lock_turn"]; got != 1 {
 		t.Fatalf("expected mb_charge lock after startup confirm, got %d", got)
+	}
+}
+
+// 魔贯冲击的 +1 只作用于本次攻击，不能写进实体攻击牌（否则进弃牌堆、重洗后永久多 1 点）。
+func TestMagicBowMagicPierce_BonusDoesNotMutateAttackCard(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Defender", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		magicBowTestCard("atk_pierce", "烈焰箭", model.CardTypeAttack, model.ElementFire),
+	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementWind),
+		magicBowTestCard("d4", "补牌4", model.CardTypeAttack, model.ElementThunder),
+		magicBowTestCard("d5", "补牌5", model.CardTypeAttack, model.ElementLight),
+	}
+	giveMagicBowCharges(p1, model.ElementFire)
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
+	})
+	chooseMagicPierceAndFireCharge(t, game, "p1")
+	if err := game.HandleCombatResponse(model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"take"},
+	}); err != nil {
+		t.Fatalf("combat take response failed: %v", err)
+	}
+	game.Drive()
+
+	// 没有剩余火系充能，命中追加不会弹出；伤害应为牌面 2 + 魔贯冲击 1 = 3。
+	if got := len(p2.Hand); got != 3 {
+		t.Fatalf("expected magic pierce attack to deal 2+1=3 damage, got hand=%d", got)
+	}
+	found := false
+	for _, c := range game.State.DiscardPile {
+		if c.ID != "atk_pierce" {
+			continue
+		}
+		found = true
+		if c.Damage != 2 {
+			t.Fatalf("expected attack card damage unchanged (2) in discard pile, got %d", c.Damage)
+		}
+	}
+	if !found {
+		t.Fatalf("expected attack card in discard pile, got %+v", game.State.DiscardPile)
+	}
+	if bonus := engine.AttackDamageRuleBonusForModifier(p1, "mb_magic_pierce_attack_bonus"); bonus != 0 {
+		t.Fatalf("expected magic pierce bonus consumed after attack, remaining=%d", bonus)
+	}
+}
+
+// 魔眼：分支②会先摸3张牌，没有手牌时也能发动。
+func TestMagicBowDemonEye_CanUseWithoutHandCards(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = nil
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWind),
+		magicBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementThunder),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	ctx := game.BuildContext(p1, nil, model.TimingTurnStart, nil)
+	if !(&magicbowplayer.MagicBowDemonEyeHandler{}).CanUse(ctx) {
+		t.Fatalf("expected demon eye usable without hand cards")
+	}
+
+	if err := game.UseSkill("p1", "mb_demon_eye", nil, nil); err != nil {
+		t.Fatalf("use demon eye failed: %v", err)
+	}
+	chooseMagicBowChoice(t, game, "p1", "mb_demon_eye_mode", 1)
+	chooseMagicBowChoice(t, game, "p1", "mb_demon_eye_charge_card", 0)
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 1 {
+		t.Fatalf("expected 1 charge placed, got %d", got)
+	}
+	if got := len(p1.Hand); got != 2 {
+		t.Fatalf("expected hand=2 after draw3 and charge1, got %d", got)
+	}
+	if got := p1.Crystal; got != 1 {
+		t.Fatalf("expected +1 crystal, got %d", got)
+	}
+}
+
+// 魔眼分支①：目标没有手牌时无牌可弃，没有"魔弓摸3张"的替代效果，流程照常继续充能。
+func TestMagicBowDemonEye_Branch1TargetWithoutHandNoSubstitute(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+	}
+	p2.Hand = nil
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWind),
+		magicBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementThunder),
+	}
+	deckBefore := len(game.State.Deck)
+
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+
+	if err := game.UseSkill("p1", "mb_demon_eye", nil, nil); err != nil {
+		t.Fatalf("use demon eye failed: %v", err)
+	}
+	chooseMagicBowChoice(t, game, "p1", "mb_demon_eye_mode", 0)
+	chooseMagicBowChoice(t, game, "p1", "mb_demon_eye_target", 1) // p2
+	if len(game.State.Deck) != deckBefore || len(p1.Hand) != 1 {
+		t.Fatalf("expected no substitute draw, deck=%d hand=%d", len(game.State.Deck), len(p1.Hand))
+	}
+	chooseMagicBowChoice(t, game, "p1", "mb_demon_eye_charge_card", 0)
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 1 {
+		t.Fatalf("expected 1 charge placed, got %d", got)
+	}
+	if got := len(p1.Hand); got != 0 {
+		t.Fatalf("expected hand empty after charging the only card, got %d", got)
+	}
+	if got := p1.Crystal; got != 1 {
+		t.Fatalf("expected +1 crystal, got %d", got)
+	}
+}
+
+// 魔弓-5：魔眼分支② 摸 3 张超出上限时，先结算爆牌（士气下降），再放置充能。
+func TestMagicBowDemonEye_Branch2OverflowDiscardsBeforeCharge(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Gem = 1
+	p1.Hand = []model.Card{
+		magicBowTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire),
+		magicBowTestCard("h2", "水涟斩", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("h3", "雷光斩", model.CardTypeAttack, model.ElementThunder),
+		magicBowTestCard("h4", "风神斩", model.CardTypeAttack, model.ElementWind),
+		magicBowTestCard("h5", "地裂斩", model.CardTypeAttack, model.ElementEarth),
+	}
+	game.State.Deck = []model.Card{
+		magicBowTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementWater),
+		magicBowTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWind),
+		magicBowTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementThunder),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+	redMoraleBefore := game.State.RedMorale
+
+	if err := game.UseSkill("p1", "mb_demon_eye", nil, nil); err != nil {
+		t.Fatalf("use demon eye failed: %v", err)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_mode")
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}})
+
+	// 5+3=8 > 6：先弃 2 张。
+	if !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected overflow discard before demon-eye charge, got %+v", game.State.PendingInterrupt)
+	}
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 0 {
+		t.Fatalf("charge must not be placed before overflow discard, got %d", got)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}})
+	if got := game.State.RedMorale; got != redMoraleBefore-2 {
+		t.Fatalf("expected morale -2 after overflow discard, before=%d after=%d", redMoraleBefore, got)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_demon_eye_charge_card")
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}})
+	if got := magicbowplayer.ChargeCount(p1, ""); got != 1 {
+		t.Fatalf("expected 1 charge after overflow discard, got %d", got)
+	}
+	if got := len(p1.Hand); got != 5 {
+		t.Fatalf("expected hand 5 (8-2-1), got %d", got)
+	}
+	if got := p1.Crystal; got != 1 {
+		t.Fatalf("expected +1 crystal, got %d", got)
+	}
+}
+
+// 魔弓：移除充能的提示选项 ID 必须是同系充能序号（与处理端一致），
+// 混放其他元素充能时，按提示给出的 ID 提交要能命中对应那张充能。
+func TestMagicBowMultiShot_ChargeOptionIDMatchesHandler(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "MagicBow", "magic_bow", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "EnemyA", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	// 第一张是火系，风系在场上第 2 位：旧实现把选项 ID 写成场上下标 1，处理端按序号解析就越界。
+	giveMagicBowCharges(p1, model.ElementFire, model.ElementWind)
+
+	ctx := game.BuildContext(p1, nil, model.TimingActionEnd, &model.EventContext{
+		Type:       model.EventPhaseEnd,
+		SourceID:   "p1",
+		ActionType: model.ActionAttack,
+		AttackInfo: &model.AttackEventInfo{ActionType: string(model.ActionAttack)},
+	})
+	h := &magicbowplayer.MagicBowMultiShotHandler{}
+	if !h.CanUse(ctx) {
+		t.Fatalf("expected multi-shot usable")
+	}
+	if err := h.Execute(ctx); err != nil {
+		t.Fatalf("execute multi-shot failed: %v", err)
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_multi_shot_charge")
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || len(prompt.Options) != 1 {
+		t.Fatalf("expected exactly one wind charge option, got %+v", prompt)
+	}
+	opt := prompt.Options[0]
+	if opt.FieldIndex == nil || *opt.FieldIndex != 1 {
+		t.Fatalf("expected field index 1 for wind charge, got %+v", opt.FieldIndex)
+	}
+	sel, err := strconv.Atoi(opt.ID)
+	if err != nil {
+		t.Fatalf("option id not numeric: %q", opt.ID)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{sel}})
+	testutils.RequireChoicePrompt(t, game, "p1", "mb_multi_shot_target")
+	if got := magicbowplayer.ChargeCount(p1, model.ElementWind); got != 0 {
+		t.Fatalf("expected wind charge removed, got %d", got)
+	}
+	if got := magicbowplayer.ChargeCount(p1, model.ElementFire); got != 1 {
+		t.Fatalf("expected fire charge kept, got %d", got)
 	}
 }

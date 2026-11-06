@@ -16,7 +16,9 @@ func (e *GameEngine) prependPendingDamages(pds []model.PendingDamage) {
 	}
 	reversed := make([]model.PendingDamage, 0, len(pds))
 	for i := len(pds) - 1; i >= 0; i-- {
-		reversed = append(reversed, pds[i])
+		pd := pds[i]
+		e.stampPendingDamageCause(&pd)
+		reversed = append(reversed, pd)
 	}
 	e.State.PendingDamageQueue = append(reversed, e.State.PendingDamageQueue...)
 	for _, pd := range reversed {

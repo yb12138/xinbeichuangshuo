@@ -36,6 +36,10 @@ func BuildCharacterViews() []viewmodel.CharacterView {
 	for _, character := range chars {
 		skills := make([]viewmodel.SkillView, 0, len(character.Skills))
 		for _, skill := range character.Skills {
+			var tags []string
+			for _, tag := range skill.Tags {
+				tags = append(tags, string(tag))
+			}
 			skills = append(skills, viewmodel.SkillView{
 				ID:               skill.ID,
 				Title:            skill.Title,
@@ -49,6 +53,7 @@ func BuildCharacterViews() []viewmodel.CharacterView {
 				CostDiscards:     skill.CostDiscards,
 				DiscardElement:   string(skill.DiscardElement),
 				RequireExclusive: skill.RequireExclusive,
+				Tags:             tags,
 			})
 		}
 		views = append(views, viewmodel.CharacterView{

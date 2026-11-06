@@ -3,9 +3,11 @@
 package engine
 
 import (
+	"fmt"
 	engineplayer "starcup-engine/internal/engine/player"
 	intr "starcup-engine/internal/engine/runtime/interrupt"
 	"starcup-engine/internal/model"
+	"strconv"
 )
 
 var _ intr.EngineInterface = (*GameEngine)(nil)
@@ -206,7 +208,16 @@ func mountRoleInterruptSpecs(ar *intr.ActionRules, pr *intr.PromptRules) {
 			if ar != nil && s.HandleActionResult != nil {
 				ar.Register(s.Type, &intr.ActionRule{
 					HandleResult: func(en intr.EngineInterface, act model.PlayerAction) (intr.ActionResult, error) {
-						rt := NewRoleChoiceRuntime(en.(*GameEngine))
+						ge := en.(*GameEngine)
+						// 前端选牌提交 card_ids；角色中断按选项下标（selections）解析，这里统一换算
+						if act.Type == model.CmdSelect && len(act.Selections) == 0 && len(act.CardIDs) > 0 {
+							selections, err := ge.interruptSelectionsFromCardIDs(act.CardIDs)
+							if err != nil {
+								return intr.ActionResult{}, err
+							}
+							act.Selections = selections
+						}
+						rt := NewRoleChoiceRuntime(ge)
 						result, err := s.HandleActionResult(rt, act)
 						return intr.ActionResult{
 							Consumed: result.Consumed,
@@ -230,6 +241,35 @@ func mountRoleInterruptSpecs(ar *intr.ActionRules, pr *intr.PromptRules) {
 	}
 }
 
+// interruptSelectionsFromCardIDs 把提交的 card_ids 按当前中断提示的选项换算成选项下标：
+// 选项 ID 为数字时取该数字（角色中断约定为手牌下标），否则取选项序号。
+func (e *GameEngine) interruptSelectionsFromCardIDs(cardIDs []string) ([]int, error) {
+	prompt := e.BuildPendingInterruptPrompt()
+	if prompt == nil {
+		return nil, fmt.Errorf("当前中断缺少可解析的卡牌选项")
+	}
+	selections := make([]int, 0, len(cardIDs))
+	for _, cardID := range cardIDs {
+		matched := false
+		for optionIndex, option := range prompt.Options {
+			if option.CardID == "" || option.CardID != cardID {
+				continue
+			}
+			selection, err := strconv.Atoi(option.ID)
+			if err != nil {
+				selection = optionIndex
+			}
+			selections = append(selections, selection)
+			matched = true
+			break
+		}
+		if !matched {
+			return nil, fmt.Errorf("卡牌 %q 不在当前可选列表中", cardID)
+		}
+	}
+	return selections, nil
+}
+
 // PushInterrupt 经 interrupt.Orchestrator 入栈并同步阶段。
 func (e *GameEngine) PushInterrupt(interrupt *model.Interrupt) {
 	if e == nil || interrupt == nil {
@@ -238,6 +278,8 @@ func (e *GameEngine) PushInterrupt(interrupt *model.Interrupt) {
 	if e.interruptOrchestrator == nil {
 		panic("engine: interrupt orchestrator not installed")
 	}
+	e.stampInterruptCause(interrupt)
+	e.noteInterruptPushedForRefund(interrupt)
 	e.interruptOrchestrator.PushInterrupt(interrupt)
 }
 

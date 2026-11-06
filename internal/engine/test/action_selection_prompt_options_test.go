@@ -114,8 +114,12 @@ func TestActionSelectionPrompt_ExtraAttackOnlyShowsAttack(t *testing.T) {
 	if !options["attack"] {
 		t.Fatalf("expected option attack, got %+v", obs.lastPrompt.Options)
 	}
-	if options["magic"] || options["buy"] || options["extract"] || options["synthesize"] || options["cannot_act"] {
+	if options["magic"] || options["buy"] || options["extract"] || options["synthesize"] {
 		t.Fatalf("unexpected options for extra attack prompt: %+v", obs.lastPrompt.Options)
+	}
+	// 额外行动可以随时放弃，即使有可打出的攻击牌
+	if !options["cannot_act"] {
+		t.Fatalf("expected a skip option for an extra attack action, got %+v", obs.lastPrompt.Options)
 	}
 	if !strings.Contains(obs.lastPrompt.Message, "当前为额外攻击行动") {
 		t.Fatalf("expected extra-attack hint in prompt message, got: %s", obs.lastPrompt.Message)
@@ -134,8 +138,11 @@ func TestActionSelectionPrompt_ExtraMagicOnlyShowsMagic(t *testing.T) {
 	if !options["magic"] {
 		t.Fatalf("expected option magic, got %+v", obs.lastPrompt.Options)
 	}
-	if options["attack"] || options["buy"] || options["extract"] || options["synthesize"] || options["cannot_act"] {
+	if options["attack"] || options["buy"] || options["extract"] || options["synthesize"] {
 		t.Fatalf("unexpected options for extra magic prompt: %+v", obs.lastPrompt.Options)
+	}
+	if !options["cannot_act"] {
+		t.Fatalf("expected a skip option for an extra magic action, got %+v", obs.lastPrompt.Options)
 	}
 	if !strings.Contains(obs.lastPrompt.Message, "当前为额外法术行动") {
 		t.Fatalf("expected extra-magic hint in prompt message, got: %s", obs.lastPrompt.Message)
@@ -154,8 +161,11 @@ func TestActionSelectionPrompt_FlexibleExtraActionShowsAttackAndMagicOnly(t *tes
 	if !options["attack"] || !options["magic"] {
 		t.Fatalf("expected attack and magic options for flexible extra action, got %+v", obs.lastPrompt.Options)
 	}
-	if options["special"] || options["buy"] || options["extract"] || options["synthesize"] || options["cannot_act"] {
+	if options["special"] || options["buy"] || options["extract"] || options["synthesize"] {
 		t.Fatalf("unexpected options for flexible extra action prompt: %+v", obs.lastPrompt.Options)
+	}
+	if !options["cannot_act"] {
+		t.Fatalf("expected a skip option for a flexible extra action, got %+v", obs.lastPrompt.Options)
 	}
 	if !strings.Contains(obs.lastPrompt.Message, "攻击或法术") {
 		t.Fatalf("expected flexible extra-action hint in prompt message, got: %s", obs.lastPrompt.Message)
@@ -214,8 +224,8 @@ func TestActionSelectionPrompt_ExtraMagicWithSkillOnlyShowsMagic(t *testing.T) {
 	if !options["magic"] {
 		t.Fatalf("expected magic option when only skill is usable, got %+v", obs.lastPrompt.Options)
 	}
-	if options["cannot_act"] {
-		t.Fatalf("did not expect cannot_act when skill is usable in extra magic, got %+v", obs.lastPrompt.Options)
+	if !options["cannot_act"] {
+		t.Fatalf("expected the extra magic action to stay skippable when a skill is usable, got %+v", obs.lastPrompt.Options)
 	}
 }
 
@@ -281,18 +291,23 @@ func TestActionSelection_ExtraActionCannotActSkipsWhenNoLegalAction(t *testing.T
 	}
 }
 
-func TestActionSelection_ExtraActionCannotActRejectedWhenLegalActionExists(t *testing.T) {
+// 额外行动是技能奖励：即使手里有可打出的攻击牌，也可以主动放弃。
+func TestActionSelection_ExtraActionCanBeSkippedWhenLegalActionExists(t *testing.T) {
 	game, _ := buildActionSelectionEngine(t, "Attack")
+	p1 := game.State.Players["p1"]
 
 	err := game.HandleActionSelection(model.PlayerAction{
 		PlayerID: "p1",
 		Type:     model.CmdCannotAct,
 	})
-	if err == nil {
-		t.Fatalf("expected skip extra action to be rejected when legal action exists")
+	if err != nil {
+		t.Fatalf("expected skipping an extra action with playable cards to succeed, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "不能跳过") {
-		t.Fatalf("expected reject reason to mention cannot skip extra action, got: %v", err)
+	if p1.TurnState.CurrentExtraAction != "" {
+		t.Fatalf("expected extra-action constraint cleared, got %q", p1.TurnState.CurrentExtraAction)
+	}
+	if game.State.TurnStage != model.TurnStageTurnEnd {
+		t.Fatalf("expected turn_end after skipping, got %s", game.State.TurnStage)
 	}
 }
 
@@ -590,18 +605,18 @@ func TestActionSelection_ExtraMagicAllowsSkill(t *testing.T) {
 	}
 }
 
-func TestActionSelection_ExtraMagicCannotActRejectedWhenSkillAvailable(t *testing.T) {
+func TestActionSelection_ExtraMagicCanBeSkippedWhenSkillAvailable(t *testing.T) {
 	game, _ := buildActionSelectionElementalistEngine(t, "Magic")
 
 	err := game.HandleActionSelection(model.PlayerAction{
 		PlayerID: "p1",
 		Type:     model.CmdCannotAct,
 	})
-	if err == nil {
-		t.Fatalf("expected skip extra magic action to be rejected when action skill exists")
+	if err != nil {
+		t.Fatalf("expected skipping an extra magic action with a usable skill to succeed, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "不能跳过") {
-		t.Fatalf("expected reject reason to mention cannot skip extra action, got: %v", err)
+	if game.State.TurnStage != model.TurnStageTurnEnd {
+		t.Fatalf("expected turn_end after skipping, got %s", game.State.TurnStage)
 	}
 }
 

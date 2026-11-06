@@ -32,13 +32,46 @@ func (e *GameEngine) decoratePromptForClient(prompt *model.Prompt) *model.Prompt
 	if prompt.EffectHints != nil {
 		cp.EffectHints = append([]string{}, prompt.EffectHints...)
 	}
+	e.annotatePromptFlowProgress(&cp)
 	return &cp
+}
+
+// annotatePromptFlowProgress 为多步流程的提示补上"第几步/共几步"，前端据此显示进度点。
+// 当前步 = 已走过的步数 + 1；总步数取流程声明的步骤数。分支流程可能跳过某些步骤，
+// 所以总数是上限而非必经步数——宁可多显示一个空点，也不在走到最后一步前就显示已满。
+func (e *GameEngine) annotatePromptFlowProgress(prompt *model.Prompt) {
+	if e == nil || e.State == nil || prompt == nil || e.State.PendingInterrupt == nil {
+		return
+	}
+	ctx, ok := e.State.PendingInterrupt.Context.(map[string]interface{})
+	if !ok {
+		return
+	}
+	flow := model.PromptFlowFromContext(ctx)
+	if flow == nil || len(flow.StepSpecs) < 2 {
+		return
+	}
+	step := len(flow.History) + 1
+	total := len(flow.StepSpecs)
+	if step > total {
+		total = step
+	}
+	pres := model.PromptPresentation{}
+	if prompt.Presentation != nil {
+		pres = *prompt.Presentation
+	}
+	pres.StepIndex = step
+	pres.TotalSteps = total
+	prompt.Presentation = &pres
 }
 
 func (e *GameEngine) emitGameEvent(event model.GameEvent) {
 	if event.Narrative == nil && e != nil && e.narrativeTrace != nil && e.narrativeTrace.windowID != "" {
 		trace := e.currentNarrativeTrace()
 		event.Narrative = &trace
+	}
+	if event.Cause == nil {
+		event.Cause = model.CloneCause(e.CurrentCause())
 	}
 	if err := event.Validate(); err != nil {
 		panic(err)
@@ -214,8 +247,19 @@ func (e *GameEngine) NotifyActionSummary(line string) {
 }
 
 func (e *GameEngine) NotifyCombatCue(attackerID, targetID, phase string) {
+	e.notifyCombatCueWithCard(attackerID, targetID, phase, nil)
+}
+
+// notifyCombatCueWithCard 攻击宣言带上攻击牌：技能视为的虚拟攻击（圣屑飓暴、多重射击）不会有出牌事件，
+// 战斗链靠它显示牌名与命格。
+func (e *GameEngine) notifyCombatCueWithCard(attackerID, targetID, phase string, card *model.Card) {
 	if e.observer == nil || attackerID == "" || targetID == "" || phase == "" {
 		return
+	}
+	var cueCard *model.Card
+	if card != nil {
+		copied := *card
+		cueCard = &copied
 	}
 	e.emitGameEvent(model.GameEvent{
 		Type: model.EventCombatCue,
@@ -223,6 +267,7 @@ func (e *GameEngine) NotifyCombatCue(attackerID, targetID, phase string) {
 			AttackerID: attackerID,
 			TargetID:   targetID,
 			Phase:      phase,
+			Card:       cueCard,
 		},
 		Narrative: e.combatCueNarrativeTrace(phase),
 	})
@@ -272,6 +317,14 @@ func (e *GameEngine) NotifySkillActivated(playerID, skillID, skillName, effectTe
 	if p != nil {
 		playerName = p.Name
 	}
+	// 手写的技能通知若不在该技能因果内（代码没有走声明式入口），至少让这条事件本身归属该技能。
+	// 已在同一技能因果内时 WithSkillCause 直接复用，不会生成新因果。
+	e.WithSkillCause(skillID, playerID, func() {
+		e.emitSkillActivated(playerID, playerName, skillID, skillName, effectText, targetIDs)
+	})
+}
+
+func (e *GameEngine) emitSkillActivated(playerID, playerName, skillID, skillName, effectText string, targetIDs []string) {
 	e.emitGameEvent(model.GameEvent{
 		Type: model.EventSkillActivated,
 		SkillActivated: &model.SkillActivatedPayload{

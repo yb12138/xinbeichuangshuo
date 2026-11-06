@@ -40,6 +40,7 @@ type Payload struct {
 	Reason     string
 	Deltas     []protocol.TimelineDelta
 	Trace      *model.NarrativeTracePayload
+	Cause      *model.Cause
 }
 
 func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
@@ -83,6 +84,7 @@ func BuildEvent(meta EventMeta, payload Payload) protocol.TimelineEvent {
 		CuePhase:           payload.Phase,
 		DrawCount:          payload.DrawCount,
 		Reason:             payload.Reason,
+		Cause:              model.CloneCause(payload.Cause),
 	}
 
 	if actor := firstNonEmptyString(payload.PlayerID, payload.SourceID, payload.AttackerID); actor != "" {

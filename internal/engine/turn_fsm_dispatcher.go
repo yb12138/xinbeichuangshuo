@@ -94,6 +94,9 @@ func (e *GameEngine) syncTurnStageForDispatch(player *model.Player) model.TurnSt
 	return setAndReturn(stage)
 }
 
+// turnBeforeStartSkillsDispatchedKey 标记本回合已开过"回合开始前"技能窗口。
+const turnBeforeStartSkillsDispatchedKey = "__turn_before_start_skills_dispatched"
+
 func (e *GameEngine) driveTurnBeforeStartStage(player *model.Player) driveOutcome {
 	if e.State.Subflow != model.SubflowNone || len(e.State.CombatStack) > 0 || e.State.TurnStage != model.TurnStageTurnBeforeStart {
 		return driveUnhandled
@@ -104,6 +107,23 @@ func (e *GameEngine) driveTurnBeforeStartStage(player *model.Player) driveOutcom
 			return driveStop
 		}
 		return driveContinueLoop
+	}
+
+	// "回合开始前"技能窗口（如天使之歌）：排在 BeforeAction 的中毒/虚弱结算之前。
+	// 每回合只开一次：技能结算完会恢复回本阶段，再次进入时不重复询问。
+	if player != nil && player.TurnState.SkillFlowState[turnBeforeStartSkillsDispatchedKey] == 0 {
+		if player.TurnState.SkillFlowState == nil {
+			player.TurnState.SkillFlowState = map[string]int{}
+		}
+		player.TurnState.SkillFlowState[turnBeforeStartSkillsDispatchedKey] = 1
+		beforeStartCtx := e.BuildTimedContext(player, nil, model.TimingTurnBeforeStart, &model.EventContext{
+			Type:     model.EventTurnStart,
+			SourceID: player.ID,
+		})
+		e.dispatcher.OnTiming(beforeStartCtx.Timing, beforeStartCtx)
+		if e.State.PendingInterrupt != nil {
+			return driveStop
+		}
 	}
 
 	e.setTurnStage(model.TurnStageBeforeAction)
@@ -344,7 +364,8 @@ func (e *GameEngine) buildCombatInteractionPrompt() *model.Prompt {
 
 	shieldFallbackReady := e.HasUsableShieldForCombat(target, *combatReq)
 	counterTargets := e.buildCombatCounterTargets(combatReq.AttackerID)
-	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets)
+	eligibility := e.combatResponseEligibility(target, combatReq, counterTargets)
+	options := e.buildCombatResponseOptions(combatReq, shieldFallbackReady, counterTargets, eligibility)
 	hints := e.buildCombatInteractionHints(*combatReq, shieldFallbackReady)
 
 	attackerRole := combatReq.AttackerID
@@ -357,6 +378,9 @@ func (e *GameEngine) buildCombatInteractionPrompt() *model.Prompt {
 		AttackerID:       combatReq.AttackerID,
 		CounterTargetIDs: counterTargets,
 		AttackElement:    e.promptAttackElementForCombatResponse(combatReq, attacker), // 应战须同系或暗灭
+		AttackFaction:    e.promptAttackFactionForCombatResponse(target, combatReq),
+		DefendCardIDs:    eligibility.DefendCardIDs,
+		CounterCardIDs:   eligibility.CounterCardIDs,
 		EffectHints:      hints,
 		Message: fmt.Sprintf("%s 需要响应来自 %s 的攻击 (%s)",
 			target.Name,
@@ -424,6 +448,26 @@ func (e *GameEngine) promptAttackElementForCombatResponse(combatReq *model.Comba
 	return string(combatReq.Card.Element)
 }
 
+// promptAttackFactionForCombatResponse 响应方能否按命格应战：用一张"异系同命格"的探针牌走一遍应战元素策略，
+// 由角色策略（阴阳师【阴阳转换】）自己决定，避免在提示层写死角色。
+func (e *GameEngine) promptAttackFactionForCombatResponse(target *model.Player, combatReq *model.CombatRequest) string {
+	if target == nil || combatReq == nil || combatReq.Card == nil || combatReq.Card.Faction == "" {
+		return ""
+	}
+	if !e.canUseCounter(combatReq) || combatReq.Card.Element == model.ElementDark {
+		return ""
+	}
+	probeElement := model.ElementWater
+	if combatReq.Card.Element == model.ElementWater {
+		probeElement = model.ElementFire
+	}
+	probe := model.Card{Type: model.CardTypeAttack, Element: probeElement, Faction: combatReq.Card.Faction}
+	if allowed, useFaction := e.applyAttackResponseCounterElementPolicy(target, combatReq, probe); allowed && useFaction {
+		return combatReq.Card.Faction
+	}
+	return ""
+}
+
 func (e *GameEngine) buildCombatCounterTargets(attackerID string) []string {
 	attacker := e.State.Players[attackerID]
 	if attacker == nil {
@@ -442,16 +486,18 @@ func (e *GameEngine) buildCombatCounterTargets(attackerID string) []string {
 	return counterTargets
 }
 
-func (e *GameEngine) buildCombatResponseOptions(combatReq *model.CombatRequest, shieldFallbackReady bool, counterTargets []string) []model.PromptOption {
+// buildCombatResponseOptions 只给出防御方此刻真正能用的响应方式：
+// 防御/应战需至少有一张通过提交校验的牌（见 combatResponseEligibility），否则不出现该选项。
+func (e *GameEngine) buildCombatResponseOptions(combatReq *model.CombatRequest, shieldFallbackReady bool, counterTargets []string, eligibility CombatResponseEligibility) []model.PromptOption {
 	takeLabel := "承受伤害"
 	if shieldFallbackReady {
 		takeLabel = "承受（将触发圣盾）"
 	}
 	options := []model.PromptOption{{ID: "take", Label: takeLabel}}
-	if e.canUseHolyDefend(combatReq) {
+	if e.canUseHolyDefend(combatReq) && len(eligibility.DefendCardIDs) > 0 {
 		options = append(options, model.PromptOption{ID: "defend", Label: "防御"})
 	}
-	if e.canUseCounter(combatReq) && len(counterTargets) > 0 {
+	if e.canUseCounter(combatReq) && len(counterTargets) > 0 && len(eligibility.CounterCardIDs) > 0 {
 		options = append(options, model.PromptOption{ID: "counter", Label: "应战"})
 	}
 	return options
@@ -580,9 +626,8 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 	e.Log(fmt.Sprintf("[Debug] TurnEnd 阶段: player=%s pending_action_tokens=%d", currentPid, pendingTokenCount))
 
 	// 9. 回合结束阶段
-	if e.runTimingTurnEndPreExtraHooks(player) {
-		return driveStop
-	}
+	// 先消费待执行的行动令牌（额外行动）；"回合结束时"钩子要等所有额外行动都执行完之后才结算，
+	// 否则每段额外行动之前都会跑一次（兽魂重复扣除、热血沸腾提前脱离、黑暗祭礼提前结算等）。
 	// 检查是否有待执行的行动令牌 (处理额外行动)
 	// 将PendingActions逻辑迁移至此
 	if len(player.TurnState.PendingActions) > 0 {
@@ -608,6 +653,14 @@ func (e *GameEngine) driveTurnEndStage(currentPid string, player *model.Player) 
 		e.Log(fmt.Sprintf("[Turn] %s %s 额外行动开始 (剩余 %d 次额外行动)%s",
 			player.Name, currentAction.Source, len(player.TurnState.PendingActions)+1, constraintInfo))
 
+		return driveContinueLoop
+	}
+
+	if e.runTimingTurnEndPreExtraHooks(player) {
+		return driveStop
+	}
+	// 回合结束钩子若追加了额外行动，回到 TurnEnd 继续消费，避免行动令牌丢失。
+	if len(player.TurnState.PendingActions) > 0 {
 		return driveContinueLoop
 	}
 

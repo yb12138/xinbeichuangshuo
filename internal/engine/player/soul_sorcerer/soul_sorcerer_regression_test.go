@@ -82,7 +82,7 @@ func TestSoulSorcerer_StartGameInitAndStarterCard(t *testing.T) {
 	}
 }
 
-func TestSoulSorcererSoulDevour_OnlyRunsOnDamageOverflowMoraleLoss(t *testing.T) {
+func TestSoulSorcererSoulDevour_RunsOnNonDamageOverflowMoraleLoss(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -113,8 +113,8 @@ func TestSoulSorcererSoulDevour_OnlyRunsOnDamageOverflowMoraleLoss(t *testing.T)
 	if finalLoss != 2 {
 		t.Fatalf("expected final morale loss 2, got %d", finalLoss)
 	}
-	if got := soul.Tokens["ss_yellow_soul"]; got != 0 {
-		t.Fatalf("expected soul devour not dispatch on non-damage overflow morale loss, got %d", got)
+	if got := soul.Tokens["ss_yellow_soul"]; got != 2 {
+		t.Fatalf("expected soul devour +2 on non-damage overflow morale loss, got %d", got)
 	}
 }
 
@@ -851,5 +851,24 @@ func TestSoulSorcererSoulLink_Replay_TransferDamageThenRunsResponseChain(t *test
 	}
 	if got := p3.Tokens["hero_anger"]; got != 3 {
 		t.Fatalf("expected hero ally anger +3 by dead duel, got %d", got)
+	}
+}
+
+// 灵魂术士-1：技能直接扣士气（不经过爆牌）也触发灵魂吞噬。
+func TestSoulSorcererSoulDevour_RunsOnDirectCampMoraleLoss(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Soul", "soul_sorcerer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	soul := game.State.Players["p1"]
+	before := soul.Tokens["ss_yellow_soul"]
+	if got := engine.NewRoleChoiceRuntime(game).ApplyCampMoraleLoss(model.RedCamp, 2); got != 2 {
+		t.Fatalf("expected morale loss 2, got %d", got)
+	}
+	if got := soul.Tokens["ss_yellow_soul"]; got != before+2 {
+		t.Fatalf("expected yellow soul +2 on direct morale loss, got %d (before %d)", got, before)
 	}
 }

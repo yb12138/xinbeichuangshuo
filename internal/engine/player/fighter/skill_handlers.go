@@ -134,9 +134,6 @@ func (h *FighterHundredDragonHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	if engineplayer.HasForm(ctx.User, model.FormFighterHundredDragon) {
-		return false
-	}
 	if engineplayer.GetToken(ctx.User, "fighter_qi") < 3 || ctx.Game == nil {
 		return false
 	}
@@ -156,8 +153,18 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 		return fmt.Errorf("斗气不足3，无法发动百式幻龙拳")
 	}
 	targetIDs := make([]string, 0)
+	lockedID := ""
+	if engineplayer.HasForm(ctx.User, model.FormFighterHundredDragon) {
+		// 已在百式状态下再次启动：只能指定上一个目标。
+		if holder := findHundredDragonLockHolder(ctx.Game, ctx.User); holder != nil {
+			lockedID = holder.ID
+		}
+	}
 	for _, p := range ctx.Game.GetAllPlayers() {
 		if p == nil || p.Camp == ctx.User.Camp {
+			continue
+		}
+		if lockedID != "" && p.ID != lockedID {
 			continue
 		}
 		targetIDs = append(targetIDs, p.ID)
@@ -165,17 +172,8 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 	if len(targetIDs) == 0 {
 		return fmt.Errorf("百式幻龙拳没有可锁定的敌方目标")
 	}
-	qi := engineplayer.AddToken(ctx.User, "fighter_qi", -3, fighterQiCap)
-	clearChargeStrikeState(ctx.Game, ctx.User)
-	engineplayer.SetForm(ctx.User, model.FormFighterHundredDragon)
-	engineplayer.SetSkillFlowState(ctx.User, "fighter_hundred_dragon_target_order", 0)
-	ctx.Game.ApplySkillGateRule(
-		ctx.User.ID,
-		hundredDragonDisableChargeModifierID,
-		"fighter_hundred_dragon",
-		[]string{"fighter_charge_strike"},
-		model.RuleLifeUntilTurnEnd,
-	)
+	// 移除斗气、横置等效果放到选定锁定目标之后结算：选目标这一步可以取消，
+	// 取消时由通用退费机制回滚本回合发动次数（此时尚未产生任何效果）。
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
@@ -186,7 +184,7 @@ func (h *FighterHundredDragonHandler) Execute(ctx *model.Context) error {
 			"waiting_phase": model.TurnStageActionExecution,
 		},
 	})
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [百式幻龙拳]：移除3斗气（剩余%d），进入持续形态，请选择本行动阶段锁定目标", ctx.User.Name, qi))
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [百式幻龙拳]，请选择锁定目标", ctx.User.Name))
 	return nil
 }
 
@@ -219,15 +217,10 @@ func (h *FighterBurstCrashHandler) Execute(ctx *model.Context) error {
 	if ctx.EventCtx != nil && ctx.EventCtx.AttackInfo != nil {
 		ctx.EventCtx.AttackInfo.CanBeResponded = false
 	}
-	if qi > 0 {
-		ctx.Game.AddPendingDamage(model.PendingDamage{
-			SourceID:   ctx.User.ID,
-			TargetID:   ctx.User.ID,
-			Damage:     qi,
-			DamageType: model.MagicAttack,
-		})
-	}
-	ctx.Game.Log(fmt.Sprintf("%s 发动 [气绝崩击]：移除1斗气（剩余%d），本次攻击不可应战，并对自己造成%d点法术伤害", ctx.User.Name, qi, qi))
+	// 文案"……本次攻击对方无法应战，然后对自己造成X点法术伤害"：
+	// 自伤要等本次攻击结算完（命中则攻击伤害结算后，未命中则未命中时）再入队，见 burstCrashSelfDamageHook。
+	engineplayer.SetSkillFlowState(ctx.User, "fighter_burst_crash_self_damage", qi)
+	ctx.Game.Log(fmt.Sprintf("%s 发动 [气绝崩击]：移除1斗气（剩余%d），本次攻击不可应战，攻击结算后对自己造成%d点法术伤害", ctx.User.Name, qi, qi))
 	return nil
 }
 

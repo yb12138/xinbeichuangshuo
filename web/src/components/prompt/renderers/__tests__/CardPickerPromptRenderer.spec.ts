@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/vue'
+import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import CardPickerPromptRenderer from '../CardPickerPromptRenderer.vue'
@@ -9,16 +9,6 @@ function baseProps() {
     message: '完成选牌后点击发动',
     canConfirm: true,
     showCancel: false,
-    confirmTitle: '发动',
-    confirmAriaLabel: '发动',
-    confirmImageSrc: '/assets/ui/action_confirm.png',
-    confirmImageReady: true,
-    confirmFallbackText: '确',
-    cancelImageSrc: '/assets/ui/action_cancel_btn.png',
-    cancelImageReady: true,
-    cancelFallbackText: '消',
-    cancelTitle: '取消',
-    cancelAriaLabel: '取消',
   }
 }
 
@@ -71,30 +61,14 @@ describe('CardPickerPromptRenderer', () => {
     expect(screen.queryByTestId('prompt-cancel-btn')).not.toBeInTheDocument()
   })
 
-  it('emits image error events and shows fallback text when images are unavailable', async () => {
-    const { container, emitted, rerender } = render(CardPickerPromptRenderer, {
-      props: {
-        ...baseProps(),
-        showCancel: true,
-      },
+  it('renders confirm / cancel as labelled pills', () => {
+    render(CardPickerPromptRenderer, {
+      props: { ...baseProps(), showCancel: true, confirmLabel: '发动', cancelLabel: '不发动' },
     })
 
-    const images = container.querySelectorAll('img')
-    expect(images.length).toBe(2)
-    await fireEvent.error(images[0]!)
-    await fireEvent.error(images[1]!)
-    expect(emitted('confirmImageError')).toEqual([[]])
-    expect(emitted('cancelImageError')).toEqual([[]])
-
-    await rerender({
-      ...baseProps(),
-      showCancel: true,
-      confirmImageReady: false,
-      cancelImageReady: false,
-    })
-
-    expect(screen.getByText('确')).toBeInTheDocument()
-    expect(screen.getByText('消')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-confirm-btn')).toHaveTextContent('发动')
+    expect(screen.getByTestId('prompt-confirm-btn')).toHaveClass('dc-pill--gold')
+    expect(screen.getByTestId('prompt-cancel-btn')).toHaveTextContent('不发动')
   })
 
   it('does not render when hidden', () => {

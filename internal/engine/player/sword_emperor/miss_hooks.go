@@ -24,12 +24,17 @@ func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 		ctx.Card != nil {
 		if card, ok := rt.TakeDiscardPileCardByID(ctx.Card.ID); ok && PlaceSwordEmperorSwordSoul(attacker, card) {
 			rt.Log(fmt.Sprintf("%s 的 [剑魂守护] 生效：将本次攻击牌转化为1张剑魂（当前%d）", attacker.Name, SwordSoulCount(attacker)))
+			player.NotifySkillActivated(rt, attacker, attacker.ID, "se_sword_soul_guard", attacker.ID)
 		}
 	}
 
 	// 佯攻：剑气+1
+	before := attacker.Tokens["se_sword_qi"]
 	qi := AddSwordQi(attacker, 1)
 	rt.Log(fmt.Sprintf("%s 的 [佯攻] 生效：剑气+1（当前%d）", attacker.Name, qi))
+	if qi > before {
+		player.NotifySkillActivated(rt, attacker, attacker.ID, "se_feint", attacker.ID)
+	}
 
 	return player.TimingHookResult{}
 }

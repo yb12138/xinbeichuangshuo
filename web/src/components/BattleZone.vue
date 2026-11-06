@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toStagePx } from '../composables/useStageScale'
 import gsap from 'gsap'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -15,16 +16,44 @@ import type { ActionFlowDTO, ActionFlowEdgeDTO, ActionFlowNodeDTO } from '../net
 import { useSnapshotStore } from '../stores/snapshot.store'
 import type { Card, PlayerView } from '../types/game'
 import CardComponent from './CardComponent.vue'
+import { characterArtSrc } from '../constants/characterArt'
 import RoseCourtyardIcon from './StatusIcons/RoseCourtyardIcon.vue'
 
 const props = defineProps<{
   narrativeSuspended?: boolean
   actorSeatPositions?: Record<string, number>
+  /** 新版座位连线舞台接管叙事与技能展示时，隐藏旧的中央叙事层和技能牌匾 */
+  stageOverlayActive?: boolean
 }>()
 
 const battleFxStore = useBattleFxStore()
 const snapshotStore = useSnapshotStore()
-const { actionNarrative, latestActionFlow, narrativePlayback, skillAnnouncements } = storeToRefs(battleFxStore)
+const {
+  actionNarrative: liveActionNarrative,
+  latestActionFlow: liveActionFlow,
+  narrativePlayback: liveNarrativePlayback,
+  previousActionSnapshot,
+  skillAnnouncements,
+} = storeToRefs(battleFxStore)
+
+// 新行动尚未产生实际内容（仅有“行动回合”占位）时，继续展示上一手快照
+const liveNarrativeHasContent = computed(() => {
+  const narrative = liveActionNarrative.value
+  if (!narrative) return false
+  return narrative.playedCards.length > 0 || narrative.events.some(event => event.kind !== 'turn')
+})
+const showingPreviousAction = computed(() =>
+  !!previousActionSnapshot.value && !liveActionFlow.value && !liveNarrativeHasContent.value
+)
+const actionNarrative = computed(() =>
+  showingPreviousAction.value ? previousActionSnapshot.value?.narrative ?? null : liveActionNarrative.value
+)
+const latestActionFlow = computed(() =>
+  showingPreviousAction.value ? previousActionSnapshot.value?.actionFlow ?? null : liveActionFlow.value
+)
+const narrativePlayback = computed(() =>
+  showingPreviousAction.value ? previousActionSnapshot.value?.playback ?? null : liveNarrativePlayback.value
+)
 const { characters, players } = storeToRefs(snapshotStore)
 
 const featuredSkillAnnouncement = computed(() =>
@@ -358,8 +387,7 @@ function roleNameForPlayer(playerId?: string) {
 }
 
 function portraitSrcForPlayer(playerId?: string) {
-  const roleId = String(players.value[playerId || '']?.role || '').trim()
-  return roleId ? `/characters/${roleId}.png` : ''
+  return characterArtSrc(players.value[playerId || '']?.role)
 }
 
 function latestDamageForPlayer(playerId?: string) {
@@ -2092,20 +2120,26 @@ function findNarrativeElement(kind: 'actor' | 'stack', id: string | number) {
     .find(el => el.dataset[attr] === String(id)) ?? null
 }
 
+/** 视觉 left/top 保留用于求差值，width/height 换成布局像素。 */
+function stageLayerRect(layer: Element): DOMRect {
+  const r = layer.getBoundingClientRect()
+  return new DOMRect(r.left, r.top, layer.clientWidth || toStagePx(r.width), layer.clientHeight || toStagePx(r.height))
+}
+
 function actorPointForSide(el: HTMLElement, layerRect: DOMRect, side: NarrativeSide) {
   const rect = el.getBoundingClientRect()
   return {
-    x: (side === 'left' ? rect.right : rect.left) - layerRect.left,
-    y: rect.top + rect.height / 2 - layerRect.top,
+    x: toStagePx((side === 'left' ? rect.right : rect.left) - layerRect.left),
+    y: toStagePx(rect.top + rect.height / 2 - layerRect.top),
   }
 }
 
 function stackPointForToward(el: HTMLElement, layerRect: DOMRect, towardX: number) {
   const rect = el.getBoundingClientRect()
-  const centerX = rect.left + rect.width / 2 - layerRect.left
+  const centerX = toStagePx(rect.left + rect.width / 2 - layerRect.left)
   return {
-    x: (towardX < centerX ? rect.left : rect.right) - layerRect.left,
-    y: rect.top + rect.height / 2 - layerRect.top,
+    x: toStagePx((towardX < centerX ? rect.left : rect.right) - layerRect.left),
+    y: toStagePx(rect.top + rect.height / 2 - layerRect.top),
   }
 }
 
@@ -2243,7 +2277,8 @@ function measureNarrativeMist() {
     return
   }
 
-  const layerRect = layer.getBoundingClientRect()
+  // 层的尺寸换算成舞台布局像素（fallback 点按 width/height 百分比取值）
+  const layerRect = stageLayerRect(layer)
   measuredNarrativeMistSegments.value = narrativeMistBlueprints.value.map((segment) => {
     const roughTarget = segment.toType === 'actor'
       ? fallbackTargetPoint(segment.toId, layerRect)
@@ -2416,12 +2451,10 @@ watch(
 function measureNarrativeLoopField() {
   const field = narrativeLoopFieldRef.value
   if (!field) return
-  const rect = field.getBoundingClientRect()
-  if (rect.width >= 10 && rect.height >= 10) {
-    narrativeLoopFieldSize.value = {
-      width: rect.width,
-      height: rect.height,
-    }
+  const width = field.clientWidth
+  const height = field.clientHeight
+  if (width >= 10 && height >= 10) {
+    narrativeLoopFieldSize.value = { width, height }
   }
 }
 
@@ -2486,11 +2519,20 @@ function narrativeMistPathDomId(segmentId: string) {
 <template>
   <div class="battle-zone battle-zone-shell min-h-[90px]">
     <div
-      v-if="hasNarrativeLayer"
+      v-if="hasNarrativeLayer && !props.stageOverlayActive"
       ref="narrativeLayerRef"
       class="action-narrative-layer"
-      :class="{ 'action-narrative-layer--suspended': props.narrativeSuspended }"
+      :class="{
+        'action-narrative-layer--suspended': props.narrativeSuspended,
+        'action-narrative-layer--previous': showingPreviousAction,
+      }"
+      :data-testid="showingPreviousAction ? 'narrative-previous-action' : undefined"
     >
+      <span
+        v-if="actionNarrative || latestActionFlow"
+        class="narrative-action-tag"
+        :class="{ 'narrative-action-tag--previous': showingPreviousAction }"
+      >{{ showingPreviousAction ? '上一手' : '当前行动' }}</span>
       <div
         v-if="narrativeCombatLoopLayout"
         class="narrative-loop-stage"
@@ -2955,7 +2997,7 @@ function narrativeMistPathDomId(segmentId: string) {
 
     <Transition name="skill-plaque-featured">
       <div
-        v-if="featuredSkillAnnouncement"
+        v-if="featuredSkillAnnouncement && !props.stageOverlayActive"
         :key="featuredSkillAnnouncement.id"
         class="skill-plaque skill-plaque--featured"
       >
@@ -2968,7 +3010,7 @@ function narrativeMistPathDomId(segmentId: string) {
       </div>
     </Transition>
 
-    <TransitionGroup name="skill-plaque-settled" tag="div" class="skill-plaque-stack">
+    <TransitionGroup v-if="!props.stageOverlayActive" name="skill-plaque-settled" tag="div" class="skill-plaque-stack">
       <div
         v-for="item in settledSkillAnnouncements"
         :key="item.id"
@@ -3003,9 +3045,9 @@ function narrativeMistPathDomId(segmentId: string) {
   z-index: 6;
   pointer-events: none;
   transition: opacity 0.18s ease, filter 0.18s ease;
-  --narrative-actor-card-edge: clamp(42px, 4.2vw, 72px);
-  --narrative-actor-card-width: clamp(106px, 9.5vw, 142px);
-  --narrative-actor-card-height: clamp(148px, 13.4vw, 198px);
+  --narrative-actor-card-edge: clamp(42px, calc(4.2 * var(--vw, 1vw)), 72px);
+  --narrative-actor-card-width: clamp(106px, calc(9.5 * var(--vw, 1vw)), 142px);
+  --narrative-actor-card-height: clamp(148px, calc(13.4 * var(--vw, 1vw)), 198px);
 }
 
 .action-narrative-layer--suspended {
@@ -3015,6 +3057,46 @@ function narrativeMistPathDomId(segmentId: string) {
 
 .action-narrative-layer--suspended * {
   animation-play-state: paused !important;
+}
+
+/* 上一手：降饱和、虚线描边，等待新行动内容替换 */
+.action-narrative-layer--previous {
+  filter: saturate(0.35) brightness(0.8);
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+}
+
+.action-narrative-layer--previous.action-narrative-layer--suspended {
+  filter: saturate(0.3) brightness(0.65);
+}
+
+.action-narrative-layer--previous [class*='narrative-'] {
+  border-style: dashed;
+}
+
+.action-narrative-layer--previous * {
+  animation-play-state: paused !important;
+}
+
+.narrative-action-tag {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 18px;
+  color: #f8fafc;
+  background: #d4a64a;
+}
+
+.narrative-action-tag--previous {
+  background: #6b7690;
+  border: 1px dashed rgba(226, 232, 240, 0.55);
 }
 
 .narrative-actors {
@@ -3119,7 +3201,7 @@ function narrativeMistPathDomId(segmentId: string) {
 .narrative-actor-card__overlay strong {
   max-width: 100%;
   overflow: hidden;
-  font-size: clamp(12px, 1.3vw, 16px);
+  font-size: clamp(12px, calc(1.3 * var(--vw, 1vw)), 16px);
   line-height: 1.1;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3148,7 +3230,7 @@ function narrativeMistPathDomId(segmentId: string) {
   left: 50%;
   z-index: 5;
   color: #ffb199;
-  font-size: clamp(28px, 4vw, 46px);
+  font-size: clamp(28px, calc(4 * var(--vw, 1vw)), 46px);
   font-weight: 900;
   line-height: 1;
   text-shadow:
@@ -3230,8 +3312,8 @@ function narrativeMistPathDomId(segmentId: string) {
   position: absolute;
   left: var(--loop-x);
   top: var(--loop-y);
-  width: clamp(58px, 6.4vw, 82px);
-  height: clamp(82px, 9vw, 112px);
+  width: clamp(58px, calc(6.4 * var(--vw, 1vw)), 82px);
+  height: clamp(82px, calc(9 * var(--vw, 1vw)), 112px);
   overflow: hidden;
   border-radius: 8px;
   border: 1px solid rgba(142, 183, 215, 0.48);
@@ -3533,7 +3615,7 @@ function narrativeMistPathDomId(segmentId: string) {
   display: none;
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .narrative-loop-stage {
     inset: 6px 8px 42px;
   }
@@ -3768,7 +3850,7 @@ function narrativeMistPathDomId(segmentId: string) {
     0 12px 22px rgba(0, 0, 0, 0.38);
 }
 
-@media (max-width: 820px) {
+@container stage (max-width: 820px) {
   .narrative-counter-chain {
     width: min(360px, calc(100% - 24px));
     min-width: 0;
@@ -4156,8 +4238,8 @@ function narrativeMistPathDomId(segmentId: string) {
 .narrative-settled-card {
   position: absolute;
   top: var(--settled-card-y);
-  width: clamp(46px, 5.8vw, 70px);
-  height: clamp(58px, 7.5vw, 86px);
+  width: clamp(46px, calc(5.8 * var(--vw, 1vw)), 70px);
+  height: clamp(58px, calc(7.5 * var(--vw, 1vw)), 86px);
   overflow: hidden;
   border-radius: 8px;
   background: rgba(8, 17, 29, 0.86);
@@ -4449,16 +4531,16 @@ function narrativeMistPathDomId(segmentId: string) {
 }
 
 .skill-plaque--featured .skill-plaque__eyebrow {
-  font-size: clamp(11px, 1.35vw, 13px);
+  font-size: clamp(11px, calc(1.35 * var(--vw, 1vw)), 13px);
 }
 
 .skill-plaque--featured .skill-plaque__title {
-  font-size: clamp(25px, 4.2vw, 42px);
+  font-size: clamp(25px, calc(4.2 * var(--vw, 1vw)), 42px);
 }
 
 .skill-plaque--featured .skill-plaque__effect {
   width: min(390px, 100%);
-  font-size: clamp(12px, 1.55vw, 15px);
+  font-size: clamp(12px, calc(1.55 * var(--vw, 1vw)), 15px);
   -webkit-line-clamp: 2;
 }
 
@@ -4612,14 +4694,14 @@ function narrativeMistPathDomId(segmentId: string) {
   50% { opacity: 0.9; transform: translate(-50%, -50%) rotate(22deg) scale(1.04); }
 }
 
-@media (min-width: 1600px) {
+@container stage (min-width: 1600px) {
   .battle-zone-shell {
     padding: 12px 12px 10px;
   }
 
 }
 
-@media (min-width: 2000px) {
+@container stage (min-width: 2000px) {
   .battle-zone-shell {
     padding: 14px 14px 12px;
   }
@@ -4635,7 +4717,7 @@ function narrativeMistPathDomId(segmentId: string) {
   }
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .battle-zone-shell {
     padding: 8px 8px 6px;
   }

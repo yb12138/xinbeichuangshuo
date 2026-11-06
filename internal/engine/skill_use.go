@@ -61,6 +61,14 @@ func (use *skillUseRequest) policyContext() types.PolicyContext {
 
 // UseSkill 使用技能
 func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, discardIndices []int) error {
+	var err error
+	e.WithSkillCause(skillID, playerID, func() {
+		err = e.useSkillInCause(playerID, skillID, targetIDs, discardIndices)
+	})
+	return err
+}
+
+func (e *GameEngine) useSkillInCause(playerID, skillID string, targetIDs []string, discardIndices []int) error {
 	use, err := e.prepareSkillUse(playerID, skillID, targetIDs, discardIndices)
 	if err != nil {
 		return err
@@ -74,6 +82,14 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 	if err := e.validateSkillActivation(use); err != nil {
 		return err
 	}
+	// 取消退费：在任何消耗之前快照；只有 Execute 推出提示且期间无其他效果时才会登记退费。
+	refund := e.beginSkillRefundCapture(use.player, use.skillDef, use.skillDef.Type == model.SkillTypeAction)
+	committed := false
+	defer func() {
+		if !committed {
+			e.abortSkillRefundCapture(refund)
+		}
+	}()
 	if err := e.consumeSkillCoverCost(use); err != nil {
 		return err
 	}
@@ -106,6 +122,7 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 			skillID:        skillID,
 			targetIDs:      use.resolvedTargetIDs(),
 			discardedCards: discardedCards,
+			cause:          model.CloneCause(e.CurrentCause()),
 		}
 		e.routePendingDamageWithDefaultReturn(model.TurnStageExtraAction)
 		return nil
@@ -117,6 +134,8 @@ func (e *GameEngine) UseSkill(playerID, skillID string, targetIDs []string, disc
 	if err := e.finishSkillUse(use); err != nil {
 		return err
 	}
+	committed = true
+	e.commitSkillRefundCapture(refund)
 
 	// 如果 Execute() 推入了中断，立即通知前端
 	// 因为 Drive() 在检测到 PendingInterrupt 时会直接返回而不通知
@@ -178,6 +197,7 @@ func (e *GameEngine) prepareSkillUse(playerID, skillID string, targetIDs []strin
 			SkillDef:         *skillDef,
 			RequiredDiscards: requiredDiscards,
 			TargetIDs:        append([]string{}, targetIDs...),
+			HandSize:         len(player.Hand),
 		})
 	}
 

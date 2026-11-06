@@ -25,8 +25,6 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 	switch choiceType {
 	case "sc_incant_confirm":
 		return buildIncantConfirmPrompt(playerID)
-	case "sc_incant_confirm_no_hand":
-		return buildIncantConfirmNoHandPrompt(playerID)
 	case "sc_incant_card":
 		return buildIncantCardPrompt(playerID, player)
 	case "sc_hundred_night_power":
@@ -57,8 +55,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 	switch choiceType {
 	case "sc_incant_confirm":
 		return true, handleIncantConfirm(rt, ctxData, selectionIndex)
-	case "sc_incant_confirm_no_hand":
-		return true, handleIncantConfirmNoHand(rt, ctxData, selectionIndex)
 	case "sc_incant_card":
 		return true, handleIncantCard(rt, ctxData, selectionIndex)
 	case "sc_hundred_night_power":
@@ -91,19 +87,6 @@ func buildIncantConfirmPrompt(playerID string) *model.Prompt {
 		Message:      "【念咒】是否将1张手牌面朝下放置为妖力？",
 		ChoiceType:   "sc_incant_confirm",
 		Options:      []model.PromptOption{{ID: "0", Label: "是"}, {ID: "1", Label: "否"}},
-		Min:          1,
-		Max:          1,
-		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
-	}
-}
-
-func buildIncantConfirmNoHandPrompt(playerID string) *model.Prompt {
-	return &model.Prompt{
-		Type:         model.PromptConfirm,
-		PlayerID:     playerID,
-		Message:      "【念咒】无手牌可放置为妖力，是否跳过？",
-		ChoiceType:   "sc_incant_confirm_no_hand",
-		Options:      []model.PromptOption{{ID: "0", Label: "跳过念咒"}, {ID: "1", Label: "取消"}},
 		Min:          1,
 		Max:          1,
 		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
@@ -284,28 +267,6 @@ func handleIncantConfirm(rt engineplayer.ChoiceRuntime, ctxData map[string]inter
 	}
 }
 
-func handleIncantConfirmNoHand(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-	skillID, _ := ctxData["skill_id"].(string)
-	targetIDs := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"]))
-	switch selectionIndex {
-	case 0:
-		// Skip incant, go directly to the talisman flow
-		rt.PopInterrupt()
-		return continueSpiritCasterResolution(rt, user, skillID, targetIDs)
-	case 1:
-		// Cancel
-		rt.PopInterrupt()
-		return nil
-	default:
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-}
-
 func handleIncantCard(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
 	userID, _ := ctxData["user_id"].(string)
 	user := rt.GetPlayers()[userID]
@@ -321,6 +282,7 @@ func handleIncantCard(rt engineplayer.ChoiceRuntime, ctxData map[string]interfac
 	user.Hand = append(user.Hand[:selectionIndex], user.Hand[selectionIndex+1:]...)
 	AddPowerCard(user, card)
 	rt.Log(fmt.Sprintf("%s 发动 [念咒]：将1张手牌盖放为妖力（当前妖力%d）", user.Name, PowerCount(user, "")))
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "sc_incantation", user.ID)
 	rt.PopInterrupt()
 	return continueSpiritCasterResolution(rt, user, skillID, targetIDs)
 }
@@ -609,14 +571,17 @@ func handleTalismanPick(rt engineplayer.ChoiceRuntime, ctxData map[string]interf
 	}
 	targetIDs := runtimeutil.DedupeIDs(runtimeutil.ParseStringSliceContextValue(ctxData["target_ids"]))
 	switch selectionIndex {
-	case 0:
-		// Thunder talisman
+	case 0, 1:
+		skillID := "sc_talisman_thunder"
+		if selectionIndex == 1 {
+			skillID = "sc_talisman_wind"
+		}
 		rt.PopInterrupt()
-		return continueSpiritCasterResolution(rt, user, "sc_talisman_thunder", targetIDs)
-	case 1:
-		// Wind talisman
-		rt.PopInterrupt()
-		return continueSpiritCasterResolution(rt, user, "sc_talisman_wind", targetIDs)
+		var err error
+		rt.WithSkillCause(skillID, user.ID, func() {
+			err = continueSpiritCasterResolution(rt, user, skillID, targetIDs)
+		})
+		return err
 	default:
 		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -661,8 +626,14 @@ func startWindDiscardFlow(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 	if user == nil {
 		return fmt.Errorf("玩家不存在")
 	}
+	startWindDiscardFlowWith(rt.GetPlayerOrder(), rt.GetPlayers(), rt.Log, rt.PushInterrupt, user, targetIDs)
+	return nil
+}
+
+// startWindDiscardFlowWith 是风行弃牌链的核心实现，供选择流运行时与技能 handler（model.IGameEngine）共用。
+func startWindDiscardFlowWith(order []string, players map[string]*model.Player, logf func(string), push func(*model.Interrupt), user *model.Player, targetIDs []string) {
 	targetSet := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(targetIDs))
-	orderedAll := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
+	orderedAll := engineplayer.ReversePlayerIDsFromOrder(order, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
 	ordered := make([]string, 0, len(targetIDs))
 	for _, playerID := range orderedAll {
 		if !targetSet[playerID] {
@@ -671,16 +642,16 @@ func startWindDiscardFlow(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 		ordered = append(ordered, playerID)
 	}
 	if len(ordered) == 0 {
-		rt.Log(fmt.Sprintf("%s 的 [灵符-风行]：无有效目标", user.Name))
-		return nil
+		logf(fmt.Sprintf("%s 的 [灵符-风行]：无有效目标", user.Name))
+		return
 	}
 
 	cursor := 0
 	for cursor < len(ordered) {
-		target := rt.GetPlayers()[ordered[cursor]]
+		target := players[ordered[cursor]]
 		if target == nil || len(target.Hand) == 0 {
 			if target != nil {
-				rt.Log(fmt.Sprintf("%s 的 [灵符-风行]：%s 无手牌可弃置", user.Name, target.Name))
+				logf(fmt.Sprintf("%s 的 [灵符-风行]：%s 无手牌可弃置", user.Name, target.Name))
 			}
 			cursor++
 			continue
@@ -688,12 +659,12 @@ func startWindDiscardFlow(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 		break
 	}
 	if cursor >= len(ordered) {
-		rt.Log(fmt.Sprintf("%s 的 [灵符-风行]：所有目标均无手牌可弃置", user.Name))
-		return nil
+		logf(fmt.Sprintf("%s 的 [灵符-风行]：所有目标均无手牌可弃置", user.Name))
+		return
 	}
 
 	currentTargetID := ordered[cursor]
-	rt.PushInterrupt(&model.Interrupt{
+	push(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: currentTargetID,
 		Context: map[string]interface{}{
@@ -704,7 +675,6 @@ func startWindDiscardFlow(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 			"current_target_id":  currentTargetID,
 		},
 	})
-	return nil
 }
 
 // ===========================================================================
@@ -717,18 +687,34 @@ func resolveThunderDamage(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 	if user == nil {
 		return
 	}
+	// 雷鸣伤害可能在念咒 / 灵力崩解等共用子步骤的因果内结算：显式归属灵符-雷鸣。
+	rt.WithSkillCause("sc_talisman_thunder", user.ID, func() {
+		resolveThunderDamageInCause(rt, user, targetIDs, bonus)
+	})
+}
+
+func resolveThunderDamageInCause(rt engineplayer.ChoiceRuntime, user *model.Player, targetIDs []string, bonus int) {
+	queueThunderDamages(rt.GetPlayerOrder(), rt.AddPendingDamage, rt.Log, user, targetIDs, bonus)
+	if len(rt.GetPendingDamageQueue()) > 0 {
+		rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction)
+	}
+}
+
+// queueThunderDamages 按逆序为雷鸣目标各追加一段法术伤害（不负责路由），
+// 供选择流运行时与技能 handler（model.IGameEngine）共用。
+func queueThunderDamages(order []string, add func(model.PendingDamage), logf func(string), user *model.Player, targetIDs []string, bonus int) {
 	damage := 1 + bonus
 	if damage < 0 {
 		damage = 0
 	}
 	targetSet := runtimeutil.IDsToSet(runtimeutil.DedupeIDs(targetIDs))
-	ordered := engineplayer.ReversePlayerIDsFromRuntime(rt, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
+	ordered := engineplayer.ReversePlayerIDsFromOrder(order, user.ID, engineplayer.ReverseOrderOption{IncludeSelf: true})
 	hitCount := 0
 	for _, targetID := range ordered {
 		if !targetSet[targetID] {
 			continue
 		}
-		rt.AddPendingDamage(model.PendingDamage{
+		add(model.PendingDamage{
 			SourceID:   user.ID,
 			TargetID:   targetID,
 			Damage:     damage,
@@ -736,10 +722,7 @@ func resolveThunderDamage(rt engineplayer.ChoiceRuntime, user *model.Player, tar
 		})
 		hitCount++
 	}
-	rt.Log(fmt.Sprintf("%s 发动 [灵符-雷鸣]：对%d名角色各造成%d点法术伤害", user.Name, hitCount, damage))
-	if len(rt.GetPendingDamageQueue()) > 0 {
-		rt.RoutePendingDamageWithReturn(model.TurnStageExtraAction)
-	}
+	logf(fmt.Sprintf("%s 发动 [灵符-雷鸣]：对%d名角色各造成%d点法术伤害", user.Name, hitCount, damage))
 }
 
 // resolveHundredNightSingle deals magic damage to a single target.

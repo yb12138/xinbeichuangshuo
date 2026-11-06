@@ -39,6 +39,7 @@ func applyDarkMoonCurse(rt engineplayer.ChoiceRuntime, p *model.Player, removed 
 	if p == nil || removed <= 0 {
 		return
 	}
+	engineplayer.NotifySkillActivated(rt, p, p.ID, "mg_dark_moon_curse", p.ID)
 	actual := rt.ApplyCampMoraleLoss(p.Camp, removed)
 	rt.Log(fmt.Sprintf("%s 的 [暗月诅咒] 触发：移除%d个暗月，我方士气-%d", p.Name, removed, actual))
 	rt.CheckGameEnd()
@@ -115,12 +116,7 @@ func TryQueueBlasphemy(rt engineplayer.ChoiceRuntime, pd *model.PendingDamage) b
 	if source == nil || !engineplayer.IsCharacter(source, "moon_goddess") {
 		return false
 	}
-	order := rt.GetPlayerOrder()
-	idx := rt.GetCurrentTurnIndex()
-	currentTurnSource := idx >= 0 && idx < len(order) && order[idx] == source.ID
-	if !source.IsActive && !currentTurnSource {
-		return false
-	}
+	// 回合限定：每个回合各限一次，对手回合同样可触发。
 	target := rt.GetPlayers()[pd.TargetID]
 	if target == nil || target.Camp == source.Camp {
 		return false

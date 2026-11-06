@@ -43,11 +43,13 @@ func SkillEntries() []player.SkillEntry {
 			ID:      "priest_water_power",
 			Handler: &PriestWaterPowerHandler{},
 			Policy: types.SkillPolicy{
-				ResolveDiscardCount: func(ctx types.PolicyContext) int {
-					return ctx.SkillDef.CostDiscards
-				},
+				// 部分发动：只剩 1 张（水系）牌时只弃这 1 张。
+				ResolveDiscardCount: partialDiscardCount,
 				ValidateDiscardedCards: func(ctx types.PolicyContext) error {
-					if len(ctx.DiscardedCards) != 2 {
+					if len(ctx.DiscardedCards) == 0 {
+						return fmt.Errorf("水之神力需要先弃置1张水系牌")
+					}
+					if len(ctx.DiscardedCards) != ctx.RequiredDiscards {
 						return fmt.Errorf("水之神力需要选择1张水系牌并额外选择1张手牌交给队友")
 					}
 					if ctx.DiscardedCards[0].Element != model.ElementWater {
@@ -70,9 +72,8 @@ func SkillEntries() []player.SkillEntry {
 			ID:      "priest_divine_domain",
 			Handler: &PriestDivineDomainHandler{},
 			Policy: types.SkillPolicy{
-				ResolveDiscardCount: func(ctx types.PolicyContext) int {
-					return ctx.SkillDef.CostDiscards
-				},
+				// 部分发动：手牌不足 2 张时有几张弃几张，没有手牌也能发动。
+				ResolveDiscardCount: partialDiscardCount,
 			},
 		},
 	}
@@ -81,12 +82,21 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"priest_divine_contract_target":      types.ChoiceRouteRole("priest"),
-		"priest_divine_contract_x":           types.ChoiceRouteRole("priest"),
-		"priest_divine_domain_damage_target": types.ChoiceRouteRole("priest"),
-		"priest_divine_domain_heal_target":   types.ChoiceRouteRole("priest"),
-		"priest_divine_domain_mode":          types.ChoiceRouteRole("priest"),
-		"priest_divine_domain_pick":          types.ChoiceRouteRole("priest"),
-		"priest_divine_revelation_pick":      types.ChoiceRouteRole("priest"),
+		"priest_divine_contract_target":      types.ChoiceRouteRole("priest").WithSkill("priest_divine_contract"),
+		"priest_divine_contract_x":           types.ChoiceRouteRole("priest").WithSkill("priest_divine_contract"),
+		"priest_divine_domain_damage_target": types.ChoiceRouteRole("priest").WithSkill("priest_divine_domain"),
+		"priest_divine_domain_heal_target":   types.ChoiceRouteRole("priest").WithSkill("priest_divine_domain"),
+		"priest_divine_domain_mode":          types.ChoiceRouteRole("priest").WithSkill("priest_divine_domain"),
+		"priest_divine_domain_pick":          types.ChoiceRouteRole("priest").WithSkill("priest_divine_domain"),
+		"priest_divine_revelation_pick":      types.ChoiceRouteRole("priest").WithSkill("priest_divine_revelation"),
 	}
+}
+
+// partialDiscardCount 按"部分发动"规则折算弃牌张数：手牌不足时弃掉全部手牌。
+func partialDiscardCount(ctx types.PolicyContext) int {
+	need := ctx.SkillDef.CostDiscards
+	if ctx.HandSize < need {
+		return ctx.HandSize
+	}
+	return need
 }

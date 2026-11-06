@@ -72,9 +72,36 @@ func (e *GameEngine) GetPlayerOrientation(playerID string) model.CharacterOrient
 	return effectivePlayerOrientation(player)
 }
 
+// TurnNumber 当前回合序号（从 1 起，每换一名行动者 +1；与行动汇总"回合N"一致）。
+func (e *GameEngine) TurnNumber() int {
+	if e.actionSummaryTurn <= 0 {
+		return 1
+	}
+	return e.actionSummaryTurn
+}
+
 func (e *GameEngine) GetPlayerForm(playerID string) string {
 	player := e.State.Players[playerID]
 	return effectivePlayerForm(player)
+}
+
+// CanCastMagicInAction 该玩家此刻能否在行动阶段打出法术牌（部分形态禁止）。
+func (e *GameEngine) CanCastMagicInAction(playerID string) bool {
+	return e.canCastMagicInAction(e.State.Players[playerID])
+}
+
+// CanBeActiveAttackTarget 该玩家此刻能否成为主动攻击目标（如潜行时不能）。
+func (e *GameEngine) CanBeActiveAttackTarget(playerID string) bool {
+	target := e.State.Players[playerID]
+	if target == nil {
+		return false
+	}
+	if target.Character != nil {
+		if entry := roleRegistry.Entry(target.Character.ID); entry.TargetFilter != nil && entry.TargetFilter.CannotBeActiveAttackTarget(target) {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *GameEngine) RefreshPlayerDerivedState(playerID string) {
@@ -295,8 +322,11 @@ func (e *GameEngine) emitBuffAddedDispatch(sourceID, targetID string, effect mod
 	e.dispatcher.OnTiming(ctx.Timing, ctx)
 }
 
+// RemoveFieldCard 被动移除场上效果（伤害结算后封印自动移除、赐福被持有者用掉等）。
+// 被动移除没有"移除者"，sourceID 留空，避免被当成持有者主动移除了基础效果（如误触发天使羁绊）。
+// 需要记录移除者的主动移除请用 RemoveFieldCardBy / RemoveFieldCardAt。
 func (e *GameEngine) RemoveFieldCard(targetID string, effect model.EffectType) bool {
-	return e.RemoveFieldCardBy(targetID, effect, targetID)
+	return e.RemoveFieldCardBy(targetID, effect, "")
 }
 
 func (e *GameEngine) RemoveFieldCardBy(targetID string, effect model.EffectType, sourceID string) bool {

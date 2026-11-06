@@ -10,7 +10,9 @@ test.describe('real room smoke', () => {
     await expect(page.getByTestId('room-code')).toHaveText(/[A-Z0-9]{4}/, { timeout: 10_000 });
 
     await page.getByTestId('join-camp-red').click();
+    await page.getByTestId('role-search').fill('瘟疫');
     await page.getByTestId('role-card-plague_mage').click();
+    await page.getByTestId('confirm-role-button').click();
 
     await page.getByTestId('add-bot-button').click();
     await page.getByTestId('bot-camp-blue-p2').click();

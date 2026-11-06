@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { DECISION_DOCKED } from '../dockContext'
+import { stagePortalTarget } from '../../../composables/useStageScale'
+import { computed, inject } from 'vue'
 
 type AllocationRow = {
   id: string
@@ -38,21 +40,62 @@ function currentValue(index: number): number {
 function isValueDisabled(index: number, value: number): boolean {
   return value > currentValue(index) + props.remaining
 }
+
+const docked = inject(DECISION_DOCKED, false)
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport :to="stagePortalTarget()" defer :disabled="docked">
     <Transition name="modal">
       <div
         v-if="visible"
-        class="overlay-panel-root overlay-panel-root--decision"
+        class="overlay-panel-root overlay-panel-root--decision" :class="{ 'overlay-panel-root--docked': docked }"
         data-testid="allocation-overlay"
       >
         <div class="overlay-panel" @click.stop>
           <div class="overlay-panel-header overlay-panel-header--decision">
             <h2>{{ title }}</h2>
           </div>
-          <div class="overlay-panel-body overlay-saint-heal">
+          <!-- 停靠模板 7：总量条 + 每行 −/＋ 步进器 + 底部确认 -->
+          <div v-if="docked" class="overlay-panel-body alloc-docked">
+            <div class="dc-alloc-total alloc-docked__total" data-testid="allocation-summary">
+              <span>已分配 {{ total - remaining }}/{{ total }}</span>
+              <span class="dc-alloc-bar alloc-docked__bar" aria-hidden="true">
+                <i :style="{ width: total > 0 ? `${((total - remaining) / total) * 100}%` : '0%' }" />
+              </span>
+            </div>
+            <div class="alloc-docked__rows">
+              <div v-for="(row, index) in rows" :key="row.id" class="alloc-docked__row">
+                <span class="alloc-docked__label">{{ row.label }}</span>
+                <span class="dc-stepper alloc-docked__stepper" :class="{ 'dc-stepper--active': currentValue(index) > 0 }">
+                  <button
+                    type="button"
+                    class="dc-step alloc-docked__step"
+                    :data-testid="`allocation-dec-${index}`"
+                    :disabled="currentValue(index) <= 0"
+                    :aria-label="`${row.label} 减少`"
+                    @click="emit('change', index, currentValue(index) - 1)"
+                  >−</button>
+                  <span class="dc-step-value alloc-docked__value" :data-testid="`allocation-value-${index}`">{{ currentValue(index) }}</span>
+                  <button
+                    type="button"
+                    class="dc-step alloc-docked__step"
+                    :data-testid="`allocation-inc-${index}`"
+                    :disabled="remaining <= 0"
+                    :aria-label="`${row.label} 增加`"
+                    @click="emit('change', index, currentValue(index) + 1)"
+                  >+</button>
+                </span>
+              </div>
+            </div>
+            <div class="dc-actions dc-actions--end alloc-docked__actions">
+              <button type="button" class="dc-pill dc-pill--gold alloc-docked__gold" data-testid="allocation-submit" :disabled="!canSubmit" @click="emit('submit')">
+                确认
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="overlay-panel-body overlay-saint-heal">
             <div class="overlay-saint-heal-summary" data-testid="allocation-summary">
               {{ totalLabel }}：{{ remaining }} / {{ total }}
             </div>
@@ -66,18 +109,20 @@ function isValueDisabled(index: number, value: number): boolean {
                 <button
                   v-for="value in selectableValues"
                   :key="value"
-                  class="overlay-numeric-tile overlay-saint-heal-tile"
-                  :class="{ 'overlay-saint-heal-tile--active': currentValue(index) === value }"
+                  type="button"
+                  class="dc-num overlay-saint-heal-tile"
+                  :class="{ 'dc-num--picked overlay-saint-heal-tile--active': currentValue(index) === value }"
                   :data-testid="`allocation-option-${index}-${value}`"
                   :disabled="isValueDisabled(index, value)"
                   @click="emit('change', index, value)"
                 >
-                  <span class="overlay-numeric-value">{{ value }}</span>
+                  <span>{{ value }}</span>
                 </button>
               </div>
             </div>
             <button
-              class="overlay-confirm-btn"
+              type="button"
+              class="dc-pill dc-pill--gold overlay-confirm-btn"
               data-testid="allocation-submit"
               :disabled="!canSubmit"
               @click="emit('submit')"
@@ -100,19 +145,19 @@ function isValueDisabled(index: number, value: number): boolean {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  backdrop-filter: blur(3px);
+  background: rgba(5, 8, 15, 0.85);
 }
 
 .overlay-panel-root--decision {
   background:
     radial-gradient(380px 200px at 50% 46%, rgba(180, 140, 60, 0.12), transparent 70%),
-    rgba(0, 0, 0, 0.74);
+    rgba(5, 8, 15, 0.85);
 }
 
 .overlay-panel {
   position: relative;
-  width: min(480px, calc(100vw - 2rem));
-  max-height: 85vh;
+  width: min(480px, calc(100 * var(--vw, 1vw) - 2rem));
+  max-height: calc(85 * var(--vh, 1vh));
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -159,67 +204,6 @@ function isValueDisabled(index: number, value: number): boolean {
   background: rgba(6, 14, 24, 0.4);
 }
 
-.overlay-numeric-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  min-height: 56px;
-  border-radius: 12px;
-  border: 1px solid rgba(180, 150, 90, 0.36);
-  background: rgba(20, 32, 48, 0.7);
-  cursor: pointer;
-  transition: all 0.18s ease;
-  padding: 8px 4px;
-  font-family: inherit;
-}
-
-.overlay-numeric-tile:hover:not(:disabled) {
-  border-color: rgba(255, 210, 120, 0.7);
-  background: rgba(30, 44, 60, 0.85);
-  box-shadow: 0 0 14px rgba(255, 210, 120, 0.18);
-}
-
-.overlay-numeric-tile:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.overlay-numeric-tile:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.overlay-numeric-value {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #ffd98a;
-  line-height: 1;
-}
-
-.overlay-confirm-btn {
-  padding: 10px 36px;
-  border-radius: 10px;
-  border: 1px solid rgba(180, 150, 90, 0.5);
-  background: linear-gradient(180deg, rgba(120, 90, 30, 0.7), rgba(80, 60, 20, 0.8));
-  color: #ffe2ad;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
-}
-
-.overlay-confirm-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, rgba(140, 105, 35, 0.85), rgba(100, 75, 25, 0.9));
-  border-color: rgba(255, 210, 120, 0.7);
-}
-
-.overlay-confirm-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
 .overlay-saint-heal {
   display: flex;
   flex-direction: column;
@@ -254,13 +238,58 @@ function isValueDisabled(index: number, value: number): boolean {
   gap: 8px;
 }
 
-.overlay-saint-heal-tile {
-  flex: 1;
+/* 停靠在决策面板内：原地渲染，去掉全屏遮罩与自身外框，由 DecisionDock 提供外壳 */
+.overlay-panel-root.overlay-panel-root--docked {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  padding: 0;
+  background: none;
+  pointer-events: auto;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel {
+  width: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel-header {
+  /* 决策面板的来由条已经写明技能与问题，这里不再重复 */
+  display: none;
+}
+.overlay-panel-root.overlay-panel-root--docked .overlay-panel-body {
+  padding: 0 4px;
+  background: none;
 }
 
-.overlay-saint-heal-tile--active {
-  border-color: rgba(255, 210, 120, 0.85);
-  background: linear-gradient(180deg, rgba(140, 100, 35, 0.7), rgba(90, 65, 20, 0.85));
-  color: #ffe9b8;
+/* —— 停靠模板 7：分配数值 —— */
+.alloc-docked {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0 0;
+}
+.alloc-docked__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.alloc-docked__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(9, 14, 26, 0.75);
+  box-shadow: 0 0 0 1px var(--bt-hairline-soft, rgba(185, 193, 205, 0.22));
+}
+.alloc-docked__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--bt-text, #e8ecf4);
 }
 </style>

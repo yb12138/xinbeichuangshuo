@@ -70,7 +70,8 @@ func (h *PriestWaterPowerHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil {
 		return false
 	}
-	return len(ctx.User.Hand) >= 2 && hasElementCard(ctx.User, model.ElementWater)
+	// 只剩 1 张水系牌时也可发动（部分发动：只弃这 1 张，不交牌）。
+	return hasElementCard(ctx.User, model.ElementWater)
 }
 
 func (h *PriestWaterPowerHandler) Execute(ctx *model.Context) error {
@@ -89,15 +90,23 @@ func (h *PriestWaterPowerHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.Game.Log(fmt.Sprintf("%s 为 [水之神力] 弃置了 %s", ctx.User.Name, discarded[0].Name))
 
-	if len(discarded) < 2 {
-		return fmt.Errorf("水之神力需要额外选择1张手牌交给队友")
+	gave := false
+	if len(discarded) >= 2 {
+		give := discarded[1]
+		target.Hand = append(target.Hand, give)
+		gave = true
+		// 交给队友的牌不公开牌面。
+		ctx.Game.Log(fmt.Sprintf("%s 将1张手牌交给了 %s", ctx.User.Name, target.Name))
+	} else {
+		ctx.Game.Log(fmt.Sprintf("%s 没有其他手牌可交给 %s（部分发动）", ctx.User.Name, target.Name))
 	}
-	give := discarded[1]
-	target.Hand = append(target.Hand, give)
-	ctx.Game.Log(fmt.Sprintf("%s 将 %s 交给了 %s", ctx.User.Name, give.Name, target.Name))
 	ctx.Game.Heal(ctx.User.ID, 1)
 	ctx.Game.Heal(target.ID, 1)
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [水之神力]，与 %s 各+1治疗", ctx.User.Name, target.Name))
+	// 队友收牌后检查手牌上限。
+	if gave {
+		ctx.Game.CheckHandLimit(target.ID, true)
+	}
 	return nil
 }
 
@@ -198,9 +207,8 @@ func (h *PriestDivineDomainHandler) Execute(ctx *model.Context) error {
 		if p == nil {
 			continue
 		}
-		if p.ID != ctx.User.ID {
-			allTargetIDs = append(allTargetIDs, p.ID)
-		}
+		// 伤害分支文案为"目标角色"：可指定包括自己在内的任意角色。
+		allTargetIDs = append(allTargetIDs, p.ID)
 		if p.Camp == ctx.User.Camp && p.ID != ctx.User.ID {
 			allyIDs = append(allyIDs, p.ID)
 		}

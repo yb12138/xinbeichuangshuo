@@ -633,198 +633,83 @@ func TestBeastSamurai_IaijutsuTappedTargetBoostAppliesToActiveAndCounter(t *test
 	}
 }
 
-func TestBeastSamurai_ReversalIaijutsu_ReplacesDamageWithDiscard(t *testing.T) {
+// startReversalAttack 让兽灵武士在居合形态下主动攻击 p2，并在攻击前①确认发动逆反居合斩。
+func startReversalAttack(t *testing.T, game *engine.GameEngine) {
+	t.Helper()
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID: "p1",
+		Type:     model.CmdAttack,
+		TargetID: "p2",
+		CardID:   testutils.PlayableCardID(t, game, "p1", 0),
+	})
+	testutils.ChooseResponseSkillByID(t, game, "p1", "bs_reversal_iaijutsu")
+	testutils.RequireChoicePrompt(t, game, "p1", "bs_reversal_x")
+}
+
+func newReversalGame(t *testing.T, beastSoul int) (*engine.GameEngine, *model.Player, *model.Player) {
 	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
 	p1.Orientation = model.OrientationTapped
 	p1.Form = "beast_samurai_iaijutsu_form"
-	p1.Tokens["bs_beast_soul"] = 1
+	p1.Tokens["bs_beast_soul"] = beastSoul
+	p1.Hand = []model.Card{
+		{ID: "reversal-atk", Name: "居合斩", Type: model.CardTypeAttack, Element: model.ElementFire, Faction: "技", Damage: 2},
+	}
 	p2.Hand = []model.Card{
-		{ID: "target-1", Name: "目标牌1", Type: model.CardTypeAttack, Element: model.ElementFire},
+		{ID: "target-1", Name: "目标牌1", Type: model.CardTypeAttack, Element: model.ElementWater},
 		{ID: "target-2", Name: "目标牌2", Type: model.CardTypeMagic, Element: model.ElementWater},
 	}
+	return game, p1, p2
+}
 
-	attackCard := model.Card{
-		ID:      "reversal-hit",
-		Name:    "居合斩",
-		Type:    model.CardTypeAttack,
-		Element: model.ElementFire,
-		Faction: "技",
-		Damage:  2,
+func TestBeastSamurai_ReversalIaijutsu_AsksBeforeAttackAndDiscardsOnHit(t *testing.T) {
+	game, p1, p2 := newReversalGame(t, 1)
+	startReversalAttack(t, game)
+
+	// 攻击前①：选 X=1，立即移除兽魂，还没有弃牌。
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}})
+	if got := p1.Tokens["bs_beast_soul"]; got != 0 {
+		t.Fatalf("expected beast soul removed before attack resolves, got %d", got)
 	}
-	game.State.CombatStage = model.CombatStageCalcDamage
-	game.State.PendingDamageQueue = []model.PendingDamage{
-		{
-			SourceID:   p1.ID,
-			TargetID:   p2.ID,
-			Damage:     2,
-			DamageType: model.AttackDamage,
-			Card:       &attackCard,
-		},
+	if got := p1.Tokens["bs_zanshin"]; got != 1 {
+		t.Fatalf("expected zanshin +1 from reversal beast soul removal, got %d", got)
+	}
+	if len(p2.Hand) != 2 {
+		t.Fatalf("target should not discard before hit, got hand %d", len(p2.Hand))
 	}
 
-	if !game.ProcessPendingDamages() {
-		t.Fatalf("expected reversal prompt on attack hit")
-	}
-	testutils.RequireResponseSkillPrompt(t, game, "p1")
-	if err := game.ConfirmResponseSkill("p1", "bs_reversal_iaijutsu"); err != nil {
-		t.Fatalf("confirm reversal failed: %v", err)
-	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bs_reversal_x")
-
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
-		t.Fatalf("choose reversal X=1 failed: %v", err)
-	}
+	// 目标承受 → 命中时②改为弃牌
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
 	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
 	ctxData := testutils.RequireChoiceContext(t, game, "p2", "bs_reversal_target_discard")
 	flow := testutils.RequirePromptFlow(t, ctxData, "bs_reversal_discard", "actual")
 	if got := flow.Selection("need").Count; got != 3 {
 		t.Fatalf("expected reversal discard need=3 in prompt flow, got %d", got)
 	}
-	if _, ok := ctxData["need_count"]; ok {
-		t.Fatalf("reversal discard should store need in prompt flow, got legacy need_count in %+v", ctxData)
+	prompt := game.BuildChoicePrompt()
+	if prompt == nil || prompt.Min != 2 || prompt.Max != 2 {
+		t.Fatalf("expected prompt to require the two available cards, got %+v", prompt)
 	}
-	if _, ok := ctxData["actual_discarded"]; ok {
-		t.Fatalf("reversal discard should store actual count in prompt flow, got legacy actual_discarded in %+v", ctxData)
-	}
-
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0, 1}}); err != nil {
-		t.Fatalf("confirm reversal discard failed: %v", err)
-	}
-	if paused := game.ProcessPendingDamages(); paused {
-		t.Fatalf("expected zero-damage attack to finish after reversal discard")
+	if !strings.Contains(prompt.Message, "要求弃置3张手牌") || !strings.Contains(prompt.Message, "士气-1") {
+		t.Fatalf("expected short-hand morale-loss hint, got %q", prompt.Message)
 	}
 
-	if got := p1.Tokens["bs_zanshin"]; got != 1 {
-		t.Fatalf("expected zanshin +1 from reversal beast soul removal, got %d", got)
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0, 1}})
+	game.Drive()
+
+	if len(p2.Hand) != 0 {
+		t.Fatalf("expected target hand emptied by reversal (no damage draw), got %d", len(p2.Hand))
 	}
 	if got := game.State.BlueMorale; got != 14 {
 		t.Fatalf("expected blue morale reduced to 14 because actual discard < X+2, got %d", got)
-	}
-	if len(p2.Hand) != 0 {
-		t.Fatalf("expected target hand emptied by reversal, got %d", len(p2.Hand))
 	}
 	if len(game.State.PendingDamageQueue) != 0 {
 		t.Fatalf("expected pending damage queue cleared, got %d", len(game.State.PendingDamageQueue))
 	}
 }
 
-func TestBeastSamurai_ReversalIaijutsu_MultiSelectShortHandTriggersMoraleLoss(t *testing.T) {
-	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
-	p1.Orientation = model.OrientationTapped
-	p1.Form = "beast_samurai_iaijutsu_form"
-	p1.Tokens["bs_beast_soul"] = 1
-	p2.Hand = []model.Card{
-		{ID: "target-1", Name: "目标牌1", Type: model.CardTypeAttack, Element: model.ElementFire},
-		{ID: "target-2", Name: "目标牌2", Type: model.CardTypeMagic, Element: model.ElementWater},
-	}
-
-	attackCard := model.Card{
-		ID:      "reversal-hit-short-hand",
-		Name:    "居合斩",
-		Type:    model.CardTypeAttack,
-		Element: model.ElementFire,
-		Faction: "技",
-		Damage:  2,
-	}
-	game.State.CombatStage = model.CombatStageCalcDamage
-	game.State.PendingDamageQueue = []model.PendingDamage{
-		{
-			SourceID:   p1.ID,
-			TargetID:   p2.ID,
-			Damage:     2,
-			DamageType: model.AttackDamage,
-			Card:       &attackCard,
-		},
-	}
-
-	if !game.ProcessPendingDamages() {
-		t.Fatalf("expected reversal prompt on attack hit")
-	}
-	testutils.RequireResponseSkillPrompt(t, game, "p1")
-	if err := game.ConfirmResponseSkill("p1", "bs_reversal_iaijutsu"); err != nil {
-		t.Fatalf("confirm reversal failed: %v", err)
-	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bs_reversal_x")
-	xPrompt := game.BuildChoicePrompt()
-	if xPrompt == nil {
-		t.Fatalf("expected reversal X prompt")
-	}
-	if !strings.Contains(xPrompt.Message, "（0-") {
-		t.Fatalf("reversal X prompt should allow 0, got %q", xPrompt.Message)
-	}
-	if len(xPrompt.Options) != 2 || xPrompt.Options[0].ID != "0" || !strings.Contains(xPrompt.Options[0].Label, "X=0") || xPrompt.Options[1].ID != "1" {
-		t.Fatalf("expected reversal X prompt to start at 0, got %+v", xPrompt.Options)
-	}
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil {
-		t.Fatalf("choose reversal X=1 failed: %v", err)
-	}
-
-	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
-	prompt := game.BuildChoicePrompt()
-	if prompt == nil {
-		t.Fatalf("expected reversal discard prompt")
-	}
-	if prompt.Min != 2 || prompt.Max != 2 {
-		t.Fatalf("expected prompt to require the two available cards, got min=%d max=%d", prompt.Min, prompt.Max)
-	}
-	if !strings.Contains(prompt.Message, "要求弃置3张手牌") || !strings.Contains(prompt.Message, "只能弃置2张") || !strings.Contains(prompt.Message, "士气-1") {
-		t.Fatalf("expected short-hand morale-loss hint, got %q", prompt.Message)
-	}
-
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0, 1}}); err != nil {
-		t.Fatalf("confirm reversal discard with two cards failed: %v", err)
-	}
-	if paused := game.ProcessPendingDamages(); paused {
-		t.Fatalf("expected zero-damage attack to finish after reversal discard")
-	}
-	if got := game.State.BlueMorale; got != 14 {
-		t.Fatalf("expected blue morale reduced to 14 because target only discarded 2/3, got %d", got)
-	}
-	if len(p2.Hand) != 0 {
-		t.Fatalf("expected target hand emptied by reversal, got %d", len(p2.Hand))
-	}
-	if game.State.PendingInterrupt != nil {
-		t.Fatalf("expected no pending interrupt after multi-select discard, got %+v", game.State.PendingInterrupt)
-	}
-}
-
 func TestBeastSamurai_ReversalIaijutsu_AllowsZeroXWithoutBeastSoul(t *testing.T) {
-	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
-	p1.Orientation = model.OrientationTapped
-	p1.Form = "beast_samurai_iaijutsu_form"
-	p1.Tokens["bs_beast_soul"] = 0
-	p2.Hand = []model.Card{
-		{ID: "target-1", Name: "目标牌1", Type: model.CardTypeAttack, Element: model.ElementFire},
-		{ID: "target-2", Name: "目标牌2", Type: model.CardTypeMagic, Element: model.ElementWater},
-	}
-
-	attackCard := model.Card{
-		ID:      "reversal-hit-zero-x",
-		Name:    "居合斩",
-		Type:    model.CardTypeAttack,
-		Element: model.ElementFire,
-		Faction: "技",
-		Damage:  2,
-	}
-	game.State.CombatStage = model.CombatStageCalcDamage
-	game.State.PendingDamageQueue = []model.PendingDamage{
-		{
-			SourceID:   p1.ID,
-			TargetID:   p2.ID,
-			Damage:     2,
-			DamageType: model.AttackDamage,
-			Card:       &attackCard,
-		},
-	}
-
-	if !game.ProcessPendingDamages() {
-		t.Fatalf("expected reversal prompt on attack hit even with 0 beast soul")
-	}
-	testutils.RequireResponseSkillPrompt(t, game, "p1")
-	if err := game.ConfirmResponseSkill("p1", "bs_reversal_iaijutsu"); err != nil {
-		t.Fatalf("confirm reversal failed: %v", err)
-	}
-	testutils.RequireChoicePrompt(t, game, "p1", "bs_reversal_x")
+	game, p1, p2 := newReversalGame(t, 0)
+	startReversalAttack(t, game)
 	xPrompt := game.BuildChoicePrompt()
 	if xPrompt == nil {
 		t.Fatalf("expected reversal X prompt")
@@ -832,34 +717,87 @@ func TestBeastSamurai_ReversalIaijutsu_AllowsZeroXWithoutBeastSoul(t *testing.T)
 	if len(xPrompt.Options) != 1 || xPrompt.Options[0].ID != "0" || !strings.Contains(xPrompt.Options[0].Label, "弃置2张") {
 		t.Fatalf("expected only X=0 option with target discard 2 cards, got %+v", xPrompt.Options)
 	}
-
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err != nil {
-		t.Fatalf("choose reversal X=0 failed: %v", err)
-	}
-	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
-	ctxData := testutils.RequireChoiceContext(t, game, "p2", "bs_reversal_target_discard")
-	flow := testutils.RequirePromptFlow(t, ctxData, "bs_reversal_discard", "actual")
-	if got := flow.Selection("need").Count; got != 2 {
-		t.Fatalf("expected reversal discard need=2 for X=0, got %d", got)
-	}
-
-	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0, 1}}); err != nil {
-		t.Fatalf("confirm reversal X=0 discard failed: %v", err)
-	}
-	if paused := game.ProcessPendingDamages(); paused {
-		t.Fatalf("expected zero-damage attack to finish after reversal discard")
-	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}})
+	// X=0 不移除兽魂，残心不变（行动结束时武者残心另 +1，不在此断言）
 	if got := p1.Tokens["bs_zanshin"]; got != 0 {
 		t.Fatalf("expected no zanshin gain for X=0, got %d", got)
 	}
-	if got := p1.Tokens["bs_beast_soul"]; got != 0 {
-		t.Fatalf("expected beast soul to remain 0 for X=0, got %d", got)
-	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
+	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_reversal_target_discard")
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0, 1}})
+	game.Drive()
+
 	if got := game.State.BlueMorale; got != 15 {
 		t.Fatalf("expected no morale loss after discarding 2/2, got %d", got)
 	}
 	if len(p2.Hand) != 0 {
 		t.Fatalf("expected target hand emptied by reversal X=0, got %d", len(p2.Hand))
+	}
+}
+
+func TestBeastSamurai_ReversalIaijutsu_MissDoesNotDiscard(t *testing.T) {
+	game, p1, p2 := newReversalGame(t, 1)
+	p2.Hand = append(p2.Hand, model.Card{ID: "def-light", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight})
+	startReversalAttack(t, game)
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}})
+	testutils.MustHandleAction(t, game, model.PlayerAction{
+		PlayerID:  "p2",
+		Type:      model.CmdRespond,
+		ExtraArgs: []string{"defend"},
+		CardID:    "def-light",
+	})
+	game.Drive()
+	if got := p1.Tokens["bs_beast_soul"]; got != 0 {
+		t.Fatalf("beast soul removed at declare should stay removed on miss, got %d", got)
+	}
+	if len(p2.Hand) != 2 {
+		t.Fatalf("missed reversal should not force discard, got hand %d", len(p2.Hand))
+	}
+	if p1.TurnState.SkillFlowState["bs_reversal_armed"] != 0 {
+		t.Fatalf("reversal armed flag should be cleared after miss")
+	}
+}
+
+func TestBeastSamurai_BeastReturn_MultiDiscardAndOverflowKept(t *testing.T) {
+	game, p1, p2 := newBeastSamuraiTestEngine(t, testutils.NoopObserver{}, "")
+	// 兽魂溢出 3：读取不应截回 2
+	p1.Tokens["bs_beast_soul"] = 3
+	if got := beast_samurai.BeastSoul(p1); got != 3 {
+		t.Fatalf("overflowed beast soul should be kept on read, got %d", got)
+	}
+	if p1.Tokens["bs_beast_soul"] != 3 {
+		t.Fatalf("reading beast soul must not write back a capped value")
+	}
+	p1.Hand = []model.Card{
+		{ID: "h1", Name: "a", Type: model.CardTypeAttack, Element: model.ElementFire},
+		{ID: "h2", Name: "b", Type: model.CardTypeAttack, Element: model.ElementWater},
+		{ID: "h3", Name: "c", Type: model.CardTypeAttack, Element: model.ElementWind},
+	}
+	p2.Hand = []model.Card{{ID: "s1", Name: "m", Type: model.CardTypeMagic, Element: model.ElementWater}}
+	game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: p1.ID,
+		Context: map[string]interface{}{
+			"choice_type":  "bs_beast_return_x",
+			"user_id":      p1.ID,
+			"source_id":    p2.ID,
+			"max_x":        3,
+			"resume_phase": model.TurnStageActionExecution,
+		},
+	})
+	// X=2
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}})
+	requireBeastSamuraiDiscardInterrupt(t, game, "p1", "bs_beast_return_self_discard")
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}}); err == nil {
+		t.Fatalf("beast return X=2 should reject a single-card discard")
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}})
+	if len(p1.Hand) != 1 {
+		t.Fatalf("expected 2 self discards, hand left %d", len(p1.Hand))
+	}
+	requireBeastSamuraiDiscardInterrupt(t, game, "p2", "bs_beast_return_source_discard")
+	if got := p1.Tokens["bs_beast_soul"]; got != 1 {
+		t.Fatalf("expected beast soul 3-2=1, got %d", got)
 	}
 }
 
@@ -894,5 +832,42 @@ func TestBeastSamurai_IaijutsuStyle_CanOverflowBeastSoulAndEnterForm(t *testing.
 	}
 	if p1.Form != "beast_samurai_iaijutsu_form" {
 		t.Fatalf("expected iaijutsu style to enter iaijutsu form, got %s", p1.Form)
+	}
+}
+
+// 兽灵武士-7：兽返"你弃X张牌"没有［展示］，自弃应面朝下（hidden），不公开牌面。
+func TestBeastSamurai_BeastReturn_SelfDiscardIsFaceDown(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game, p1, p2 := newBeastSamuraiTestEngine(t, obs, "")
+	p1.Tokens["bs_beast_soul"] = 1
+	p1.Hand = []model.Card{{ID: "h1", Name: "a", Type: model.CardTypeAttack, Element: model.ElementFire}}
+	p2.Hand = []model.Card{{ID: "s1", Name: "m", Type: model.CardTypeMagic, Element: model.ElementWater}}
+	game.PushInterrupt(&model.Interrupt{
+		Type:     model.InterruptChoice,
+		PlayerID: p1.ID,
+		Context: map[string]interface{}{
+			"choice_type":  "bs_beast_return_x",
+			"user_id":      p1.ID,
+			"source_id":    p2.ID,
+			"max_x":        1,
+			"resume_phase": model.TurnStageActionExecution,
+		},
+	})
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}})
+	requireBeastSamuraiDiscardInterrupt(t, game, "p1", "bs_beast_return_self_discard")
+	obs.Reset()
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0}})
+	found := false
+	for _, e := range obs.Events {
+		if e.Type != model.EventCardRevealed || e.CardRevealed == nil || e.CardRevealed.PlayerID != "p1" {
+			continue
+		}
+		found = true
+		if !e.CardRevealed.Hidden {
+			t.Fatalf("beast return self discard should be face-down, got revealed %+v", e.CardRevealed)
+		}
+	}
+	if !found {
+		t.Fatalf("expected a face-down discard notification for p1")
 	}
 }

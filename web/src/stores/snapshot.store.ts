@@ -8,6 +8,8 @@ export const useSnapshotStore = defineStore('snapshot', () => {
   const subflow = ref('')
   const currentPlayer = ref('')
   const hasPerformedStartup = ref(false)
+  /** 当前回合序号（每换一名行动者 +1），用于回合徽章"第 N 回合"。 */
+  const turnNumber = ref(0)
   const players = ref<Record<string, PlayerView>>({})
   const redMorale = ref(15)
   const blueMorale = ref(15)
@@ -36,6 +38,7 @@ export const useSnapshotStore = defineStore('snapshot', () => {
     subflow.value = state.subflow ?? ''
     currentPlayer.value = state.current_player
     hasPerformedStartup.value = state.has_performed_startup ?? false
+    turnNumber.value = state.turn_number ?? 0
     players.value = state.players
     redMorale.value = state.red_morale
     blueMorale.value = state.blue_morale
@@ -59,6 +62,7 @@ export const useSnapshotStore = defineStore('snapshot', () => {
     subflow.value = ''
     currentPlayer.value = ''
     hasPerformedStartup.value = false
+    turnNumber.value = 0
     players.value = {}
     redMorale.value = 15
     blueMorale.value = 15
@@ -80,6 +84,7 @@ export const useSnapshotStore = defineStore('snapshot', () => {
     subflow,
     currentPlayer,
     hasPerformedStartup,
+    turnNumber,
     players,
     redMorale,
     blueMorale,

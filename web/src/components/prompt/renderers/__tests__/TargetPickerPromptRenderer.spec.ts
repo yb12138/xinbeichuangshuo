@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/vue'
+import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import TargetPickerPromptRenderer from '../TargetPickerPromptRenderer.vue'
@@ -9,9 +9,6 @@ function baseProps() {
     message: '请选择目标角色',
     showConfirm: true,
     canConfirm: true,
-    confirmImageSrc: '/assets/ui/action_confirm.png',
-    confirmImageReady: true,
-    confirmFallbackText: '确',
   }
 }
 
@@ -61,22 +58,12 @@ describe('TargetPickerPromptRenderer', () => {
     expect(emitted('confirm')).toBeUndefined()
   })
 
-  it('emits image error and falls back to text when image is unavailable', async () => {
-    const { container, emitted, rerender } = render(TargetPickerPromptRenderer, {
-      props: baseProps(),
-    })
+  it('renders confirm as a gold pill with a text label', () => {
+    render(TargetPickerPromptRenderer, { props: baseProps() })
 
-    const image = container.querySelector('img')
-    expect(image).not.toBeNull()
-    await fireEvent.error(image!)
-    expect(emitted('confirmImageError')).toEqual([[]])
-
-    await rerender({
-      ...baseProps(),
-      confirmImageReady: false,
-    })
-
-    expect(screen.getByText('确')).toBeInTheDocument()
+    const confirm = screen.getByTestId('prompt-confirm-btn')
+    expect(confirm).toHaveTextContent('确认')
+    expect(confirm).toHaveClass('dc-pill', 'dc-pill--gold')
   })
 
   it('does not render while hidden', () => {

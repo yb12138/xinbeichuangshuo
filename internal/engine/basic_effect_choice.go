@@ -139,4 +139,10 @@ func (e *GameEngine) afterBasicEffectChoice(data map[string]any) {
 	// 规则：这里是技能执行中的“目标选择子步骤”，不是系统自动阶段结算。
 	// 选择完成后按技能声明的 resume_phase 继续流程，保证后续仍在该技能约束的阶段节点上。
 	e.applyChoiceResumePoint(mustChoiceResumePointFromMap(choiceCtxAsInterfaceMap(data), "resume_phase"))
+	// 收回基础效果后手牌增加，需要检查手牌上限（如封印破碎）。
+	if operation, _ := data["operation"].(string); operation == "take" {
+		if userID, _ := data["user_id"].(string); userID != "" {
+			e.CheckHandLimit(userID, true)
+		}
+	}
 }

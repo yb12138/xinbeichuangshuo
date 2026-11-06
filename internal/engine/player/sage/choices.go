@@ -53,12 +53,18 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
 	case "sage_magic_rebound_confirm":
+		// 触发时满足 ≥2 同系，但提示挂起期间手牌可能变化：每次构建都重新判定，不满足时"是"置灰。
+		confirm := model.PromptOption{ID: "0", Label: "是"}
+		if engineplayer.MaxSameElementCount(player) < 2 {
+			confirm.Disabled = true
+			confirm.DisabledReason = "同系手牌不足2张，无法发动法术反弹"
+		}
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
 			Message:  "【法术反弹】是否发动？",
 			Options: []model.PromptOption{
-				{ID: "0", Label: "是"},
+				confirm,
 				{ID: "1", Label: "否"},
 			},
 			Min:          1,
@@ -146,31 +152,6 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Min:          2,
 			Max:          len(player.Hand),
 			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand"},
-		}
-	case "sage_holy_target_count":
-		flow, err := model.RequirePromptFlow(data, sageHolyFlowID, "贤者选择")
-		if err != nil {
-			return nil
-		}
-		maxCount := flow.Selection(sageHolyStepCards).Count - 2
-		if maxCount < 1 {
-			maxCount = 1
-		}
-		options := make([]model.PromptOption, 0, maxCount)
-		for count := 1; count <= maxCount; count++ {
-			options = append(options, model.PromptOption{
-				ID:    fmt.Sprintf("%d", count-1),
-				Label: fmt.Sprintf("选择%d名角色", count),
-			})
-		}
-		return &model.Prompt{
-			Type:         model.PromptConfirm,
-			PlayerID:     playerID,
-			Message:      "【圣洁法典】请选择要获得治疗的角色数量：",
-			Options:      options,
-			Min:          1,
-			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "sage_holy_targets":
 		allTargetIDs := runtimeutil.ParseStringSliceContextValue(data["target_ids"])
@@ -279,19 +260,6 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		})
 		return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageMagicReboundFlowRuntime, flow, sageMagicReboundStepCards)
 
-	case "sage_holy_target_count":
-		targetCount := selectionIndex + 1
-		flow, err := model.RequirePromptFlow(ctxData, sageHolyFlowID, "贤者选择")
-		if err != nil {
-			return true, err
-		}
-		maxCount := flow.Selection(sageHolyStepCards).Count - 2
-		if targetCount < 1 || targetCount > maxCount {
-			return true, fmt.Errorf("无效的治疗目标数量")
-		}
-		flow.PutSelection(sageHolyStepTarget, model.PromptFlowSelection{Count: targetCount})
-		return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, sageHolyFlowRuntime, flow, sageHolyStepTarget)
-
 	case "sage_holy_targets":
 		return resolveHolyCodexTargets(rt, ctxData, []int{selectionIndex})
 
@@ -363,6 +331,11 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 				})
 			}
 			prependPendingDamages(rt, pending)
+			reboundTargets := []string{targetID}
+			if targetID != user.ID {
+				reboundTargets = append(reboundTargets, user.ID)
+			}
+			engineplayer.NotifySkillActivated(rt, user, user.ID, "sage_magic_rebound", reboundTargets...)
 			rt.Log(fmt.Sprintf("%s 发动 [法术反弹]：弃%d张同系牌，对 %s 造成%d点法术伤害，并对自己造成%d点法术伤害", user.Name, xValue, target.Name, damageToTarget, damageToSelf))
 		case "sage_arcane_target":
 			damage := xValue - 1
@@ -617,8 +590,10 @@ func availableElementsByMinCount(player *model.Player, minCount int) []string {
 	return out
 }
 
+// prependPendingDamages 将伤害整体插到队首，并保持 pending 内的原有顺序
+// （pending[0] 最先结算）。逐个 AddPendingDamageFront 会颠倒顺序，故倒序插入。
 func prependPendingDamages(rt engineplayer.ChoiceRuntime, pending []model.PendingDamage) {
-	for _, pd := range pending {
-		rt.AddPendingDamageFront(pd)
+	for i := len(pending) - 1; i >= 0; i-- {
+		rt.AddPendingDamageFront(pending[i])
 	}
 }

@@ -63,6 +63,7 @@ const (
 	TimingCampChanged    TimingPoint = "on_camp_changed"     // 阵营变化
 	TimingPlayerSetup    TimingPoint = "on_player_setup"     // 玩家设置（加入后初始化派生状态）
 	TimingCampCupChanged TimingPoint = "on_camp_cup_changed" // 阵营杯子变化（派生状态同步）
+	TimingStateCheck     TimingPoint = "on_state_check"      // 状态检查（每次推进流程前，用于"一旦满足条件立即生效"的强制效果）
 
 	// 新增 - 士气损失阶段
 	TimingMoraleLossApplied TimingPoint = model.TimingMoraleLossApplied // 士气损失应用后（伤害驱动的角色效果）
@@ -87,6 +88,9 @@ type TimingHookSpec struct {
 	//   nil（默认）= 按 SourceID 玩家的 Character.ID == RoleID 过滤
 	//   "none"     = 不按角色过滤，全局执行（跨角色 hook 使用）
 	RoleFilter *string
+	// SkillID 声明该 hook 所实现的技能：分发器以它开技能因果，hook 内产生的事件 / 状态变化
+	// 自动归属此技能。一个 hook 负责多个技能时留空，在 hook 内调用 rt.WithSkillCause。
+	SkillID string
 }
 
 // HookRoleNone 标记 hook 不按角色过滤（跨角色场景）。
@@ -212,6 +216,10 @@ type HookRuntime interface {
 	HasPendingDiscardFor(playerID string) bool
 	RecordMagicDamageTarget(sourceID, targetID string)
 	MagicDamageTargetCount(sourceID string) int
+	// WithSkillCause 在技能因果下执行 fn：fn 内的事件与状态变化归属该技能（ownerID 为技能持有者）。
+	WithSkillCause(skillID, ownerID string, fn func())
+	// NotifySkillActivated 为 hook 内直接生效的被动技能发出 skill_activated 事件。
+	NotifySkillActivated(playerID, skillID, skillName, effectText string, targetIDs []string)
 	BuildContext(user, target *model.Player, timing model.FlowTiming, eventCtx *model.EventContext) *model.Context
 	IsSkillStillUsable(skillID string, user *model.Player, ctx *model.Context) bool
 	IsMagicDamageType(damageType model.DamageType) bool
@@ -294,6 +302,7 @@ type HookRuntime interface {
 	NotifyDrawCards(playerID string, count int, reason string)
 	DrawCardsRaw(playerID string, count int) []model.Card
 	StartExtractForPlayer(playerID string) error
+	StartExtractToRecipient(extractorID, recipientID string, extractorEnergyCost int) error
 }
 
 // PoseSnapshot 记录玩家姿态快照（用于 orientation 变更前后对比）。

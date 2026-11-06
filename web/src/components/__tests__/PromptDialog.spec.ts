@@ -818,6 +818,68 @@ describe('PromptDialog', () => {
     expect(submitSelectMock).toHaveBeenCalledWith([1, 2])
   })
 
+  it('shows attacker and attack element context in the response prompt header', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+    const state = buildState()
+    state.players.p3 = buildPlayer({ id: 'p3', name: 'P3', camp: 'Red', role: '' })
+    useSnapshotStore().updateGameState(state)
+    useInterruptStore().setPrompt({ ...responsePrompt(), attacker_id: 'p3' })
+
+    render(PromptDialog, { global: { plugins: [pinia] } })
+
+    expect(screen.getByTestId('prompt-context')).toHaveTextContent('P3 以火系攻击 → 你')
+  })
+
+  it('says "no usable card" rather than "无法应战" when only the cards are missing', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'butterfly_dancer')
+    useSnapshotStore().updateGameState(buildState())
+    const base = responsePrompt()
+    useInterruptStore().setPrompt({ ...base, options: base.options.filter((o) => o.id !== 'counter') })
+
+    render(PromptDialog, { global: { plugins: [pinia] } })
+
+    expect(screen.getByText('此次攻击系别：火系（没有可应战的同系或暗灭牌）')).toBeInTheDocument()
+    expect(screen.queryByText(/本次攻击无法应战/)).toBeNull()
+  })
+
+  it('says 无法应战 only when the engine marks the attack unrespondable', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'butterfly_dancer')
+    useSnapshotStore().updateGameState(buildState())
+    const base = responsePrompt()
+    useInterruptStore().setPrompt({
+      ...base,
+      options: base.options.filter((o) => o.id !== 'counter'),
+      effect_hints: ['本次攻击无法应战。'],
+    })
+
+    render(PromptDialog, { global: { plugins: [pinia] } })
+
+    expect(screen.getByText('此次攻击系别：火系（本次攻击无法应战）')).toBeInTheDocument()
+  })
+
+  it('mentions the faction when the responder can counter by 命格 (阴阳师)', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'onmyoji')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt({ ...responsePrompt(), attack_faction: '咏' })
+
+    render(PromptDialog, { global: { plugins: [pinia] } })
+
+    expect(screen.getByText('此次攻击：火系 · 咏命格（应战需同系、咏命格或暗灭）')).toBeInTheDocument()
+    expect(screen.getByTestId('response-counter')).toHaveTextContent('应战 / 传递')
+  })
+
   it('renders response prompt through the response renderer and keeps take submit behavior', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -834,12 +896,12 @@ describe('PromptDialog', () => {
 
     expect(screen.getByTestId('response-prompt')).toBeInTheDocument()
     expect(screen.getByText('此次攻击系别：火系（应战需同系或暗灭）')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-option-take')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-option-defend')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-option-counter')).toBeInTheDocument()
+    expect(screen.getByTestId('response-take')).toBeInTheDocument()
+    expect(screen.getByTestId('response-defend')).toBeInTheDocument()
+    expect(screen.getByTestId('response-counter')).toBeInTheDocument()
     expect(screen.queryByTestId('decision-overlay')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByTestId('prompt-option-take'))
+    await userEvent.click(screen.getByTestId('response-take'))
 
     expect(submitRespondTakeMock).toHaveBeenCalledOnce()
     expect(submitSelectMock).not.toHaveBeenCalled()
@@ -1102,5 +1164,79 @@ describe('PromptDialog', () => {
 
     expect(screen.getAllByText('烈焰突刺：造成2点火焰伤害').length).toBeGreaterThan(0)
     expect(screen.queryByText(/^烈焰突刺$/)).not.toBeInTheDocument()
+  })
+
+  describe('应战两步流程', () => {
+    function counterPrompt(): Prompt {
+      return {
+        ...responsePrompt(),
+        counter_card_ids: ['h0'],
+        counter_target_ids: ['p1', 'p3'],
+      }
+    }
+
+    function setup() {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      useSessionStore().setRoomInfo('ROOM1', 'p2', 'Blue', 'fighter')
+      useSnapshotStore().updateGameState(buildState())
+      useInterruptStore().setPrompt(counterPrompt())
+      render(PromptDialog, { global: { plugins: [pinia] } })
+      return useInterruptStore()
+    }
+
+    it('clicking 应战 enters step ① instead of erroring for a missing card', async () => {
+      const store = setup()
+      await userEvent.click(screen.getByTestId('response-counter'))
+
+      expect(store.counterFlowStage).toBe('card')
+      expect(screen.getByTestId('counter-flow')).toBeInTheDocument()
+      expect(screen.getByTestId('counter-step-card')).toHaveClass('on')
+      expect(screen.queryByTestId('response-take')).not.toBeInTheDocument()
+      expect(store.errorMessage).toBe('')
+      expect(submitRespondCounterMock).not.toHaveBeenCalled()
+    })
+
+    it('picking a card advances to step ②, picking a target submits the counter', async () => {
+      submitRespondCounterMock.mockReturnValue(true)
+      const store = setup()
+      await userEvent.click(screen.getByTestId('response-counter'))
+
+      store.setSelectedHandIndexes([0])
+      await nextTick()
+      expect(store.counterFlowStage).toBe('target')
+      expect(screen.getByTestId('counter-step-card')).toHaveClass('done')
+      expect(screen.getByTestId('counter-step-target')).toHaveClass('on')
+      expect(submitRespondCounterMock).not.toHaveBeenCalled()
+
+      store.setPromptCounterTarget('p3')
+      await nextTick()
+      expect(submitRespondCounterMock).toHaveBeenCalledOnce()
+    })
+
+    it('back from step ② returns to step ①, back from step ① returns to the response buttons', async () => {
+      const store = setup()
+      await userEvent.click(screen.getByTestId('response-counter'))
+      store.setSelectedHandIndexes([0])
+      await nextTick()
+
+      await userEvent.click(screen.getByTestId('counter-flow-back'))
+      expect(store.counterFlowStage).toBe('card')
+      expect(store.selectedHandIndexes).toEqual([])
+
+      await userEvent.click(screen.getByTestId('counter-flow-back'))
+      expect(store.counterFlowStage).toBe('none')
+      expect(screen.getByTestId('response-take')).toBeInTheDocument()
+    })
+
+    it('a counter card picked before clicking 应战 skips straight to step ②', async () => {
+      const store = setup()
+      store.setSelectedHandIndexes([0])
+      await nextTick()
+      await userEvent.click(screen.getByTestId('response-counter'))
+
+      expect(store.counterFlowStage).toBe('target')
+      expect(store.selectedHandIndexes).toEqual([0])
+    })
   })
 })

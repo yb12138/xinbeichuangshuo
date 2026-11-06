@@ -20,7 +20,7 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingHealBefore, Priority: 200, Hook: healResistHook},
 			{Timing: player.TimingTurnEndPreExtra, Priority: 600, Hook: turnEndHook},
-			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook},
+			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossHook, SkillID: "crk_hot_blood"},
 		},
 		MoraleLossModifier: func(engine player.MoraleLossModifierEngine, camp model.Camp, current int, proposedLoss int, extra player.MoraleLossModifierExtra) int {
 			if extra.Victim != nil && (extra.FromDamageDraw || extra.IsDamageResolution) {
@@ -74,10 +74,10 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"crk_bloody_prayer_ally_count": types.ChoiceRouteRole("crimson_knight"),
-		"crk_bloody_prayer_pick":       types.ChoiceRouteRole("crimson_knight"),
-		"crk_bloody_prayer_split":      types.ChoiceRouteRole("crimson_knight"),
-		"crk_bloody_prayer_target":     types.ChoiceRouteRole("crimson_knight"),
-		"crk_bloody_prayer_x":          types.ChoiceRouteRole("crimson_knight"),
+		"crk_bloody_prayer_ally_count": types.ChoiceRouteRole("crimson_knight").WithSkill("crk_bloody_prayer"),
+		"crk_bloody_prayer_pick":       types.ChoiceRouteRole("crimson_knight").WithSkill("crk_bloody_prayer"),
+		"crk_bloody_prayer_split":      types.ChoiceRouteRole("crimson_knight").WithSkill("crk_bloody_prayer"),
+		"crk_bloody_prayer_target":     types.ChoiceRouteRole("crimson_knight").WithSkill("crk_bloody_prayer"),
+		"crk_bloody_prayer_x":          types.ChoiceRouteRole("crimson_knight").WithSkill("crk_bloody_prayer"),
 	}
 }

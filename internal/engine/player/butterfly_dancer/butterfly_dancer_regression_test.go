@@ -480,27 +480,18 @@ func TestButterflyPilgrimage_ResistOneDamage(t *testing.T) {
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_confirm")
-	prompt := game.GetCurrentPrompt()
-	if prompt == nil || prompt.Presentation == nil || prompt.Presentation.Kind != model.PresentationBranchSelect {
-		t.Fatalf("expected pilgrimage confirmation overlay prompt, got %+v", prompt)
-	}
-	if len(prompt.Options) != 2 || prompt.Options[0].Label != "发动" || prompt.Options[0].ButtonLabel != "发动" || prompt.Options[1].Label != "取消" || prompt.Options[1].ButtonLabel != "取消" {
-		t.Fatalf("expected pilgrimage confirm/cancel options, got %+v", prompt.Options)
-	}
-	if prompt.Presentation.CancelLabel != "取消" || !prompt.Presentation.HasDecline || prompt.Presentation.DeclineIndex != 1 {
-		t.Fatalf("expected pilgrimage decline presentation to render as cancel, got %+v", prompt.Presentation)
-	}
-
-	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	})
+	// 朝圣一步完成：直接弹出选茧，选项0为"不发动"。
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
-	assertButterflyCocoonFieldPickerPrompt(t, game.GetCurrentPrompt(), "bt_pilgrimage_pick")
+	prompt := game.GetCurrentPrompt()
+	assertButterflyCocoonFieldPickerPrompt(t, prompt, "bt_pilgrimage_pick")
+	if len(prompt.Options) < 2 || prompt.Options[0].Label != "不发动" {
+		t.Fatalf("expected pilgrimage pick to carry a decline option first, got %+v", prompt.Options)
+	}
+	if prompt.Presentation == nil || !prompt.Presentation.HasDecline || prompt.Presentation.DeclineIndex != 0 {
+		t.Fatalf("expected pilgrimage pick to declare decline index 0, got %+v", prompt.Presentation)
+	}
 
-	// 确认发动后，选择移除第一个茧（选项0为不发动，因此这里选1）。
+	// 选择移除第一个茧（选项0为不发动，因此这里选1）。
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
 		Type:       model.CmdSelect,
@@ -565,14 +556,7 @@ func TestButterflyPilgrimage_DoesNotEnablePoisonAfterReducingTwoDamage(t *testin
 		Type:       model.CmdSelect,
 		Selections: []int{0},
 	})
-	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_confirm")
-
-	// ⑥ 承受伤害窗口：发动朝圣。
-	testutils.MustHandleAction(t, game, model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	})
+	// ⑥ 承受伤害窗口：发动朝圣（直接选茧）。
 	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
 	testutils.MustHandleAction(t, game, model.PlayerAction{
 		PlayerID:   "p1",
@@ -1008,5 +992,167 @@ func TestButterflyChrysalis_CocoonOverflowDiscardSequential(t *testing.T) {
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected interrupt cleared after sequential discard, got %+v", game.State.PendingInterrupt)
+	}
+}
+
+func TestButterflyReverse_Branch2ListedButDisabledWithoutPupa(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("h2", model.CardTypeMagic, model.ElementWater),
+	}
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "bt_reverse_butterfly"})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0, 1}})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_mode")
+
+	prompt := game.GetCurrentPrompt()
+	if prompt == nil || len(prompt.Options) != 2 {
+		t.Fatalf("expected both branches listed, got %+v", prompt)
+	}
+	if prompt.Options[0].Disabled {
+		t.Fatalf("branch ① must stay selectable: %+v", prompt.Options[0])
+	}
+	if !prompt.Options[1].Disabled || prompt.Options[1].DisabledReason == "" {
+		t.Fatalf("branch ② should be disabled with a reason when there is no 蛹: %+v", prompt.Options[1])
+	}
+
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}}); err == nil {
+		t.Fatal("picking the disabled branch ② must be rejected")
+	}
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_reverse_mode")
+}
+
+// 凋零的伤害让目标爆牌掉士气：士气原因标记要写出来源技能「凋零」，前端才能写"XX爆牌 · 凋零"。
+func TestButterflyWither_MoraleLossMarkerNamesWither(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Bard", "bard", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.Deck = rules.InitDeck()
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Heal = 0
+	p2.Heal = 0
+	p2.Hand = nil
+	for i := 0; i < 6; i++ {
+		p2.Hand = append(p2.Hand, butterflyTestCard(fmt.Sprintf("b%d", i), model.CardTypeAttack, model.ElementFire))
+	}
+
+	butterflydancer.QueueWitherChoice(engine.NewRoleChoiceRuntime(game), p1)
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	// 目标列表按玩家顺序：p1、p2，选 p2（吟游诗人）
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	// 吟游诗人爆牌，弃 1 张
+	for i := 0; i < 4 && game.State.PendingInterrupt != nil; i++ {
+		p := game.GetCurrentPrompt()
+		if p == nil || p.PlayerID != "p2" {
+			break
+		}
+		testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdSelect, Selections: []int{0}})
+	}
+
+	var marker *model.TimelineMarkerPayload
+	for _, ev := range obs.Events {
+		if ev.Type == model.EventTimelineMarker && ev.TimelineMarker != nil && ev.TimelineMarker.NarrativeKind == "morale_loss" && ev.TimelineMarker.PlayerID == "p2" {
+			marker = ev.TimelineMarker
+		}
+	}
+	if marker == nil {
+		t.Fatalf("expected a morale_loss marker for the bard; red morale=%d", game.State.RedMorale)
+	}
+	if marker.SkillName != "凋零" {
+		t.Fatalf("expected the marker to name 凋零 as the source skill, got %q (skill_id=%q)", marker.SkillName, marker.SkillID)
+	}
+}
+
+// 蝶舞者-4：舞动的弃牌没有［展示］，应面朝下（hidden）。
+// 蝶舞者-5：茧直接取自牌库顶那张牌，不经过手牌，手牌里的其他牌不受影响。
+func TestButterflyDance_DiscardIsFaceDownAndCocoonComesFromDeckTop(t *testing.T) {
+	obs := &testutils.CaptureObserver{}
+	game := engine.NewGameEngine(obs)
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{
+		butterflyTestCard("h1", model.CardTypeAttack, model.ElementFire),
+		butterflyTestCard("h2", model.CardTypeMagic, model.ElementWater),
+	}
+	top := butterflyTestCard("deck-top", model.CardTypeAttack, model.ElementWind)
+	game.State.Deck = append([]model.Card{top}, rules.InitDeck()...)
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "bt_dance"})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1}})
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_dance_discard")
+	obs.Reset()
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, CardIDs: []string{"h1"}})
+
+	for _, e := range obs.Events {
+		if e.Type == model.EventCardRevealed && e.CardRevealed != nil && e.CardRevealed.PlayerID == "p1" && !e.CardRevealed.Hidden {
+			t.Fatalf("dance discard should be face-down, got revealed %+v", e.CardRevealed)
+		}
+	}
+	if len(p1.Hand) != 1 || p1.Hand[0].ID != "h2" {
+		t.Fatalf("expected hand to keep only h2, got %+v", p1.Hand)
+	}
+	var cocoonIDs []string
+	for _, fc := range p1.Field {
+		if fc != nil && fc.Effect == model.EffectButterflyCocoon {
+			cocoonIDs = append(cocoonIDs, fc.Card.ID)
+		}
+	}
+	if len(cocoonIDs) != 1 || cocoonIDs[0] != "deck-top" {
+		t.Fatalf("expected cocoon to be the deck-top card, got %v", cocoonIDs)
+	}
+}
+
+// 蝶舞者-6：朝圣选茧时选"不发动"即放弃，茧不被移除、伤害不变。
+func TestButterflyPilgrimage_DeclineInPickStep(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Butterfly", "butterfly_dancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.TurnState = model.NewPlayerTurnState()
+	game.State.Deck = rules.InitDeck()
+	butterflydancer.AddCocoonCards(p1, []model.Card{butterflyTestCard("c1", model.CardTypeAttack, model.ElementWater)})
+	game.AddPendingDamage(model.PendingDamage{SourceID: "p2", TargetID: "p1", Damage: 1, DamageType: model.AttackDamage})
+
+	game.Drive()
+	testutils.RequireChoicePrompt(t, game, "p1", "bt_pilgrimage_pick")
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+	if got := butterflydancer.CocoonCount(p1); got != 1 {
+		t.Fatalf("expected cocoon kept after declining pilgrimage, got %d", got)
+	}
+	if testutils.ChoiceTypeOfInterrupt(game.State.PendingInterrupt) == "bt_pilgrimage_pick" {
+		t.Fatalf("expected pilgrimage prompt closed after decline")
 	}
 }

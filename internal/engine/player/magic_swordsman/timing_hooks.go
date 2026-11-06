@@ -22,6 +22,11 @@ func damageCalculateHook(rt player.HookRuntime, ctx player.TimingHookContext) pl
 		return player.TimingHookResult{}
 	}
 	rt.Log(fmt.Sprintf("[Passive] %s 的 [暗影之力] 生效，伤害 +1", p.Name))
+	var targetIDs []string
+	if ctx.TargetID != "" {
+		targetIDs = []string{ctx.TargetID}
+	}
+	player.NotifySkillActivated(rt, p, p.ID, "ms_shadow_power", targetIDs...)
 	return player.TimingHookResult{DamageDelta: 1}
 }
 

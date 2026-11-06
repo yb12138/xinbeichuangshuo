@@ -337,25 +337,7 @@ func diffFieldCardDeltas(playerID, camp string, prev, next []publicTimelineField
 }
 
 func publicTimelineIndicators(state *model.GameState, p *model.Player) map[string]int {
-	indicators := map[string]int{}
-	set := func(key string, value int) {
-		if value > 0 {
-			indicators[key] = value
-		}
-	}
-	set("elf_blessing_count", stateview.CountElfBlessings(p))
-	set("mb_charge_count", stateview.CountMagicBowCharges(p))
-	set("sc_power_count", stateview.CountSpiritCasterPowers(p))
-	set("mg_dark_moon_count", stateview.CountMoonDarkMoons(p))
-	set("bt_cocoon_count", stateview.CountButterflyCocoons(p))
-	set("bp_shared_life_active", stateview.CountBloodSharedLifeAsSource(state, p.ID))
-	set("bp_shared_life_bound", stateview.CountBloodSharedLifeAsHolder(p))
-	set("se_sword_soul_count", stateview.CountSwordEmperorSwordSouls(p))
-	set("ml_dark_release_next_attack_bonus", stateview.CombatPolicyAttackBonusByModifierID(p, "ml_dark_release_next_attack_bonus"))
-	if stateview.HasRuleModifierWithModifierID(p, "ml_dark_release_lock_turn") {
-		indicators["ml_dark_release_lock_turn"] = 1
-	}
-	return indicators
+	return stateview.PublicIndicators(state, p)
 }
 
 func publicTimelineField(p *model.Player) []publicTimelineFieldSnapshot {
@@ -462,19 +444,7 @@ func cloneIntMap(in map[string]int) map[string]int {
 }
 
 func removePrivateTimelineTokens(tokens map[string]int) {
-	for _, key := range []string{
-		"elf_blessing_count",
-		"mb_charge_count",
-		"sc_power_count",
-		"mg_dark_moon_count",
-		"bt_cocoon_count",
-		"bp_shared_life_active",
-		"bp_shared_life_bound",
-		"css_blood_cap",
-		"ml_dark_release_next_attack_bonus",
-		"ml_dark_release_lock_turn",
-		"se_sword_soul_count",
-	} {
+	for _, key := range stateview.DerivedIndicatorKeys {
 		delete(tokens, key)
 	}
 }

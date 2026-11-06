@@ -51,7 +51,7 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"angel_bond_heal_target": types.ChoiceRouteRole("angel"),
-		"god_protection_x":       types.ChoiceRouteRole("angel"),
+		"angel_bond_heal_target": types.ChoiceRouteRole("angel").WithSkill("angel_bond"),
+		"god_protection_x":       types.ChoiceRouteRole("angel").WithSkill("god_protection"),
 	}
 }

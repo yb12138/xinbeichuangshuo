@@ -57,8 +57,8 @@ type HolyLancerHolyStrikeHandler struct{ engineplayer.BaseHandler }
 
 func (h *HolyLancerHolyStrikeHandler) CanUse(ctx *model.Context) bool {
 	// 与地枪互斥：
-	// 若当前"主动攻击命中"下地枪可发动，则先进入地枪响应窗口；
-	// 仅当玩家不发动地枪（跳过响应）时，再由引擎补触发圣击治疗。
+	// 仅当本次命中确实会弹出地枪响应窗口时，才把圣击延后到"跳过地枪"时结算；
+	// 地枪不会被提供时（未持有/条件不满足），圣击在命中时直接结算，避免 +1 丢失。
 	if ctx == nil || ctx.User == nil || !ctx.AttackHitPhase() || ctx.EventCtx == nil || ctx.EventCtx.AttackInfo == nil {
 		return false
 	}
@@ -66,15 +66,34 @@ func (h *HolyLancerHolyStrikeHandler) CanUse(ctx *model.Context) bool {
 	if info.ActionType != string(model.ActionAttack) {
 		return false
 	}
-	if info.CounterInitiator == "" && ctx.User.Heal > 0 {
+	if ctx.User.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] != 0 {
 		return false
 	}
-	return ctx.User.TurnState.UsedSkillCounts["holy_lancer_block_sacred_strike"] == 0
+	return !earthSpearWillBeOffered(ctx)
 }
 
 func (h *HolyLancerHolyStrikeHandler) Execute(ctx *model.Context) error {
+	// 静默结算时地枪必然未被提供，"跳过地枪"补触发路径不会再 +1，无需额外标记。
 	ctx.Game.Heal(ctx.User.ID, 1)
 	return nil
+}
+
+// earthSpearWillBeOffered 判断本次命中是否会提供地枪响应（持有地枪且满足发动条件）。
+func earthSpearWillBeOffered(ctx *model.Context) bool {
+	if ctx == nil || ctx.User == nil || ctx.User.Character == nil {
+		return false
+	}
+	hasSkill := false
+	for _, sk := range ctx.User.Character.Skills {
+		if sk.ID == "holy_lancer_earth_spear" {
+			hasSkill = true
+			break
+		}
+	}
+	if !hasSkill {
+		return false
+	}
+	return (&HolyLancerEarthSpearHandler{}).CanUse(ctx)
 }
 
 type HolyLancerSkySpearHandler struct{ engineplayer.BaseHandler }

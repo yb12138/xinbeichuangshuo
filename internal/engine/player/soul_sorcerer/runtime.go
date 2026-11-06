@@ -28,9 +28,10 @@ func PlaceSoulLink(rt engineplayer.ChoiceRuntime, sorcerer, target *model.Player
 	return rt.AttachEffectCard(sorcerer, target, model.EffectSoulLink, card)
 }
 
-// ApplySoulDevour 灵魂吞噬：当队友因伤害导致士气下降时，灵魂术士获得黄色灵魂。
-func ApplySoulDevour(rt model.IGameEngine, victim *model.Player, finalLoss int, fromDamageDraw bool) {
-	if rt == nil || victim == nil || finalLoss <= 0 || !fromDamageDraw {
+// ApplySoulDevour 灵魂吞噬：我方每有 1 点士气下降，灵魂术士 +1 黄色灵魂。
+// 不区分士气下降来源（承伤爆牌、购买/合成/技能摸牌爆牌、技能直接扣士气都算）。
+func ApplySoulDevour(rt model.IGameEngine, victim *model.Player, finalLoss int, _ bool) {
+	if rt == nil || victim == nil || finalLoss <= 0 {
 		return
 	}
 	for _, player := range rt.GetAllPlayers() {
@@ -40,6 +41,9 @@ func ApplySoulDevour(rt model.IGameEngine, victim *model.Player, finalLoss int, 
 		before := YellowSoul(player)
 		after := AddYellowSoul(player, finalLoss)
 		rt.Log(fmt.Sprintf("%s 的 [灵魂吞噬] 触发：黄色灵魂 +%d（%d→%d）", player.Name, finalLoss, before, after))
+		if after != before {
+			engineplayer.NotifySkillActivated(rt, player, player.ID, "ss_soul_devour", victim.ID)
+		}
 	}
 }
 
@@ -104,7 +108,8 @@ func MaybeSoulLinkTransfer(rt engineplayer.ChoiceRuntime, pd *model.PendingDamag
 		Context: map[string]interface{}{
 			"choice_type":     "ss_link_transfer_x",
 			"sorcerer_id":     sorcerer.ID,
-			"damage_index":    0,
+			"damage_seq":      pd.Seq,
+			"damage_index":    pendingDamageIndexOf(rt.GetPendingDamageQueue(), pd),
 			"source_id":       pd.SourceID,
 			"target_id":       pd.TargetID,
 			"counterpart_id":  counterpart.ID,

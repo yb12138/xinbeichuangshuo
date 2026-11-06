@@ -158,10 +158,23 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Options:      options,
 			Min:          1,
 			Max:          maxSelect,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_only"},
+			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_only", CancelPolicy: model.CancelPolicyAbort},
 		}
 	}
 	return nil
+}
+
+// HandleCancel 灵魂召还选牌时取消：放弃发动。尚未弃牌，行动标记由引擎的取消退费机制回滚。
+func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string, ctxData map[string]interface{}) (bool, error) {
+	choiceType, _ := ctxData["choice_type"].(string)
+	if choiceType != "ss_recall_pick" {
+		return false, nil
+	}
+	rt.PopInterrupt()
+	if user := rt.GetPlayers()[playerID]; user != nil {
+		rt.Log(fmt.Sprintf("%s 取消了 [灵魂召还] 的发动", user.Name))
+	}
+	return true, nil
 }
 
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -234,6 +247,7 @@ func handleSoulConvertColorChoice(rt engineplayer.ChoiceRuntime, selectionIndex 
 	default:
 		return fmt.Errorf("无效的灵魂转换模式")
 	}
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "ss_soul_convert", user.ID)
 
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
@@ -305,9 +319,16 @@ func handleSoulLinkTransferXChoice(rt engineplayer.ChoiceRuntime, selectionIndex
 		return fmt.Errorf("灵魂术士不存在")
 	}
 
-	damageIdx := runtimeutil.ToIntContextValue(ctxData["damage_index"])
+	// 按入队序号定位当前正在结算的那条伤害，避免多条伤害同时入队时总是改到队首。
 	pdQueue := rt.GetPendingDamageQueue()
-	if damageIdx < 0 || damageIdx >= len(pdQueue) {
+	damageIdx := findPendingDamageIndexBySeq(pdQueue, ctxData["damage_seq"])
+	if damageIdx < 0 {
+		// 没有入队序号（如直接构造的伤害）时，退回到弹窗时记录的实际下标。
+		if idx := runtimeutil.ToIntContextValue(ctxData["damage_index"]); idx >= 0 && idx < len(pdQueue) {
+			damageIdx = idx
+		}
+	}
+	if damageIdx < 0 {
 		return fmt.Errorf("伤害上下文不存在")
 	}
 
@@ -448,4 +469,36 @@ func finalizeSoulRecallPick(rt engineplayer.ChoiceRuntime, ctxData map[string]in
 		}
 	}
 	return nil
+}
+
+// findPendingDamageIndexBySeq 在伤害队列中按 Seq 查找伤害下标；找不到返回 -1。
+func findPendingDamageIndexBySeq(queue []model.PendingDamage, rawSeq interface{}) int {
+	var seq int64
+	switch v := rawSeq.(type) {
+	case int64:
+		seq = v
+	case int:
+		seq = int64(v)
+	case float64:
+		seq = int64(v)
+	}
+	if seq == 0 {
+		return -1
+	}
+	for i := range queue {
+		if queue[i].Seq == seq {
+			return i
+		}
+	}
+	return -1
+}
+
+// pendingDamageIndexOf 返回 pd 在队列中的下标（按指针匹配）；找不到返回 0。
+func pendingDamageIndexOf(queue []model.PendingDamage, pd *model.PendingDamage) int {
+	for i := range queue {
+		if &queue[i] == pd {
+			return i
+		}
+	}
+	return 0
 }

@@ -1,12 +1,13 @@
-import { render, screen, waitFor } from '@testing-library/vue'
+import { fireEvent, render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import GameBoard from '../GameBoard.vue'
 import { useInterruptStore } from '../../stores/interrupt.store'
 import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
+import { useUiStore } from '../../stores/ui.store'
 import type { AvailableSkill, Card, CharacterView, GameStateUpdate, PlayerInfo, PlayerView, Prompt } from '../../types/game'
 
 const submitSelectMock = vi.fn()
@@ -313,9 +314,9 @@ describe('GameBoard target picker', () => {
     })
 
     const targetAnchor = container.querySelector('[data-player-anchor="p2"]')
-    expect(targetAnchor?.querySelector('.player-anchor-seal-effects')).not.toBeNull()
-    expect(targetAnchor?.querySelector('.player-anchor-seal-pop')?.textContent).toContain('受到水之封印')
-    expect(targetAnchor?.querySelector('.player-anchor-seal-icon')).not.toBeNull()
+    const sealIcon = targetAnchor?.querySelector('.player-anchor-status-icon--seal')
+    expect(sealIcon).not.toBeNull()
+    expect(sealIcon?.getAttribute('aria-label')).toContain('水之封印')
   })
 
   it('keeps rose courtyard ambient vfx while the field effect is active', async () => {
@@ -585,12 +586,15 @@ describe('GameBoard target picker', () => {
 
     interruptStore.setSkillMode('choosing_target')
     await userEvent.click(screen.getByTestId('player-area-p2'))
-    expect(submitUseSkillMock).toHaveBeenCalledWith(
-      'prayer_power_blessing',
-      ['p2'],
-      [0],
-      { clearSkillMode: true },
-    )
+    // 点头像只选中，发动走「确认发动」按钮
+    expect(interruptStore.skillTargetIds).toEqual(['p2'])
+    expect(interruptStore.skillDiscardHandIndexes).toEqual([0])
+    expect(submitUseSkillMock).not.toHaveBeenCalled()
+
+    // 再点已选目标 = 取消选中，而不是发动
+    await userEvent.click(screen.getByTestId('player-area-p2'))
+    expect(interruptStore.skillTargetIds).toEqual([])
+    expect(submitUseSkillMock).not.toHaveBeenCalled()
   })
 
   it('selects a single hand card picker card without auto-submitting', async () => {
@@ -633,6 +637,247 @@ describe('GameBoard target picker', () => {
     expect(interruptStore.selectedHandIndexes).toEqual([0])
     expect(submitSelectCardIDsMock).not.toHaveBeenCalled()
     expect(submitSelectMock).not.toHaveBeenCalled()
+  })
+
+  it('counter flow: targets stay locked until a counter card is picked; defend cards are off in step ①', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '元素师',
+      camp: 'Red',
+      role: 'elementalist',
+      hand: [
+        buildCard({ id: 'thunder', name: '雷光斩', element: 'Thunder' }),
+        buildCard({ id: 'holy', name: '圣光', type: 'Magic', element: 'Light' }),
+      ],
+      hand_count: 2,
+    })
+    const foe = buildPlayer({ id: 'p9', name: '暗杀者', camp: 'Blue', role: 'assassin' })
+    const players = { p1: me, p9: foe }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'elementalist')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const store = useInterruptStore()
+    store.setPrompt({
+      type: 'confirm',
+      player_id: 'p1',
+      message: '需要响应攻击',
+      attack_element: 'Thunder',
+      counter_target_ids: ['p9'],
+      counter_card_ids: ['thunder'],
+      defend_card_ids: ['holy'],
+      options: [
+        { id: 'take', label: '承受伤害', button_label: '命中' },
+        { id: 'counter', label: '应战', button_label: '应战' },
+        { id: 'defend', label: '防御', button_label: '防御' },
+      ],
+      min: 1,
+      max: 1,
+      presentation: { kind: 'response', layout: 'inline', numeric_base: 0 },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const selectableFlags = () =>
+      Array.from(container.querySelectorAll('.hand-card-row .card-shell')).map((c) => c.classList.contains('selectable'))
+
+    // 响应阶段：应战牌和防御牌都能点，目标不能点
+    expect(selectableFlags()).toEqual([true, true])
+    expect(screen.getByTestId('player-area-p9')).toBeDisabled()
+
+    // ① 选牌：只有应战牌可选，目标仍不能点
+    store.setCounterFlowStage('card')
+    await nextTick()
+    expect(selectableFlags()).toEqual([true, false])
+    expect(screen.getByTestId('player-area-p9')).toBeDisabled()
+
+    // ② 选目标：攻击方阵营的目标亮起
+    store.setSelectedHandIndexes([0])
+    store.setCounterFlowStage('target')
+    await nextTick()
+    expect(screen.getByTestId('player-area-p9')).not.toBeDisabled()
+  })
+
+  it('distinct_elements card picker: cards sharing an already selected element become unselectable', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '贤者',
+      camp: 'Red',
+      role: 'sage',
+      hand: [
+        buildCard({ id: 'f1', name: '火焰斩', element: 'Fire' }),
+        buildCard({ id: 'f2', name: '烈焰击', element: 'Fire' }),
+        buildCard({ id: 'w1', name: '水涟斩', element: 'Water' }),
+      ],
+      hand_count: 3,
+    })
+    const players = { p1: me }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'sage')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    const store = useInterruptStore()
+    store.setPrompt({
+      type: 'choose_cards',
+      player_id: 'p1',
+      message: '【圣洁法典】请选择异系牌（选几张X即为几）：',
+      options: [
+        { id: '0', label: '1: 火焰斩', card_id: 'f1' },
+        { id: '1', label: '2: 烈焰击', card_id: 'f2' },
+        { id: '2', label: '3: 水涟斩', card_id: 'w1' },
+      ],
+      min: 3,
+      max: 3,
+      presentation: { kind: 'card_picker', card_source: 'hand', card_filter: 'distinct_elements' },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const selectableFlags = () =>
+      Array.from(container.querySelectorAll('.hand-card-row .card-shell')).map((c) => c.classList.contains('selectable'))
+
+    expect(selectableFlags()).toEqual([true, true, true])
+
+    // 选中一张火系后，另一张火系不可再选，已选的与其他系仍可点
+    store.setSelectedHandIndexes([0])
+    await nextTick()
+    expect(selectableFlags()).toEqual([true, false, true])
+  })
+
+  it('only lights up hand cards the engine listed for counter/defend', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '元素师',
+      camp: 'Red',
+      role: 'elementalist',
+      hand: [
+        buildCard({ id: 'thunder', name: '雷光斩', element: 'Thunder' }),
+        buildCard({ id: 'fire', name: '火焰斩', element: 'Fire' }),
+        // 前端按元素猜会认为暗灭/同系雷光斩都能应战；但引擎只列了 thunder（例如另一张被角色规则排除），以引擎为准
+        buildCard({ id: 'dark', name: '暗灭', element: 'Dark' }),
+        buildCard({ id: 'thunder-2', name: '雷光斩', element: 'Thunder' }),
+      ],
+      hand_count: 4,
+    })
+    const players = { p1: me }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'elementalist')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt({
+      type: 'confirm',
+      player_id: 'p1',
+      message: '需要响应攻击',
+      attack_element: 'Thunder',
+      counter_target_ids: ['p9'],
+      counter_card_ids: ['thunder'],
+      defend_card_ids: [],
+      options: [
+        { id: 'take', label: '承受伤害', button_label: '命中' },
+        { id: 'counter', label: '应战', button_label: '应战' },
+      ],
+      min: 1,
+      max: 1,
+      presentation: { kind: 'response', layout: 'inline', numeric_base: 0 },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const cards = container.querySelectorAll('.hand-card-row .card-shell')
+    expect(cards).toHaveLength(4)
+    expect(Array.from(cards).map((c) => c.classList.contains('selectable'))).toEqual([true, false, false, false])
+  })
+
+  it('lights up no hand card when only take is offered', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const me = buildPlayer({
+      id: 'p1',
+      name: '元素师',
+      camp: 'Red',
+      role: 'elementalist',
+      hand: [buildCard({ id: 'fire', name: '火焰斩', element: 'Fire' })],
+      hand_count: 1,
+    })
+    const players = { p1: me }
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'elementalist')
+    useSessionStore().updateRoomPlayers(Object.values(players).map(buildPlayerInfo), 'p1')
+    useSnapshotStore().updateGameState(buildState(players))
+    useInterruptStore().setPrompt({
+      type: 'confirm',
+      player_id: 'p1',
+      message: '需要响应攻击',
+      attack_element: 'Thunder',
+      options: [{ id: 'take', label: '承受伤害', button_label: '命中' }],
+      min: 1,
+      max: 1,
+      presentation: { kind: 'response', layout: 'inline', numeric_base: 0 },
+    } as unknown as Prompt)
+
+    const { container } = render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          PlayerArea: PlayerAreaStub,
+          ActionPanel: true,
+          BattleZone: true,
+          SkillDetailModal: true,
+          VfxLayer: true,
+          ActionTimeline: true,
+          StatusEffectIcon: true,
+        },
+      },
+    })
+
+    const cards = container.querySelectorAll('.hand-card-row .card-shell')
+    expect(cards).toHaveLength(1)
+    expect(cards[0]?.classList.contains('selectable')).toBe(false)
   })
 
   it('allows proxy card picker cards that map to my hand', async () => {
@@ -845,10 +1090,44 @@ describe('GameBoard target picker', () => {
     expect(handRail?.compareDocumentPosition(actionDock as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(statusPortrait).not.toBeNull()
     expect(statusPortrait?.alt).toBe('剑斗士')
-    expect(statusPortrait?.getAttribute('src')).toBe('/characters/fighter.png')
+    expect(statusPortrait?.getAttribute('src')).toBe('/characters/art/fighter.webp')
     expect(handRail?.querySelector('.my-status-portrait')).toBeNull()
     expect(statusStrip?.classList.contains('my-status-strip--active')).toBe(true)
     expect(actionDock?.classList.contains('right-action-dock--active')).toBe(true)
+  })
+
+  it('shows my own form, tokens and a skill button inside my status portrait', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const me = buildPlayer({
+      id: 'p1',
+      name: '玩家1',
+      camp: 'Red',
+      role: 'holy_bow',
+      form: 'holy_bow_holy_glory_form',
+      tokens: { hb_faith: 3 },
+    })
+    useSessionStore().setRoomInfo('ROOM1', 'p1', 'Red', 'holy_bow')
+    useSessionStore().updateRoomPlayers([buildPlayerInfo(me)], 'p1')
+    useSnapshotStore().updateGameState(buildState({ p1: me }, {
+      characters: [buildCharacter({ id: 'holy_bow', name: '圣弓', skills: [{ id: 'hb_auto_fill', title: '自动填充', description: '' } as any] })],
+    }))
+
+    render(GameBoard, {
+      global: {
+        plugins: [pinia],
+        stubs: { PlayerArea: PlayerAreaStub, ActionPanel: true, BattleZone: true, CardComponent: true, SkillDetailModal: true, VfxLayer: true, ActionTimeline: true, StatusEffectIcon: true },
+      },
+    })
+
+    const strip = screen.getByTestId('my-status-strip')
+    expect(strip.classList.contains('my-status-strip--in-form')).toBe(true)
+    const chips = screen.getByTestId('my-status-chips')
+    expect(chips.textContent).toContain('圣煌形态')
+    expect(chips.querySelector('[data-mark-key="hb_faith"]')?.textContent).toContain('3')
+
+    await fireEvent.click(screen.getByTestId('my-status-skill-btn'))
+    expect(useUiStore().skillModalCharacterId).toBe('holy_bow')
   })
 
   it('passes hundred dragon lock badges to source and target players without rendering a link line', () => {

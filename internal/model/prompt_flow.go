@@ -171,7 +171,10 @@ func (f *PromptFlowState) HandleCancel() (PromptFlowCancelResult, error) {
 	case CancelPolicyBack:
 		previous, moved := f.Back()
 		if !moved {
-			return PromptFlowCancelResult{Action: PromptFlowCancelDenied, StepID: f.StepID}, fmt.Errorf("当前步骤无法返回")
+			// 流程从这一步起步（Begin / MustBeginAt），没有上一步可退：视为放弃整个流程。
+			// 已预付的费用由引擎侧的取消退费机制处理。
+			f.Clear()
+			return PromptFlowCancelResult{Action: PromptFlowCancelAborted}, nil
 		}
 		return PromptFlowCancelResult{Action: PromptFlowCancelBack, StepID: previous}, nil
 	case CancelPolicyAbort:

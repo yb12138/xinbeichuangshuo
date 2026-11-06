@@ -228,7 +228,7 @@ func TestArbiterRitualBreak_RestoresHandLimitAndAddsTeamGem(t *testing.T) {
 	}
 }
 
-func TestArbiterForcedDoomsday_HappensAfterStartupAndTargetsEnemiesOnly(t *testing.T) {
+func TestArbiterForcedDoomsday_HappensAfterStartup(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -449,5 +449,64 @@ func TestArbiterForcedDoomsday_IgnoresTauntAndClearsItAfterResolution(t *testing
 	}
 	if got := testutils.CountFieldEffect(p1, model.EffectHeroTaunt); got != 0 {
 		t.Fatalf("expected taunt to be cleared after forced doomsday consumes action phase, got %d", got)
+	}
+}
+
+// 仲裁者-2：审判形态下手牌上限恒定为5，不受基础值和其他修正影响。
+func TestArbiterRitual_HandLimitHardCapFive(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Dummy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.MaxHand = 7
+	if got := game.GetMaxHand(p1); got != 7 {
+		t.Fatalf("expected normal form to use base max hand 7, got %d", got)
+	}
+	playerpkg.SetForm(p1, model.FormArbiterJudgment)
+	if got := game.GetMaxHand(p1); got != 5 {
+		t.Fatalf("expected judgment form hard cap 5, got %d", got)
+	}
+}
+
+// 仲裁者-3：末日审判文案为"目标角色"，可以指定队友或自己。
+func TestArbiterDoomsday_CanTargetAllyAndSelf(t *testing.T) {
+	for _, targetID := range []string{"p2", "p1"} {
+		game := engine.NewGameEngine(testutils.NoopObserver{})
+		if err := game.AddPlayer("p1", "Arbiter", "arbiter", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p2", "Ally", "berserker", model.RedCamp); err != nil {
+			t.Fatal(err)
+		}
+		if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+			t.Fatal(err)
+		}
+		game.State.CurrentTurn = 0
+		game.State.TurnStage = model.TurnStageActionExecution
+		p1 := game.State.Players["p1"]
+		p1.IsActive = true
+		p1.TurnState = model.NewPlayerTurnState()
+		p1.Tokens = map[string]int{"judgment": 2}
+
+		if err := game.HandleAction(model.PlayerAction{
+			PlayerID: "p1",
+			Type:     model.CmdSkill,
+			SkillID:  "arbiter_doomsday",
+			TargetID: targetID,
+		}); err != nil {
+			t.Fatalf("doomsday on %s should be allowed, got %v", targetID, err)
+		}
+		// 打自己时承受伤害会触发审判浪潮 +1 审判。
+		want := 0
+		if targetID == "p1" {
+			want = 1
+		}
+		if got := p1.Tokens["judgment"]; got != want {
+			t.Fatalf("expected judgment %d after doomsday on %s, got %d", want, targetID, got)
+		}
 	}
 }

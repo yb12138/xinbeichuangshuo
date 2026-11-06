@@ -18,8 +18,8 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs: ChoiceRouteSpecs(),
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
-			{Timing: player.TimingTurnEndPreExtra, Priority: 100, Hook: turnEndMoonCycleHook},
-			{Timing: player.TimingPostDamageResolved, Priority: 900, Hook: postDamageResolvedHook},
+			{Timing: player.TimingTurnEndPreExtra, Priority: 100, Hook: turnEndMoonCycleHook, SkillID: "mg_moon_cycle"},
+			{Timing: player.TimingPostDamageResolved, Priority: 900, Hook: postDamageResolvedHook, SkillID: "mg_blasphemy"},
 			{Timing: player.TimingTurnEndFinal, Priority: 100, Hook: turnEndFinalHook},
 			{Timing: player.TimingAttackDeclareInterrupt, Priority: 100, Hook: medusaInterruptHook},
 		},
@@ -51,16 +51,16 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"mg_blasphemy_target":       types.ChoiceRouteRole("moon_goddess"),
-		"mg_dark_moon_curse_pick":   types.ChoiceRouteRole("moon_goddess"),
-		"mg_darkmoon_slash_x":       types.ChoiceRouteRole("moon_goddess"),
-		"mg_medusa_darkmoon_pick":   types.ChoiceRouteRole("moon_goddess"),
-		"mg_medusa_magic_discard":   types.ChoiceRouteRole("moon_goddess"),
-		"mg_moon_cycle_heal_target": types.ChoiceRouteRole("moon_goddess"),
-		"mg_moon_cycle_mode":        types.ChoiceRouteRole("moon_goddess"),
-		"mg_pale_moon_discard":      types.ChoiceRouteRole("moon_goddess"),
-		"mg_pale_moon_mode":         types.ChoiceRouteRole("moon_goddess"),
-		"mg_pale_moon_target":       types.ChoiceRouteRole("moon_goddess"),
-		"mg_pale_moon_x":            types.ChoiceRouteRole("moon_goddess"),
+		"mg_blasphemy_target":       types.ChoiceRouteRole("moon_goddess").WithSkill("mg_blasphemy"),
+		"mg_dark_moon_curse_pick":   types.ChoiceRouteRole("moon_goddess").WithSkill("mg_dark_moon_curse"),
+		"mg_darkmoon_slash_x":       types.ChoiceRouteRole("moon_goddess").WithSkill("mg_darkmoon_slash"),
+		"mg_medusa_darkmoon_pick":   types.ChoiceRouteRole("moon_goddess").WithSkill("mg_medusa_eye"),
+		"mg_medusa_magic_discard":   types.ChoiceRouteRole("moon_goddess").WithSkill("mg_medusa_eye"),
+		"mg_moon_cycle_heal_target": types.ChoiceRouteRole("moon_goddess").WithSkill("mg_moon_cycle"),
+		"mg_moon_cycle_mode":        types.ChoiceRouteRole("moon_goddess").WithSkill("mg_moon_cycle"),
+		"mg_pale_moon_discard":      types.ChoiceRouteRole("moon_goddess").WithSkill("mg_pale_moon"),
+		"mg_pale_moon_mode":         types.ChoiceRouteRole("moon_goddess").WithSkill("mg_pale_moon"),
+		"mg_pale_moon_target":       types.ChoiceRouteRole("moon_goddess").WithSkill("mg_pale_moon"),
+		"mg_pale_moon_x":            types.ChoiceRouteRole("moon_goddess").WithSkill("mg_pale_moon"),
 	}
 }

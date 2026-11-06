@@ -49,10 +49,7 @@ func turnStartForcedDoomsdayHook(rt engineplayer.HookRuntime, ctx engineplayer.T
 		p.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
 		return engineplayer.TimingHookResult{}
 	}
-	if len(rt.CampEnemyIDs(p.Camp)) == 0 {
-		p.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] = 0
-		return engineplayer.TimingHookResult{}
-	}
+	// 末日审判文案为"目标角色"（含自己），总有合法目标，不再要求场上有敌方。
 	if p.TurnState.UsedSkillCounts["arbiter_forced_doomsday_pending"] == 0 {
 		rt.Log(fmt.Sprintf("%s 的审判已达上限：本行动阶段必须发动 [末日审判]", p.Name))
 	}

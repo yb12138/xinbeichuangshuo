@@ -4,20 +4,28 @@ import { useSessionStore } from './stores/session.store'
 import RoomLobby from './components/RoomLobby.vue'
 import GameBoard from './components/GameBoard.vue'
 import { useMobileLandscapeGuard } from './composables/useMobileLandscapeGuard'
+import { useStageScale } from './composables/useStageScale'
 
 const sessionStore = useSessionStore()
 
 const showGame = computed(() => sessionStore.gameStarted)
 const { needsLandscapeGuard, requestLandscapeLock } = useMobileLandscapeGuard()
+// 对局按逻辑舞台整体缩放；大厅自带响应式布局，只在大屏放大
+const { stageStyle } = useStageScale(computed(() => (showGame.value ? 'full' : 'upscale-only')))
 </script>
 
 <template>
   <div class="app-root w-full h-full">
-    <!-- 游戏界面 -->
-    <GameBoard v-if="showGame" />
-    
-    <!-- 房间大厅 -->
-    <RoomLobby v-else />
+    <div class="app-stage" :style="stageStyle">
+      <!-- 游戏界面 -->
+      <GameBoard v-if="showGame" />
+
+      <!-- 房间大厅 -->
+      <RoomLobby v-else />
+
+      <!-- 弹层传送目标：放在舞台内才能跟着一起缩放 -->
+      <div id="stage-portal"></div>
+    </div>
 
     <div v-if="needsLandscapeGuard" class="mobile-orientation-guard">
       <div class="mobile-orientation-card">
@@ -40,6 +48,26 @@ const { needsLandscapeGuard, requestLandscapeLock } = useMobileLandscapeGuard()
   width: var(--app-vw);
   position: relative;
   overflow: hidden;
+}
+
+.app-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  container: stage / size;
+  overflow: hidden;
+}
+
+/* 舞台带 transform，fixed 弹层以舞台为包含块。
+   这一层本身不占位、不拦截指针，弹层各自的 pointer-events 照旧生效。 */
+#stage-portal {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 10000;
 }
 
 .mobile-orientation-guard {

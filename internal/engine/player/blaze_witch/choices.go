@@ -166,7 +166,8 @@ func handleBlazeWitchWrathDrawChoice(rt engineplayer.ChoiceRuntime, playerID str
 	rt.Log(fmt.Sprintf("%s 的 [魔女之怒]：选择摸%d张牌", user.Name, selectionIndex))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
-		rt.ApplyChoiceResumePoint(ctxData["resume_phase"])
+		// 回到行动阶段开始：启动技已用过（HasUsedActionSkill），不会再弹启动技，直接进入行动选择。
+		rt.ApplyChoiceResumePoint(engineplayer.MustChoiceResumePointFromMap(ctxData, "resume_phase"))
 	}
 	return nil
 }

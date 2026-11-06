@@ -20,7 +20,7 @@ func RoleEntry() player.RoleEntry {
 		TimingHookSpecs: []player.TimingHookSpec{
 			{Timing: player.TimingHealBefore, Priority: 300, Hook: healResistHook},
 			{Timing: player.TimingMoraleLossApplied, Priority: 100, Hook: moraleLossAppliedHook},
-			{Timing: player.TimingTurnEndPreExtra, Priority: 400, Hook: turnEndHook},
+			{Timing: player.TimingTurnEndPreExtra, Priority: 400, Hook: turnEndHook, SkillID: "plague_outbreak"},
 		},
 	}
 }
@@ -60,10 +60,10 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"plague_death_touch_cards":    types.ChoiceRouteRole("plague_mage"),
-		"plague_death_touch_element":  types.ChoiceRouteRole("plague_mage"),
-		"plague_death_touch_target":   types.ChoiceRouteRole("plague_mage"),
-		"plague_death_touch_x":        types.ChoiceRouteRole("plague_mage"),
+		"plague_death_touch_cards":    types.ChoiceRouteRole("plague_mage").WithSkill("plague_death_touch"),
+		"plague_death_touch_element":  types.ChoiceRouteRole("plague_mage").WithSkill("plague_death_touch"),
+		"plague_death_touch_target":   types.ChoiceRouteRole("plague_mage").WithSkill("plague_death_touch"),
+		"plague_death_touch_x":        types.ChoiceRouteRole("plague_mage").WithSkill("plague_death_touch"),
 		"plague_mage_toxic_nova_pick": types.ChoiceRouteRole("plague_mage"),
 	}
 }

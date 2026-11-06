@@ -28,7 +28,10 @@ func (e *GameEngine) ensureNarrativeWindow(playerID string) string {
 	}
 	if e.narrativeTrace.windowID == "" || e.narrativeTrace.windowActor != playerID {
 		e.narrativeTrace.windowActor = playerID
-		e.narrativeTrace.windowID = fmt.Sprintf("nw-t%d-%s", e.State.CurrentTurn+1, playerID)
+		// 用全局回合序号而不是座位下标（CurrentTurn）：座位下标每轮重复，
+		// 同一玩家下一轮的行动会拿到与上一轮相同的 ActionID，服务端按 ActionID
+		// 聚合时间线时就把上一轮的事件（如"X 承受"）并进这一手的战斗链。
+		e.narrativeTrace.windowID = fmt.Sprintf("nw-t%d-%s", e.TurnNumber(), playerID)
 		e.narrativeTrace.actionID = ""
 		e.narrativeTrace.actionActor = ""
 		e.narrativeTrace.actionType = ""

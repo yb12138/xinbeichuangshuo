@@ -22,6 +22,7 @@ type actionFlowBuilder struct {
 	edgeMetaByID        map[string]actionFlowEdgeMeta
 	nodeIndexByID       map[string]int
 	skillNodeIndexByKey map[string]int
+	nodeIndexByCause    map[string]int
 	latestEdgeID        string
 	latestPendingEdgeID string
 	nodeSeq             int
@@ -118,6 +119,7 @@ func buildActionFlow(events []TimelineEvent, displayName func(string, string) st
 		edgeMetaByID:        map[string]actionFlowEdgeMeta{},
 		nodeIndexByID:       map[string]int{},
 		skillNodeIndexByKey: map[string]int{},
+		nodeIndexByCause:    map[string]int{},
 	}
 
 	for _, event := range events {
@@ -161,7 +163,9 @@ func (b *actionFlowBuilder) rememberEventMetadata(event TimelineEvent) {
 	for _, targetID := range event.TargetUserIDs {
 		b.addActor(targetID)
 	}
-	if event.ActorUserID != "" && len(event.TargetUserIDs) > 0 && !isExtraActionFlowEvent(event) {
+	// 只以自己为目标的事件（剑魂守护、佯攻等自身技能）不改写目标提示：否则同一行动里
+	// 不带目标的出牌事件会落到“自己 → 自己”的边上，边编号随事件到达而错位，前端重复画节点。
+	if event.ActorUserID != "" && len(event.TargetUserIDs) > 0 && !isExtraActionFlowEvent(event) && !targetsOnlySelf(event) {
 		b.targetHintsByActor[event.ActorUserID] = uniqueFlowStrings(event.TargetUserIDs)
 	}
 }
@@ -190,7 +194,13 @@ func (b *actionFlowBuilder) applyBackboneEvent(event TimelineEvent) {
 			phase = "counter"
 		}
 		for _, targetID := range event.TargetUserIDs {
-			b.ensureEdge(event.ActorUserID, targetID, phase, event.CombatID)
+			edgeID := b.ensureEdge(event.ActorUserID, targetID, phase, event.CombatID)
+			// 宣言带的攻击牌只在边上没有真实出牌时补上（技能视为的虚拟攻击：圣屑飓暴、多重射击）
+			if kind == "combat_declared" && len(event.Cards) > 0 {
+				if edge := b.edgeByID(edgeID); edge != nil && len(edge.Cards) == 0 {
+					b.attachCardsToEdge(edgeID, event.EventID, event.Cards)
+				}
+			}
 		}
 		return
 	case visualKind == "card" && len(event.Cards) > 0:
@@ -208,6 +218,34 @@ func (b *actionFlowBuilder) applyBackboneEvent(event TimelineEvent) {
 func (b *actionFlowBuilder) applySkillOrEffectEvent(event TimelineEvent) {
 	kind := strings.TrimSpace(event.NarrativeKind)
 	visualKind := strings.TrimSpace(event.VisualKind)
+
+	// 带技能因果的事件：宣言、结算与状态变化都并入该因果的技能节点，不再单独生成“效果”节点。
+	// 只有真正的结果才建节点——技能事件本身、公开状态变化、战斗语义结果；
+	// 技能推出的询问（玩家可能拒绝）或因果内其他技能的事件走原有路径。
+	if cause := event.Cause; cause != nil && cause.SkillID != "" && (event.SkillID == "" || event.SkillID == cause.SkillID) &&
+		(event.SkillID == cause.SkillID || len(event.Deltas) > 0 || isCombatEffectKind(kind)) {
+		index := b.ensureCauseNode(event)
+		if index < 0 {
+			return
+		}
+		node := &b.flow.Nodes[index]
+		if len(event.Deltas) > 0 {
+			node.Deltas = append(node.Deltas, event.Deltas...)
+		}
+		if isCombatEffectKind(kind) {
+			node.Effects = append(node.Effects, ActionFlowEffectDTO{Kind: kind, Summary: event.Summary, TargetIDs: uniqueFlowStrings(event.TargetUserIDs)})
+		}
+		return
+	}
+
+	// 技能因果下公开展示的牌（圣屑飓暴弃2张同系并展示、沉沦协奏曲展示弃牌…）：
+	// 挂到该技能节点上，战斗链据此把牌面画出来。暗弃 / 盖放（Hidden）不展示。
+	if cause := event.Cause; cause != nil && cause.SkillID != "" && visualKind == "card" && !event.Hidden && len(event.Cards) > 0 {
+		if index := b.ensureCauseNode(event); index >= 0 {
+			node := &b.flow.Nodes[index]
+			node.Cards = append(node.Cards, cloneFlowCards(event.Cards)...)
+		}
+	}
 
 	switch {
 	case strings.HasPrefix(kind, "skill") || event.GameplayType == "skill_activated" || visualKind == "skill_token":
@@ -333,6 +371,74 @@ func (b *actionFlowBuilder) applySkillEvent(event TimelineEvent) {
 	b.attachNodeToEdge(anchorEdgeID, nodeID)
 }
 
+func isCombatEffectKind(kind string) bool {
+	switch kind {
+	case "attack_redirected", "attack_taken_over", "damage_modified", "damage_prevented":
+		return true
+	}
+	return false
+}
+
+// ensureCauseNode 返回（必要时创建）事件因果对应的技能节点下标。
+// 同一因果只有一个节点：主动技的宣言与结算、hook 内生效的被动技都落在这里，
+// 被动技即使没有显式 skill_activated 事件也会因为带因果的状态变化而出现。
+func (b *actionFlowBuilder) ensureCauseNode(event TimelineEvent) int {
+	cause := event.Cause
+	isSkillEvent := event.SkillID != "" && event.SkillID == cause.SkillID
+	targets := []string{}
+	if isSkillEvent {
+		targets = uniqueFlowStrings(event.TargetUserIDs)
+	}
+	if index, ok := b.nodeIndexByCause[cause.ID]; ok {
+		node := &b.flow.Nodes[index]
+		if isSkillEvent {
+			if node.EffectText == "" {
+				node.EffectText = event.EffectText
+			}
+			if node.EventID == 0 {
+				node.EventID = event.EventID
+			}
+			for _, id := range targets {
+				if !containsFlowString(node.TargetUserIDs, id) {
+					node.TargetUserIDs = append(node.TargetUserIDs, id)
+					b.addActor(id)
+				}
+			}
+		}
+		return index
+	}
+	ownerID := firstNonEmptyString(cause.OwnerID, event.ActorUserID)
+	skillName := firstNonEmptyString(cause.SkillName, event.SkillName, cause.SkillID)
+	anchorEdgeID := ""
+	if b.flow.ActionType == "skill" && ownerID != "" && len(targets) > 0 {
+		anchorEdgeID = b.ensureEdge(ownerID, targets[0], "skill", event.CombatID)
+	} else {
+		anchorEdgeID = b.findSkillTriggerEdge(TimelineEvent{ActorUserID: ownerID, CombatID: event.CombatID}, targets)
+	}
+	node := ActionFlowNodeDTO{
+		Kind:          "skill",
+		ActorUserID:   ownerID,
+		TargetUserIDs: targets,
+		AnchorEdgeID:  anchorEdgeID,
+		SkillID:       cause.SkillID,
+		SkillName:     skillName,
+		Outcome:       "resolved",
+		Label:         firstNonEmptyString(skillName, "技能"),
+		CauseID:       cause.ID,
+		ParentCauseID: cause.ParentID,
+		OriginCauseID: cause.OriginID,
+	}
+	if isSkillEvent {
+		node.EventID = event.EventID
+		node.EffectText = event.EffectText
+	}
+	nodeID := b.addNode(node)
+	index := b.nodeIndexByID[nodeID]
+	b.nodeIndexByCause[cause.ID] = index
+	b.attachNodeToEdge(anchorEdgeID, nodeID)
+	return index
+}
+
 func actionFlowSkillNodeKey(event TimelineEvent, targets []string, anchorEdgeID string) string {
 	sortedTargets := append([]string{}, uniqueFlowStrings(targets)...)
 	sort.Strings(sortedTargets)
@@ -390,6 +496,11 @@ func preferredSkillAnchorPhases(actionType string) []string {
 
 func (b *actionFlowBuilder) applyEffectEvent(event TimelineEvent) {
 	targets := uniqueFlowStrings(event.TargetUserIDs)
+	// 只作用于自身的场上效果（剑魂盖牌等）由对应技能节点展示结果；没有自身边可挂时
+	// 不退回“最近的边”，否则会把“剑魂”标签写到别人的承受边上。
+	if targetsOnlySelf(event) && b.findEdgeForResolution(event.ActorUserID, event.ActorUserID, event.CombatID) == "" {
+		return
+	}
 	anchorEdgeID := b.findAnchorEdge(event.ActorUserID, targets, event.CombatID)
 	if anchorEdgeID == "" && event.ActorUserID != "" && len(targets) > 0 && (b.flow.ActionType == "skill" || b.flow.ActionType == "magic") {
 		anchorEdgeID = b.ensureEdge(event.ActorUserID, targets[0], "effect", event.CombatID)
@@ -405,8 +516,12 @@ func (b *actionFlowBuilder) applyEffectEvent(event TimelineEvent) {
 		})
 		return
 	}
-	label := firstNonEmptyString(timelineEventFieldCardName(event), event.Summary, event.EffectType, "效果")
-	nodeID := b.addNode(ActionFlowNodeDTO{
+	label := firstNonEmptyString(timelineEventFieldCardName(event), event.Summary, event.EffectType)
+	if label == "" {
+		// 无名称、无归属的状态变化（如规则结算的资源差值）不构成可读的步骤；差值仍随事件下发。
+		return
+	}
+	effectNode := ActionFlowNodeDTO{
 		Kind:          "effect",
 		ActorUserID:   event.ActorUserID,
 		TargetUserIDs: targets,
@@ -414,7 +529,12 @@ func (b *actionFlowBuilder) applyEffectEvent(event TimelineEvent) {
 		AnchorEdgeID:  anchorEdgeID,
 		Outcome:       "resolved",
 		Label:         label,
-	})
+	}
+	// 带上效果牌（虚弱 / 中毒的牌面），战斗链据此画卡面
+	if event.FieldCard != nil && event.FieldCard.Card.Name != "" {
+		effectNode.Cards = []model.Card{event.FieldCard.Card}
+	}
+	nodeID := b.addNode(effectNode)
 	b.attachNodeToEdge(anchorEdgeID, nodeID)
 }
 
@@ -697,12 +817,19 @@ func (b *actionFlowBuilder) ensureFallbackActionNode() {
 	if len(b.flow.Nodes) > 0 || len(b.flow.Edges) > 0 || b.flow.ActorUserID == "" {
 		return
 	}
-	b.addNode(ActionFlowNodeDTO{
+	// 占位节点用独立 ID，不占 node-1：流图每次都按当前事件重建，等真正的技能节点出现时
+	// 它会排到 node-1。若占位也叫 node-1，前端按 ID 记"已显示"，就会把真正的技能节点当成
+	// 已显示跳过，退回成一句"当前行动 · 技能 X"的文字框，进不了战斗链。
+	node := ActionFlowNodeDTO{
+		ID:          fmt.Sprintf("%s-node-pending", b.flow.ActionID),
 		Kind:        "action",
 		ActorUserID: b.flow.ActorUserID,
 		Label:       actionTypeVerb(b.flow.ActionType),
 		Outcome:     "pending",
-	})
+	}
+	b.flow.Nodes = append(b.flow.Nodes, node)
+	b.nodeIndexByID[node.ID] = len(b.flow.Nodes) - 1
+	b.addActor(node.ActorUserID)
 }
 
 func (b *actionFlowBuilder) addActor(playerID string) {
@@ -802,6 +929,11 @@ func (b *actionFlowBuilder) buildLogs() {
 			Text:  candidate.text,
 		})
 	}
+}
+
+func targetsOnlySelf(event TimelineEvent) bool {
+	targets := uniqueFlowStrings(event.TargetUserIDs)
+	return len(targets) == 1 && targets[0] == event.ActorUserID
 }
 
 func isExtraActionFlowEvent(event TimelineEvent) bool {

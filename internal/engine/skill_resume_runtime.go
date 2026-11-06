@@ -5,8 +5,8 @@ package engine
 import (
 	"fmt"
 
-	"starcup-engine/internal/model"
 	skillrt "starcup-engine/internal/engine/runtime/skill"
+	"starcup-engine/internal/model"
 )
 
 func (e *GameEngine) ProcessPendingSkillResume() bool {
@@ -18,7 +18,11 @@ func (e *GameEngine) ProcessPendingSkillResume() bool {
 	}
 	state := e.skillResume
 	e.skillResume = nil
-	return e.resumeSkillExecution(state)
+	resumed := false
+	e.withCause(state.cause, func() {
+		resumed = e.resumeSkillExecution(state)
+	})
+	return resumed
 }
 
 func (e *GameEngine) resumeSkillExecution(state *skillResumeState) bool {

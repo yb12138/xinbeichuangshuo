@@ -8,11 +8,6 @@ import (
 // CannotActChecker 魔剑士无法行动判断。
 // 暗影抗拒：手牌全是法术牌时，即使有法术牌也不能使用，可以宣告无法行动。
 func CannotActCheckerFn(p *model.Player) (bool, string) {
-	// 不在暗影形态时，不拦截，走默认判断
-	if !InShadowForm(p) {
-		return false, ""
-	}
-
 	// 无手牌时走默认判断
 	if len(p.Hand) == 0 {
 		return false, ""

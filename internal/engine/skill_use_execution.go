@@ -13,6 +13,11 @@ import (
 // 在校验通过后，按“消耗输入 -> 扣资源 -> 执行 handler -> 收尾阶段推进”顺序处理。
 func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 	placedInputCard, discardPileCards := splitPlacedSkillInputCards(use)
+	// 策略可改写真正进入弃牌堆的牌（如水之神力交给队友的那张不进弃牌堆）。
+	// 只有进弃牌堆的牌才按"弃牌"公开，其余牌（交给队友等）保持暗置。
+	if use.policy.ResolveDiscardPile != nil {
+		discardPileCards = use.policy.ResolveDiscardPile(use.policyContext())
+	}
 	if placedInputCard != nil {
 		e.NotifyCardRevealed(use.player.ID, []model.Card{*placedInputCard}, "field_effect")
 	}
@@ -22,11 +27,7 @@ func (e *GameEngine) consumeSkillInputs(use *skillUseRequest) error {
 		use.player.Hand = append(use.player.Hand[:idx], use.player.Hand[idx+1:]...)
 	}
 
-	if use.policy.ResolveDiscardPile != nil {
-		e.State.DiscardPile = append(e.State.DiscardPile, use.policy.ResolveDiscardPile(use.policyContext())...)
-	} else {
-		e.State.DiscardPile = append(e.State.DiscardPile, discardPileCards...)
-	}
+	e.State.DiscardPile = append(e.State.DiscardPile, discardPileCards...)
 
 	if err := e.consumeExclusiveSkillCard(use); err != nil {
 		return err
@@ -104,6 +105,7 @@ func (e *GameEngine) placeSkillFieldCard(use *skillUseRequest) error {
 		Hook:     use.skillDef.PlaceHook,
 		Meta:     buildFieldCardMeta(use, placedCard), // 【关键】封印会在这里记录绑定元素
 	}
+	e.stampFieldCardCause(fc)
 	fieldTarget.AddFieldCard(fc)
 	e.Log(fmt.Sprintf(
 		"[Skill] %s 在 %s 面前放置了场上牌: %s (效果: %s, 触发: %s)",

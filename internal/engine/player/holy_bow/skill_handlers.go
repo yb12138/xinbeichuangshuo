@@ -157,6 +157,20 @@ func (h *HolyBowShardStormHandler) CanUse(ctx *model.Context) bool {
 	return len(skillEnemies(ctx.Game, ctx.User)) > 0
 }
 
+// BlockedReason 技能列表置灰时显示的原因（与 CanUse 判定一一对应）。
+func (h *HolyBowShardStormHandler) BlockedReason(ctx *model.Context) string {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return ""
+	}
+	if len(skillPairCombos(ctx.User)) == 0 {
+		return "手牌中没有2张同系攻击牌。"
+	}
+	if len(skillEnemies(ctx.Game, ctx.User)) == 0 {
+		return "没有可攻击的敌方目标。"
+	}
+	return ""
+}
+
 func (h *HolyBowShardStormHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("圣屑飓暴上下文无效")
@@ -196,6 +210,19 @@ func (h *HolyBowRadiantDescentHandler) CanUse(ctx *model.Context) bool {
 	return ctx.User.Heal >= 2 || Faith(ctx.User) >= 2
 }
 
+func (h *HolyBowRadiantDescentHandler) BlockedReason(ctx *model.Context) string {
+	if ctx == nil || ctx.User == nil {
+		return ""
+	}
+	if InHolyGloryForm(ctx.User) {
+		return "已处于圣煌形态。"
+	}
+	if ctx.User.Heal < 2 && Faith(ctx.User) < 2 {
+		return "治疗与信仰均不足2。"
+	}
+	return ""
+}
+
 func (h *HolyBowRadiantDescentHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("圣煌降临上下文无效")
@@ -228,6 +255,16 @@ func (h *HolyBowRadiantDescentHandler) Execute(ctx *model.Context) error {
 }
 
 // HolyBowLightBurstHandler implementations.
+
+func (h *HolyBowLightBurstHandler) BlockedReason(ctx *model.Context) string {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return ""
+	}
+	if !InHolyGloryForm(ctx.User) {
+		return "仅圣煌形态下可发动。"
+	}
+	return "没有满足条件的目标或可弃置的手牌。"
+}
 
 func (h *HolyBowLightBurstHandler) CanUse(ctx *model.Context) bool {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
@@ -297,7 +334,8 @@ func (h *HolyBowMeteorBulletHandler) CanUse(ctx *model.Context) bool {
 	if ctx.User.Heal <= 0 && Faith(ctx.User) <= 0 {
 		return false
 	}
-	return len(skillAllies(ctx.Game, ctx.User, false)) > 0
+	// 文案为"我方目标角色"：包括自己。
+	return len(skillAllies(ctx.Game, ctx.User, true)) > 0
 }
 
 func (h *HolyBowMeteorBulletHandler) Execute(ctx *model.Context) error {
@@ -317,7 +355,7 @@ func (h *HolyBowMeteorBulletHandler) Execute(ctx *model.Context) error {
 	if len(costModes) == 0 {
 		return fmt.Errorf("治疗与信仰均不足，无法发动流星圣弹")
 	}
-	allyIDs := skillAllies(ctx.Game, ctx.User, false)
+	allyIDs := skillAllies(ctx.Game, ctx.User, true)
 	if len(allyIDs) == 0 {
 		return fmt.Errorf("没有可选我方目标")
 	}
@@ -348,12 +386,25 @@ func (h *HolyBowRadiantCannonHandler) CanUse(ctx *model.Context) bool {
 	if Cannon(ctx.User) <= 0 {
 		return false
 	}
-	moraleGap := skillMoraleGap(ctx.Game, ctx.User)
-	if moraleGap <= 0 {
-		return false
-	}
-	requiredFaith := 4 + moraleGap
+	// 我方士气不落后时额外移除 0 点信仰，成本仅为 4 点信仰
+	requiredFaith := 4 + skillMoraleGap(ctx.Game, ctx.User)
 	return Faith(ctx.User) >= requiredFaith
+}
+
+func (h *HolyBowRadiantCannonHandler) BlockedReason(ctx *model.Context) string {
+	if ctx == nil || ctx.User == nil || ctx.Game == nil {
+		return ""
+	}
+	if !InHolyGloryForm(ctx.User) {
+		return "仅圣煌形态下可发动。"
+	}
+	if Cannon(ctx.User) <= 0 {
+		return "圣煌辉光炮指示物不足。"
+	}
+	if need := 4 + skillMoraleGap(ctx.Game, ctx.User); Faith(ctx.User) < need {
+		return fmt.Sprintf("信仰不足（需要 %d，当前 %d）。", need, Faith(ctx.User))
+	}
+	return ""
 }
 
 func (h *HolyBowRadiantCannonHandler) Execute(ctx *model.Context) error {
@@ -366,11 +417,8 @@ func (h *HolyBowRadiantCannonHandler) Execute(ctx *model.Context) error {
 	if Cannon(ctx.User) <= 0 {
 		return fmt.Errorf("圣煌辉光炮指示物不足")
 	}
-	moraleGap := skillMoraleGap(ctx.Game, ctx.User)
-	if moraleGap <= 0 {
-		return fmt.Errorf("我方士气未落后敌方，无法发动圣煌辉光炮")
-	}
-	requiredFaith := 4 + moraleGap
+	// 我方士气不落后时额外移除 0 点信仰，成本仅为 4 点信仰
+	requiredFaith := 4 + skillMoraleGap(ctx.Game, ctx.User)
 	if Faith(ctx.User) < requiredFaith {
 		return fmt.Errorf("信仰不足，需要%d点", requiredFaith)
 	}

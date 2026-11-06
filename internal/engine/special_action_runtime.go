@@ -52,15 +52,17 @@ func (e *GameEngine) handleBuy(p *model.Player) error {
 		}
 		result := entry.SpecialActionHook.BuyRewardOverride(p, campStones, 5)
 		if result.Handled {
-			if result.AddGems > 0 {
-				e.ModifyGem(string(p.Camp), result.AddGems)
-			}
-			if result.AddCrystals > 0 {
-				e.ModifyCrystal(string(p.Camp), result.AddCrystals)
-			}
-			if result.LogMessage != "" {
-				e.Log(result.LogMessage)
-			}
+			e.WithSkillCause(result.SkillID, p.ID, func() {
+				if result.AddGems > 0 {
+					e.ModifyGem(string(p.Camp), result.AddGems)
+				}
+				if result.AddCrystals > 0 {
+					e.ModifyCrystal(string(p.Camp), result.AddCrystals)
+				}
+				if result.LogMessage != "" {
+					e.Log(result.LogMessage)
+				}
+			})
 			return nil
 		}
 	}
@@ -155,8 +157,17 @@ func (e *GameEngine) handleSynthesize(p *model.Player) error {
 }
 
 func (e *GameEngine) HandleExtract(p *model.Player) error {
-	currentEnergy := p.Gem + p.Crystal
-	maxEnergy := e.getPlayerEnergyCap(p)
+	return e.handleExtractTo(p, p, 0)
+}
+
+// handleExtractTo 由 extractor 执行提炼选择，星石交给 recipient；可选数量受 recipient 的能量空间限制。
+// extractorEnergyCost>0 时，提炼结算后移除 extractor 的能量（如冒险者天堂）。
+func (e *GameEngine) handleExtractTo(p *model.Player, recipient *model.Player, extractorEnergyCost int) error {
+	if recipient == nil {
+		recipient = p
+	}
+	currentEnergy := recipient.Gem + recipient.Crystal
+	maxEnergy := e.getPlayerEnergyCap(recipient)
 
 	var availableGems, availableCrystals int
 	if p.Camp == model.RedCamp {
@@ -193,16 +204,23 @@ func (e *GameEngine) HandleExtract(p *model.Player) error {
 		maxSelect = totalAvailable
 	}
 
+	ctxData := map[string]interface{}{
+		"choice_type":       "extract",
+		"extract_options":   opts,
+		"extract_min":       1,
+		"extract_max":       maxSelect,
+		"extract_self_room": energyRoom,
+	}
+	if recipient.ID != p.ID {
+		ctxData["extract_recipient_id"] = recipient.ID
+	}
+	if extractorEnergyCost > 0 {
+		ctxData["extract_extractor_energy_cost"] = extractorEnergyCost
+	}
 	e.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: p.ID,
-		Context: map[string]interface{}{
-			"choice_type":       "extract",
-			"extract_options":   opts,
-			"extract_min":       1,
-			"extract_max":       maxSelect,
-			"extract_self_room": energyRoom,
-		},
+		Context:  ctxData,
 	})
 	e.Log(fmt.Sprintf("[Action] %s 提炼：战绩区有 %d 宝石 %d 水晶，请选择 1-%d 个提炼", p.Name, availableGems, availableCrystals, maxSelect))
 	return nil
@@ -234,6 +252,20 @@ func (e *GameEngine) StartExtractForPlayer(playerID string) error {
 		return fmt.Errorf("玩家不存在: %s", playerID)
 	}
 	return e.HandleExtract(p)
+}
+
+// StartExtractToRecipient 由 extractorID 执行提炼，提炼出的星石全部交给 recipientID，
+// 结算后移除 extractor 的 extractorEnergyCost 点能量（不足时有多少移除多少）。由角色包调用。
+func (e *GameEngine) StartExtractToRecipient(extractorID, recipientID string, extractorEnergyCost int) error {
+	p, ok := e.State.Players[extractorID]
+	if !ok || p == nil {
+		return fmt.Errorf("玩家不存在: %s", extractorID)
+	}
+	recipient, ok := e.State.Players[recipientID]
+	if !ok || recipient == nil {
+		return fmt.Errorf("玩家不存在: %s", recipientID)
+	}
+	return e.handleExtractTo(p, recipient, extractorEnergyCost)
 }
 
 func (e *GameEngine) runPostSpecialActionRuntime(player *model.Player, actionType model.ActionType) {

@@ -156,14 +156,25 @@ func (h *ElementalistFreezeHandler) Execute(ctx *model.Context) error {
 		allPlayerIDs = append(allPlayerIDs, p.ID)
 	}
 
+	// 记录发动代价与行动标记，第一步取消时据此收回（发动代价是独有技手牌，通用退费不覆盖手牌）。
+	costCardIDs := make([]string, 0, 1)
+	if discarded, ok := ctx.Selections["discardedCards"].([]model.Card); ok {
+		for _, c := range discarded {
+			costCardIDs = append(costCardIDs, c.ID)
+		}
+	}
 	ctx.Game.PushInterrupt(&model.Interrupt{
 		Type:     model.InterruptChoice,
 		PlayerID: ctx.User.ID,
 		Context: map[string]interface{}{
-			"choice_type":        "elementalist_freeze_damage_target",
-			"user_id":            ctx.User.ID,
-			"target_ids":         allPlayerIDs,
-			"skill_display_name": "冰冻",
+			"choice_type":           "elementalist_freeze_damage_target",
+			"user_id":               ctx.User.ID,
+			"target_ids":            allPlayerIDs,
+			"skill_display_name":    "冰冻",
+			"cost_card_ids":         costCardIDs,
+			"prev_has_acted":        ctx.User.TurnState.HasActed,
+			"prev_last_action":      ctx.User.TurnState.LastActionType,
+			"prev_last_action_card": ctx.User.TurnState.LastActionCard,
 		},
 	})
 	ctx.Game.Log(fmt.Sprintf("%s 发动 [冰冻]，等待选择法术伤害目标", ctx.User.Name))

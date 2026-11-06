@@ -18,8 +18,9 @@ func LeaveShadowForm(p *model.Player) bool {
 }
 
 func BlocksMagicCasting(p *model.Player) bool {
-	// 魔剑士暗影抗拒：暗影形态下行动阶段不能使用法术牌
-	return player.IsCharacter(p, "magic_swordsman") && InShadowForm(p)
+	// 魔剑士暗影抗拒：在你的行动阶段你始终不能使用法术牌（与形态无关）。
+	// 回合外仍可用魔弹/圣光响应，由 CanUseShadowRejectResponse 与响应流程处理。
+	return player.IsCharacter(p, "magic_swordsman")
 }
 
 func CanUseShadowRejectResponse(p *model.Player, currentTurnPlayerID string) bool {

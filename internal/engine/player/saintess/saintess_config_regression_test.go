@@ -176,3 +176,34 @@ func TestSaintess_Mercy_BecomesPersistentFixedHandCapState(t *testing.T) {
 		t.Fatalf("expected mercy not to reappear once active, got %+v", game.State.PendingInterrupt)
 	}
 }
+
+// 圣疗：分配上限 3，可以小于 3（1/1）。
+func TestSaintess_SaintHeal_TwoTargetAllowsTotalBelowThree(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Saintess", "saintess", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Ally", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Crystal = 1
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "saint_heal", TargetIDs: []string{"p1", "p2"}})
+	requireSaintHealStage(t, game, "p1", "allocate_heal")
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{2, 2}}); err == nil {
+		t.Fatalf("total above 3 must be rejected")
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{1, 1}})
+	if p1.Heal != 1 || p2.Heal != 1 {
+		t.Fatalf("expected split 1/1, got p1=%d p2=%d", p1.Heal, p2.Heal)
+	}
+}

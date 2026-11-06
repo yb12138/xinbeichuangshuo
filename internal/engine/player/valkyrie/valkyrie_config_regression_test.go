@@ -10,12 +10,15 @@ import (
 	"starcup-engine/internal/rules"
 )
 
-func TestValkyrie_HeroicSummon_ExtraDiscardHealsCurrentCombatTarget(t *testing.T) {
+func TestValkyrie_HeroicSummon_ExtraDiscardHealsChosenTarget(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Valkyrie", "valkyrie", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
 	if err := game.AddPlayer("p2", "Target", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "Ally", "angel", model.RedCamp); err != nil {
 		t.Fatal(err)
 	}
 
@@ -28,6 +31,8 @@ func TestValkyrie_HeroicSummon_ExtraDiscardHealsCurrentCombatTarget(t *testing.T
 	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
+	p3 := game.State.Players["p3"]
+	p3.TurnState = model.NewPlayerTurnState()
 	p1.Crystal = 1
 	p1.Hand = []model.Card{
 		{ID: "atk1", Name: "火斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 1},
@@ -51,11 +56,34 @@ func TestValkyrie_HeroicSummon_ExtraDiscardHealsCurrentCombatTarget(t *testing.T
 	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_heroic_discard_card")
 	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
 
-	if p1.Heal != 0 {
-		t.Fatalf("expected heroic summon extra heal not to target self, got self heal=%d", p1.Heal)
+	// 额外效果的目标角色由玩家任选，这里选队友 p3。
+	testutils.RequireChoicePrompt(t, game, "p1", "valkyrie_heroic_heal_target")
+	ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
+	targetIDs, _ := ctxData["target_ids"].([]string)
+	sel := -1
+	for i, id := range targetIDs {
+		if id == "p3" {
+			sel = i
+		}
 	}
-	if p2.Heal != 1 {
-		t.Fatalf("expected heroic summon extra heal to target current combat target, got target heal=%d", p2.Heal)
+	if sel < 0 || len(targetIDs) != 3 {
+		t.Fatalf("expected all players selectable, got %v", targetIDs)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{sel}})
+
+	if p1.Heal != 0 {
+		t.Fatalf("expected self heal=0, got %d", p1.Heal)
+	}
+	if p2.Heal != 0 {
+		t.Fatalf("expected combat target not healed, got %d", p2.Heal)
+	}
+	if p3.Heal != 1 {
+		t.Fatalf("expected chosen ally +1 heal, got %d", p3.Heal)
+	}
+	if game.State.PendingInterrupt != nil {
+		if ctxData, ok := game.State.PendingInterrupt.Context.(map[string]interface{}); ok && ctxData["choice_type"] == "valkyrie_heroic_heal_target" {
+			t.Fatalf("expected heal target choice cleared")
+		}
 	}
 }
 

@@ -98,9 +98,9 @@ func TestMagicalGirl_Skills(t *testing.T) {
 		if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdSelect, Selections: []int{0}}); err != nil {
 			t.Fatalf("p2 处理魔爆冲击失败: %v", err)
 		}
-		// 目标2：p3 放弃弃牌 -> 受2点法术伤害
-		if err := game.HandleAction(model.PlayerAction{PlayerID: "p3", Type: model.CmdCancel}); err != nil {
-			t.Fatalf("p3 处理魔爆冲击失败: %v", err)
+		// 目标2：p3 没有法术牌，自动按"不弃牌"结算（受2点法术伤害），不再弹出选择
+		if game.State.PendingInterrupt != nil && game.State.PendingInterrupt.PlayerID == "p3" {
+			t.Fatalf("p3 没有法术牌，不应再弹出魔爆冲击选择: %+v", game.State.PendingInterrupt)
 		}
 
 		// 继续驱动伤害结算

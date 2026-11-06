@@ -21,10 +21,10 @@ func attackMissHook(rt player.HookRuntime, ctx player.TimingHookContext) player.
 		p.Tokens = map[string]int{}
 	}
 	wisdom := p.Tokens["hero_wisdom"] + 1
-	if wisdom > 3 {
-		wisdom = 3
+	if wisdom > heroTokenCap {
+		wisdom = heroTokenCap
 	}
 	p.Tokens["hero_wisdom"] = wisdom
-	rt.Log(fmt.Sprintf("%s 的 [怒吼] 未命中分支生效：智慧+1（当前%d）", p.Name, wisdom))
+	rt.Log(fmt.Sprintf("%s 的 [怒吼] 未命中分支生效：知性+1（当前%d）", p.Name, wisdom))
 	return player.TimingHookResult{}
 }

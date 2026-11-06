@@ -29,7 +29,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		for x := 1; x <= maxX; x++ {
 			options = append(options, model.PromptOption{ID: fmt.Sprintf("%d", x), Label: fmt.Sprintf("X=%d（消耗%d蓝水晶，伤害额外+%d）", x, x, x+2)})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【漆黑之枪】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0}}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【漆黑之枪】请选择X值：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0, CancelPolicy: model.CancelPolicyAbort, CancelLabel: "不发动"}}
 
 	case "ml_dark_barrier_mode":
 		// 已废弃：改为直接进入 ml_dark_barrier_cards 单步选择
@@ -53,7 +53,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			optionID := fmt.Sprintf("%d", len(options))
 			options = append(options, model.PromptOption{ID: optionID, Label: fmt.Sprintf("%d: %s", idx+1, promptfmt.FormatCardInfo(card)), CardID: card.ID})
 		}
-		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【充盈】请选择要弃置的1张法术牌或雷系牌：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_or_thunder"}}
+		return &model.Prompt{Type: model.PromptConfirm, PlayerID: playerID, Message: "【充盈】请选择要弃置的1张法术牌或雷系牌：", Options: options, Min: 1, Max: 1, Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, CardSource: "hand", CardFilter: "magic_or_thunder", CancelPolicy: model.CancelPolicyAbort, CancelLabel: "取消"}}
 
 	case "ml_fullness_discard_step":
 		currentID, _ := data["current_player_id"].(string)
@@ -118,6 +118,19 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 
 func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
+	switch choiceType {
+	case "ml_black_spear_x":
+		// 尚未扣水晶：取消即不发动，攻击伤害照常结算。
+		rt.PopInterrupt()
+		if rt.GetPendingInterrupt() == nil {
+			rt.EnterDamageResolution(nil)
+		}
+		return true, nil
+	case "ml_fullness_cost_card":
+		// 尚未弃牌：取消即放弃发动，由通用退费机制回滚行动标记并回到行动选择。
+		rt.PopInterrupt()
+		return true, nil
+	}
 	if choiceType != "ml_fullness_discard_step" {
 		return false, nil
 	}

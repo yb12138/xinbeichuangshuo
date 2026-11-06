@@ -190,7 +190,7 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		}
 
 		currentEnergy := player.Gem + player.Crystal
-		if totalStones > 0 && currentEnergy < e.getPlayerEnergyCap(player) {
+		if totalStones > 0 && (currentEnergy < e.getPlayerEnergyCap(player) || e.canExtractAtFullEnergy(player)) {
 			state.specialOptions = append(state.specialOptions, model.PromptOption{ID: "extract", Label: "提炼"})
 		}
 
@@ -208,7 +208,8 @@ func (e *GameEngine) appendBaseActionSelectionOptions(player *model.Player, stat
 		if canCannotAct {
 			state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "cannot_act", Label: "无法行动（展示手牌）"})
 		}
-	} else if !state.hasRestrictedExtraAction {
+	} else {
+		// 额外行动是技能给的奖励，可以放弃：不论有没有可打出的牌都提供"跳过额外行动"。
 		state.ValidOptions = append(state.ValidOptions, model.PromptOption{ID: "cannot_act", Label: "跳过额外行动"})
 	}
 }
@@ -370,4 +371,13 @@ func (e *GameEngine) validateActionSelectionRule(player *model.Player, act model
 	default:
 		return nil
 	}
+}
+
+// canExtractAtFullEnergy 自身能量已满时，角色规则是否仍允许提炼（如冒险者天堂交给队友）。
+func (e *GameEngine) canExtractAtFullEnergy(player *model.Player) bool {
+	if player == nil || player.Character == nil {
+		return false
+	}
+	entry := roleRegistry.Entry(player.Character.ID)
+	return entry.ExtractAtFullEnergy != nil && entry.ExtractAtFullEnergy(e, player)
 }

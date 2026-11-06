@@ -3,6 +3,7 @@ package butterfly_dancer
 import (
 	"fmt"
 
+	"starcup-engine/internal/engine/core/runtimeutil"
 	"starcup-engine/internal/engine/hook/promptfmt"
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
@@ -123,7 +124,7 @@ func MaybeDamageResponses(rt butterflyDamageRuntime, pd *model.PendingDamage) bo
 	}
 	damageAmount := pd.Damage
 
-	if pd.DamageType != model.MagicDamage {
+	if !runtimeutil.IsMagicDamageType(pd.DamageType) {
 		return false
 	}
 	if pd.Damage == 1 && !pd.HasCheck(model.PendingDamageCheckBeforeApplyPoison) {

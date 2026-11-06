@@ -108,7 +108,7 @@ func TestMagicSwordsmanYellowSpring_NoCounterKeepsOriginalElementAndConsumesGem(
 	}
 }
 
-func TestCrimsonBloodBarrier_AutoDamagesSourceWithoutPrompt(t *testing.T) {
+func TestCrimsonBloodBarrier_PromptsEnemyTargetAfterReducingDamage(t *testing.T) {
 	g := engine.NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -140,21 +140,21 @@ func TestCrimsonBloodBarrier_AutoDamagesSourceWithoutPrompt(t *testing.T) {
 		t.Fatalf("execute css_blood_barrier failed: %v", err)
 	}
 
-	if g.State.PendingInterrupt != nil {
-		t.Fatalf("expected no extra prompt for css blood barrier, got %+v", g.State.PendingInterrupt)
-	}
 	if damage != 1 {
 		t.Fatalf("expected damage reduced to 1, got %d", damage)
 	}
-	if len(g.State.PendingDamageQueue) != 1 {
-		t.Fatalf("expected 1 reflected damage queued, got %+v", g.State.PendingDamageQueue)
+	if p1.Tokens["css_blood"] != 0 {
+		t.Fatalf("expected blood spent, got %d", p1.Tokens["css_blood"])
 	}
-	if g.State.PendingDamageQueue[0].TargetID != "p2" {
-		t.Fatalf("expected reflected damage target source p2, got %+v", g.State.PendingDamageQueue[0])
+	if len(g.State.PendingDamageQueue) != 0 {
+		t.Fatalf("expected reflected damage deferred until target chosen, got %+v", g.State.PendingDamageQueue)
+	}
+	if got := pendingChoiceType(g.State.PendingInterrupt); got != "css_blood_barrier_target" {
+		t.Fatalf("expected css_blood_barrier_target prompt, got %q", got)
 	}
 }
 
-func TestCrimsonBloodBarrier_DoesNotRetargetOtherEnemy(t *testing.T) {
+func TestCrimsonBloodBarrier_TargetCandidatesAreAllEnemies(t *testing.T) {
 	g := engine.NewGameEngine(nil)
 	if err := g.AddPlayer("p1", "CSS", "crimson_sword_spirit", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -185,11 +185,16 @@ func TestCrimsonBloodBarrier_DoesNotRetargetOtherEnemy(t *testing.T) {
 	if err := handler.Execute(ctx); err != nil {
 		t.Fatalf("execute css_blood_barrier failed: %v", err)
 	}
-	if len(g.State.PendingDamageQueue) != 1 {
-		t.Fatalf("expected exactly 1 reflected damage, got %+v", g.State.PendingDamageQueue)
+	prompt := g.BuildPendingInterruptPrompt()
+	if prompt == nil || len(prompt.Options) != 2 {
+		t.Fatalf("expected 2 enemy options (p2, p3), got %+v", prompt)
 	}
-	if g.State.PendingDamageQueue[0].TargetID != "p2" {
-		t.Fatalf("expected reflected damage locked to original source p2, got %+v", g.State.PendingDamageQueue[0])
+	seen := map[string]bool{}
+	for _, opt := range prompt.Options {
+		seen[opt.TargetID] = true
+	}
+	if !seen["p2"] || !seen["p3"] {
+		t.Fatalf("expected both enemies selectable, got %+v", prompt.Options)
 	}
 }
 

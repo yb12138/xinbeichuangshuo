@@ -20,13 +20,13 @@ type StateSnapshot struct {
 	HasPerformedStartup bool
 	Players             map[string]PlayerSnapshot
 	// 阵营资源
-	RedMorale   int
-	BlueMorale  int
-	RedCups     int
-	BlueCups    int
-	RedGems     int
-	BlueGems    int
-	RedCrystals int
+	RedMorale    int
+	BlueMorale   int
+	RedCups      int
+	BlueCups     int
+	RedGems      int
+	BlueGems     int
+	RedCrystals  int
 	BlueCrystals int
 	// 牌库
 	DeckCount    int
@@ -35,25 +35,28 @@ type StateSnapshot struct {
 
 // PlayerSnapshot 玩家视角（精简版，仅机器人决策需要）
 type PlayerSnapshot struct {
-	ID               string
-	Name             string
-	Camp             string
-	Role             string
-	Form             string
-	Orientation      string
-	HandCount        int
-	MaxHand          int
+	ID                 string
+	Name               string
+	Camp               string
+	Role               string
+	Form               string
+	Orientation        string
+	HandCount          int
+	MaxHand            int
 	ExclusiveCardCount int
-	Hand             []model.Card    // 仅自己有内容
-	ExclusiveCards   []model.Card
-	Field            []*model.FieldCard
-	Heal             int
-	MaxHeal          int
-	Gem              int
-	Crystal          int
-	IsActive         bool
-	Buffs            []model.Buff
-	Tokens           map[string]int
+	Hand               []model.Card // 仅自己有内容
+	ExclusiveCards     []model.Card
+	Field              []*model.FieldCard
+	Heal               int
+	MaxHeal            int
+	Gem                int
+	Crystal            int
+	IsActive           bool
+	Buffs              []model.Buff
+	Tokens             map[string]int
+	// 引擎规则判定结果（与提交校验同源），避免机器人选出会被拒绝的动作
+	CannotCastMagic     bool // 当前形态不能在行动阶段打法术牌
+	NotAttackTargetable bool // 不能成为主动攻击目标（如潜行）
 }
 
 // AvailableSkill 可发动技能摘要（精简版）

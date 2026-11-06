@@ -51,12 +51,26 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 // 偷天换日 - 简单两步骤流程
 // ---------------------------------------------------------------------------
 
-func buildStealSkyModePrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
-	p := engineplayer.NewPrompt(playerID, "【偷天换日】请选择效果：").
-		OptionsFromLabels("转移对方战绩区1红宝石到我方", "将我方战绩区全部蓝水晶转换成红宝石").
-		Build()
-	p.Presentation = &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"}
-	return p
+func buildStealSkyModePrompt(rt engineplayer.ChoiceRuntime, playerID string, _ *model.Player, data map[string]interface{}) *model.Prompt {
+	enemyCamp, _ := data["enemy_camp"].(string)
+	transfer := model.PromptOption{ID: "0", Label: "转移对方战绩区1红宝石到我方"}
+	// 对方战绩区没有宝石时"转移"不可选：灰掉并说明原因（只能转移宝石，不能转移水晶）。
+	if rt != nil && rt.GetCampGems(enemyCamp) <= 0 {
+		transfer.Disabled = true
+		transfer.DisabledReason = "对方战绩区没有宝石"
+	}
+	// "水晶全部替换为宝石"始终可选：我方战绩区没有水晶时也能选（只是没有转换）。
+	convert := model.PromptOption{ID: "1", Label: "将我方战绩区全部蓝水晶转换成红宝石"}
+	return &model.Prompt{
+		Type:         model.PromptConfirm,
+		PlayerID:     playerID,
+		ChoiceType:   "adventurer_steal_sky_mode",
+		Message:      "【偷天换日】请选择效果：",
+		Options:      []model.PromptOption{transfer, convert},
+		Min:          1,
+		Max:          1,
+		Presentation: &model.PromptPresentation{Kind: model.PresentationBranchSelect, Layout: "overlay"},
+	}
 }
 
 func handleStealSkyMode(rt engineplayer.ChoiceRuntime, playerID string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
@@ -69,24 +83,23 @@ func handleStealSkyMode(rt engineplayer.ChoiceRuntime, playerID string, selectio
 		enemyCamp, _ := ctxData["enemy_camp"].(string)
 		selfCamp, _ := ctxData["self_camp"].(string)
 		if rt.GetCampGems(enemyCamp) <= 0 {
-			rt.Log(fmt.Sprintf("%s 的 [偷天换日] 失败：对方战绩区无红宝石", user.Name))
-			rt.PopInterrupt()
-			return true, nil
+			// 拒绝选择、保留当前提示：不消耗任何东西，玩家改选另一项。
+			return true, fmt.Errorf("对方战绩区没有宝石，不能选择转移")
 		}
 		rt.ModifyGem(enemyCamp, -1)
+		// 我方星石已满时 ModifyGem 会被上限截断：视为直接弃掉对方 1 宝石。
 		rt.ModifyGem(selfCamp, 1)
 		rt.Log(fmt.Sprintf("%s 的 [偷天换日]：转移对方1红宝石到我方", user.Name))
 	case 1:
 		selfCamp, _ := ctxData["self_camp"].(string)
 		crystals := rt.GetCampCrystals(selfCamp)
-		if crystals <= 0 {
-			rt.Log(fmt.Sprintf("%s 的 [偷天换日] 失败：我方战绩区无蓝水晶", user.Name))
-			rt.PopInterrupt()
-			return true, nil
+		if crystals > 0 {
+			rt.ModifyCrystal(selfCamp, -crystals)
+			rt.ModifyGem(selfCamp, crystals)
+			rt.Log(fmt.Sprintf("%s 的 [偷天换日]：将%d蓝水晶转换为红宝石", user.Name, crystals))
+		} else {
+			rt.Log(fmt.Sprintf("%s 的 [偷天换日]：我方战绩区没有蓝水晶，无可转换", user.Name))
 		}
-		rt.ModifyCrystal(selfCamp, -crystals)
-		rt.ModifyGem(selfCamp, crystals)
-		rt.Log(fmt.Sprintf("%s 的 [偷天换日]：将%d蓝水晶转换为红宝石", user.Name, crystals))
 	default:
 		return true, fmt.Errorf("无效的选项索引: %d", selectionIndex)
 	}
@@ -115,7 +128,7 @@ func buildParadiseAllyPickPrompt(rt engineplayer.ChoiceRuntime, playerID string,
 	return &model.Prompt{
 		Type:         model.PromptConfirm,
 		PlayerID:     playerID,
-		Message:      "【冒险者天堂】选择队友代为提炼：",
+		Message:      "【冒险者天堂】选择接收本次提炼星石的队友：",
 		Options:      options,
 		Min:          1,
 		Max:          1,
@@ -133,9 +146,13 @@ func handleParadiseAllyPick(rt engineplayer.ChoiceRuntime, playerID string, sele
 	if ally == nil {
 		return true, fmt.Errorf("队友不存在")
 	}
-	rt.Log(fmt.Sprintf("[冒险者天堂] %s 选择队友 %s 代为提炼", playerID, ally.Name))
+	rt.Log(fmt.Sprintf("[冒险者天堂] %s 提炼并将星石交给队友 %s", playerID, ally.Name))
 	rt.PopInterrupt()
-	rt.StartExtractForPlayer(allyID)
+	engineplayer.NotifySkillActivated(rt, rt.GetPlayers()[playerID], playerID, "adventurer_paradise", allyID)
+	// 冒险家自己提炼（可选数量受队友能量空间限制），星石全部交给队友，然后移除冒险家1能量（没有能量则不移除）。
+	if err := rt.StartExtractToRecipient(playerID, allyID, 1); err != nil {
+		return true, err
+	}
 	return true, nil
 }
 
@@ -144,7 +161,7 @@ func handleParadiseAllyPick(rt engineplayer.ChoiceRuntime, playerID string, sele
 // ---------------------------------------------------------------------------
 
 func buildExtractParadiseCheckPrompt(_ engineplayer.ChoiceRuntime, playerID string, _ *model.Player, _ map[string]interface{}) *model.Prompt {
-	p := engineplayer.NewPrompt(playerID, "是否发动[冒险者天堂]，让队友代为提炼？").
+	p := engineplayer.NewPrompt(playerID, "是否发动[冒险者天堂]，将本次提炼的星石交给队友？").
 		Options(
 			engineplayer.Option("yes", "是，发动冒险者天堂"),
 			engineplayer.Option("no", "否，自行提炼"),
@@ -165,9 +182,7 @@ func handleExtractParadiseCheck(rt engineplayer.ChoiceRuntime, playerID string, 
 		allies := eligibleAllyIDsForChoice(rt, user)
 		if len(allies) == 0 {
 			// 没有可选队友，退回自行提炼
-			setDeclinedParadise(user)
-			rt.StartExtractForPlayer(playerID)
-			return true, nil
+			return true, rt.StartExtractForPlayer(playerID)
 		}
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
@@ -181,20 +196,8 @@ func handleExtractParadiseCheck(rt engineplayer.ChoiceRuntime, playerID string, 
 		rt.NotifyInterruptPrompt()
 		return true, nil
 	}
-	// 否 → 正常提炼（设置标志防止 override hook 再次拦截）
-	setDeclinedParadise(user)
-	rt.StartExtractForPlayer(playerID)
-	return true, nil
-}
-
-func setDeclinedParadise(p *model.Player) {
-	if p == nil {
-		return
-	}
-	if p.TurnState.SkillFlowState == nil {
-		p.TurnState.SkillFlowState = map[string]int{}
-	}
-	p.TurnState.SkillFlowState["adventurer_declined_paradise"] = 1
+	// 否 → 正常提炼（StartExtractForPlayer 不经过 override hook，无需额外标记）
+	return true, rt.StartExtractForPlayer(playerID)
 }
 
 func eligibleAllyIDsForChoice(rt engineplayer.ChoiceRuntime, p *model.Player) []string {

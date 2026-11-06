@@ -17,7 +17,14 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 	if attacker != nil && target != nil && card != nil {
 		e.beginNarrativeCombat(attackerID, len(isCounter) > 0 && isCounter[0])
 		e.NotifyActionStep(fmt.Sprintf("%s出%s攻击%s", model.GetPlayerDisplayName(attacker), card.Name, model.GetPlayerDisplayName(target)))
-		e.NotifyCombatCue(attackerID, targetID, "attack")
+		// 只给技能视为的虚拟攻击带牌（圣屑飓暴、多重射击：没有出牌事件，战斗链靠它画卡面）。
+		// 应战反击的牌已由"应战"那一步出牌带过；再带一次，反击宣言的边就有了牌，
+		// 战斗链会把它画成第二张卡（同一张雷光斩出现两次），而不是并入应战。
+		var cueCard *model.Card
+		if len(isCounter) == 0 || !isCounter[0] {
+			cueCard = card
+		}
+		e.notifyCombatCueWithCard(attackerID, targetID, "attack", cueCard)
 	}
 	combatReq := model.CombatRequest{
 		AttackerID:      attackerID,
@@ -40,6 +47,7 @@ func (e *GameEngine) initCombat(attackerID, targetID string, card *model.Card, i
 		combatReq.SetInterceptTag(model.CombatInterceptUnrespondable)
 	}
 
+	combatReq.Cause = model.CloneCause(e.CurrentCause())
 	// 推入战斗栈
 	e.State.CombatStack = append(e.State.CombatStack, combatReq)
 }
@@ -135,7 +143,7 @@ func (e *GameEngine) ApplyPassiveAttackEffects(attacker, target *model.Player, b
 }
 
 // applyDamageWithOptions 应用伤害逻辑 (治疗抵消 + 摸牌)
-func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, damageType model.DamageType, capToHandLimit bool, sourceID string, sourceSkillID string, overflowMoraleLossFixed int) {
+func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, damageType model.DamageType, capToHandLimit bool, sourceID string, sourceSkillID string, overflowMoraleLossFixed int, noMoraleLoss bool) {
 
 	// 5. 造成伤害 (摸牌)
 	if damage > 0 {
@@ -164,7 +172,7 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 		if overflowMoraleLossFixed > 0 {
 			drawCtx.Selections["overflow_morale_loss_fixed"] = overflowMoraleLossFixed
 		}
-		if strings.EqualFold(string(damageType), "magic_no_morale") {
+		if noMoraleLoss || strings.EqualFold(string(damageType), "magic_no_morale") {
 			drawCtx.Flags["NoMoraleLoss"] = true
 		}
 
@@ -180,7 +188,7 @@ func (e *GameEngine) applyDamageWithOptions(target *model.Player, damage int, da
 
 // applyDamage 应用伤害逻辑 (治疗抵消 + 摸牌)
 func (e *GameEngine) applyDamage(target *model.Player, damage int, damageType model.DamageType) {
-	e.applyDamageWithOptions(target, damage, damageType, false, "", "", 0)
+	e.applyDamageWithOptions(target, damage, damageType, false, "", "", 0, false)
 }
 
 // resolveCounterAttack resolves a counter attack by popping the current combat

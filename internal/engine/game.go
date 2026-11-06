@@ -40,6 +40,8 @@ type GameEngine struct {
 	actionSummary *actionSummary
 	// actionSummaryTurn 汇总所绑定的回合索引，用于跨回合清空。
 	actionSummaryTurn int
+	// damageSourceDealDispatching 正在分派攻击方增伤 hook（用于发出逐个技能的伤害修正标记）。
+	damageSourceDealDispatching bool
 	// suppressSealOnDiscard 为 true 时跳过某次弃牌链路上的封印检测（避免死循环或特殊剧情）。
 	suppressSealOnDiscard bool
 	// roleTimingHooks 声明式 Timing Hook 注册表（按 timing 分组，已排序）。
@@ -50,6 +52,12 @@ type GameEngine struct {
 	postActionEndResume *postActionEndResumeState
 	// narrativeTrace 为 NotifyTimeline 结构化事件链提供运行时上下文。
 	narrativeTrace *narrativeTraceState
+	// causeRuntime 当前效果因果（见 cause_runtime.go）；为公开事件与状态变化提供技能归属。
+	causeRuntime *causeState
+	// skillRefundCapture 正在执行的技能的退费快照捕获（见 skill_cancel_refund.go）。
+	skillRefundCapture *skillRefundCapture
+	// skillRefunds 中断 -> 取消时可退回的技能费用/次数快照。
+	skillRefunds map[*model.Interrupt]*skillRefundEntry
 }
 
 type skillResumeState struct {
@@ -57,6 +65,7 @@ type skillResumeState struct {
 	skillID        string
 	targetIDs      []string
 	discardedCards []model.Card
+	cause          *model.Cause
 }
 
 type postActionEndResumeState struct {

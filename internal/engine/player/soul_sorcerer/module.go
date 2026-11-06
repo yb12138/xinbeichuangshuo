@@ -21,8 +21,8 @@ func RoleEntry() player.RoleEntry {
 		ChoiceRouteSpecs:    ChoiceRouteSpecs(),
 		AfterMoraleLossHook: ApplySoulDevour,
 		TimingHookSpecs: []player.TimingHookSpec{
-			{Timing: player.TimingAttackDeclareInterrupt, Priority: 200, Hook: soulConvertInterruptHook},
-			{Timing: player.TimingDamageTargetBefore, Priority: 100, Hook: damageBeforeTakenHook, RoleFilter: &player.HookRoleNone},
+			{Timing: player.TimingAttackDeclareInterrupt, Priority: 200, Hook: soulConvertInterruptHook, SkillID: "ss_soul_convert"},
+			{Timing: player.TimingDamageTargetBefore, Priority: 100, Hook: damageBeforeTakenHook, RoleFilter: &player.HookRoleNone, SkillID: "ss_soul_link"},
 		},
 	}
 }
@@ -88,9 +88,9 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"ss_convert_color":   types.ChoiceRouteRole("soul_sorcerer"),
-		"ss_link_target":     types.ChoiceRouteRole("soul_sorcerer"),
-		"ss_link_transfer_x": types.ChoiceRouteRole("soul_sorcerer"),
-		"ss_recall_pick":     types.ChoiceRouteRole("soul_sorcerer"),
+		"ss_convert_color":   types.ChoiceRouteRole("soul_sorcerer").WithSkill("ss_soul_convert"),
+		"ss_link_target":     types.ChoiceRouteRole("soul_sorcerer").WithSkill("ss_soul_link"),
+		"ss_link_transfer_x": types.ChoiceRouteRole("soul_sorcerer").WithSkill("ss_soul_link"),
+		"ss_recall_pick":     types.ChoiceRouteRole("soul_sorcerer").WithSkill("ss_soul_recall"),
 	}
 }

@@ -24,8 +24,9 @@ func RoleEntry() player.RoleEntry {
 			{Timing: player.TimingAttackDeclare, Priority: 200, Hook: pendingDamageInitHook},
 			{Timing: player.TimingAttackStateReset, Priority: 100, Hook: attackStateResetHook},
 			{Timing: player.TimingAttackNoResponse, Priority: 200, Hook: attackGatingHook},
-			{Timing: player.TimingAttackMiss, Priority: 200, Hook: attackMissHook},
-			{Timing: player.TimingTurnEndPreExtra, Priority: 200, Hook: turnEndHook},
+			{Timing: player.TimingAttackMiss, Priority: 200, Hook: attackMissHook, SkillID: "fighter_charge_strike"},
+			{Timing: player.TimingAttackMiss, Priority: 210, Hook: burstCrashAttackMissHook, SkillID: "fighter_burst_crash"},
+			{Timing: player.TimingPostDamageResolved, Priority: 200, Hook: burstCrashAfterAttackDamageHook, SkillID: "fighter_burst_crash"},
 			{Timing: player.TimingActionStartOption, Priority: 300, Hook: beforeActionOptionHook},
 			{Timing: player.TimingActionStartValidation, Priority: 300, Hook: beforeActionValidationHook},
 		},
@@ -61,7 +62,7 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"fighter_hundred_dragon_target": types.ChoiceRouteRole("fighter"),
-		"fighter_psi_bullet_target":     types.ChoiceRouteRole("fighter"),
+		"fighter_hundred_dragon_target": types.ChoiceRouteRole("fighter").WithSkill("fighter_hundred_dragon"),
+		"fighter_psi_bullet_target":     types.ChoiceRouteRole("fighter").WithSkill("fighter_psi_bullet"),
 	}
 }

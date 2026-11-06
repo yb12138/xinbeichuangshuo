@@ -14,19 +14,14 @@ func undergroundLawOverrideHook(rt engineplayer.HookRuntime, ctx engineplayer.Ti
 }
 
 // extractOverrideHook 冒险者天堂提炼覆盖策略。
-// 当冒险者选择提炼时，询问是否发动天堂让队友直接提炼。
-// 自身能量已满时自动跳过询问，直接选择队友提炼。
+// 当冒险者选择提炼时，询问是否发动天堂（冒险者提炼，星石交给队友）。
+// 自身能量已满时只能交给队友，跳过询问直接选择队友。
 func extractOverrideHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHookContext) engineplayer.TimingHookResult {
 	if ctx.ActionType != model.ActionExtract {
 		return engineplayer.TimingHookResult{}
 	}
 	p := ctx.Player
 	if p == nil || !rt.IsCharacter(p, "adventurer") {
-		return engineplayer.TimingHookResult{}
-	}
-	// 玩家已拒绝天堂，不再拦截（防止 StartExtractForPlayer 触发循环）
-	if p.TurnState.SkillFlowState != nil && p.TurnState.SkillFlowState["adventurer_declined_paradise"] > 0 {
-		p.TurnState.SkillFlowState["adventurer_declined_paradise"] = 0
 		return engineplayer.TimingHookResult{}
 	}
 	// 检查是否有天堂技能且阵营有可用资源
@@ -38,13 +33,20 @@ func extractOverrideHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingHoo
 	if len(allies) == 0 {
 		return engineplayer.TimingHookResult{}
 	}
+	// 阵营资源池为空时不发动天堂，交给普通提炼流程报错（避免先弹出选队友、选完才失败）
+	if crt := rt.AsChoiceRuntime(); crt != nil {
+		camp := string(p.Camp)
+		if crt.GetCampGems(camp)+crt.GetCampCrystals(camp) <= 0 {
+			return engineplayer.TimingHookResult{}
+		}
+	}
 
 	currentEnergy := p.Gem + p.Crystal
 	maxEnergy := rt.GetPlayerEnergyCap(p)
 	energyRoom := maxEnergy - currentEnergy
 
 	if energyRoom <= 0 {
-		// 自身能量已满，自动选择队友提炼（不询问）
+		// 自身能量已满，只能发动天堂，直接选择接收星石的队友
 		rt.PushInterrupt(&model.Interrupt{
 			Type:     model.InterruptChoice,
 			PlayerID: p.ID,

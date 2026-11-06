@@ -130,8 +130,8 @@ func TestElfElementalShotThunder_DisablesCounterResponse(t *testing.T) {
 	}
 }
 
-// 回归：宠物强化目标摸牌触发爆牌时，不应再追加第二次“弃1”中断。
-func TestElfPetEmpower_OverflowConsumesDiscardOnlyOnce(t *testing.T) {
+// 回归：宠物强化目标摸牌触发爆牌时，先结算爆牌弃牌，之后再结算技能本身的“弃1”。
+func TestElfPetEmpower_OverflowDiscardThenSkillDiscard(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Elf", "elf_archer", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -197,10 +197,25 @@ func TestElfPetEmpower_OverflowConsumesDiscardOnlyOnce(t *testing.T) {
 		t.Fatalf("expected discard owner p2, got %s", game.State.PendingInterrupt.PlayerID)
 	}
 	if len(game.State.InterruptQueue) != 0 {
-		t.Fatalf("expected no extra queued discard interrupt, got queue size %d", len(game.State.InterruptQueue))
+		t.Fatalf("skill discard must not be queued before overflow discard resolves, got queue size %d", len(game.State.InterruptQueue))
 	}
 	if p1.Crystal != 0 {
 		t.Fatalf("expected pet empower to consume exactly 1 crystal, got %d", p1.Crystal)
+	}
+	maxHand := game.GetMaxHand(p2)
+	if len(p2.Hand) != maxHand+1 {
+		t.Fatalf("expected p2 hand=%d after draw, got %d", maxHand+1, len(p2.Hand))
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdSelect, Selections: []int{0}})
+	if len(p2.Hand) != maxHand {
+		t.Fatalf("expected p2 at hand limit after overflow discard, got %d", len(p2.Hand))
+	}
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) || game.State.PendingInterrupt.PlayerID != "p2" {
+		t.Fatalf("expected pet empower skill discard for p2 after overflow, got %+v", game.State.PendingInterrupt)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdSelect, Selections: []int{0}})
+	if len(p2.Hand) != maxHand-1 {
+		t.Fatalf("expected p2 hand=%d after skill discard, got %d", maxHand-1, len(p2.Hand))
 	}
 }
 

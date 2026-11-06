@@ -15,6 +15,15 @@ type ChoiceRouteSpec struct {
 	Kind      ChoiceRouteKind
 	Role      string
 	PhaseSync string
+	// SkillID 声明该选择结算属于哪个技能：路由在该技能因果下执行选择处理器，
+	// 选择内产生的事件 / 状态变化自动归属此技能。
+	SkillID string
+}
+
+// WithSkill 返回声明了技能归属的路由规格副本。
+func (s ChoiceRouteSpec) WithSkill(skillID string) ChoiceRouteSpec {
+	s.SkillID = skillID
+	return s
 }
 
 // ChoiceRouteRole 返回角色路由规格。

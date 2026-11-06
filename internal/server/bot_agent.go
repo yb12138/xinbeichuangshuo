@@ -79,7 +79,8 @@ func (r *Room) scheduleBotIfNeeded(playerID string, prompt *model.Prompt, expect
 		return
 	}
 
-	delay := time.Duration(220+rand.Intn(360)) * time.Millisecond
+	// 留出客户端播放上一手战斗链的时间，避免机器人连续出手让人看不清场面。
+	delay := time.Duration(1500+rand.Intn(800)) * time.Millisecond
 	time.AfterFunc(delay, func() {
 		r.enqueueViaActor(func() error {
 			return r.runBotTurn(playerID, prompt, expectedEpoch)
@@ -154,7 +155,7 @@ func (r *Room) runBotTurn(playerID string, promptSnapshot *model.Prompt, expecte
 	}
 
 	state := r.buildBotStateSnapshot(playerID)
-	availableSkills := buildBotAvailableSkills(r.buildAvailableActionSkills(playerID))
+	availableSkills := buildBotAvailableSkills(r.buildUsableActionSkills(playerID))
 	action, ok := r.decideBotAction(playerID, state, prompt, availableSkills)
 	if !ok {
 		return nil

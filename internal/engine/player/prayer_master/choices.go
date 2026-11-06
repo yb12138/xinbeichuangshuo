@@ -62,12 +62,38 @@ func handlePrayerPowerBlessingResponseChoice(rt engineplayer.ChoiceRuntime, sele
 		return fmt.Errorf("玩家不存在")
 	}
 	if selectionIndex == 0 {
+		sourceID, _ := ctxData["source_id"].(string)
+		targetID, _ := ctxData["target_id"].(string)
+		pd := findPowerBlessingAttackDamage(rt.GetPendingDamageQueue(), sourceID, targetID)
+		if pd == nil {
+			return fmt.Errorf("威力赐福：找不到本次攻击伤害")
+		}
 		rt.RemoveFieldCard(user.ID, model.EffectPowerBlessing)
-		rt.Log(fmt.Sprintf("%s 的 [威力赐福] 生效，本次攻击伤害+2", user.Name))
+		pd.Damage += 2
+		rt.Log(fmt.Sprintf("%s 的 [威力赐福] 生效，本次攻击伤害+2（当前%d）", user.Name, pd.Damage))
 	}
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil && len(rt.GetPendingDamageQueue()) > 0 {
 		rt.EnterDamageResolution(nil)
+	}
+	return nil
+}
+
+// findPowerBlessingAttackDamage 定位本次命中的攻击伤害。
+// 攻击命中钩子触发时，这笔伤害仍在队首（命中链结算完才出队），返回的指针直接指向队列元素。
+func findPowerBlessingAttackDamage(queue []model.PendingDamage, sourceID, targetID string) *model.PendingDamage {
+	for i := range queue {
+		pd := &queue[i]
+		if pd.DamageType != model.AttackDamage {
+			continue
+		}
+		if sourceID != "" && pd.SourceID != sourceID {
+			continue
+		}
+		if targetID != "" && pd.TargetID != targetID {
+			continue
+		}
+		return pd
 	}
 	return nil
 }

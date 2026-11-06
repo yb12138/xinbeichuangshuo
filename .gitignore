@@ -25,3 +25,6 @@ web/dist/
 tmp/
 artifacts/refactor_runs/
 specs/refactor/codex_prompt.md
+
+# Claude Code local worktrees
+.claude/worktrees/

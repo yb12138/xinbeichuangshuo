@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"starcup-engine/internal/engine/core/runtimeutil"
+	"starcup-engine/internal/engine/hook/promptfmt"
 	engineplayer "starcup-engine/internal/engine/player"
 	"starcup-engine/internal/model"
 )
@@ -117,10 +118,17 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return engineplayer.BuildTargetChoicePrompt(rt, choiceType, playerID, "【生命结界·分支②】请选择弃1张手牌的队友：", data, false)
 
 	case "onmyoji_yinyang_confirm":
+		faction, _ := data["attack_faction"].(string)
+		message := "【阴阳转换】你可使用同命格攻击牌应战，是否发动？"
+		if faction != "" {
+			element, _ := data["attack_element"].(string)
+			message = fmt.Sprintf("【阴阳转换】此次攻击为%s系·%s命格，你可打出%s命格攻击牌应战（攻击转为该牌系别），是否发动？",
+				promptfmt.ElementName(element), faction, faction)
+		}
 		return &model.Prompt{
 			Type:     model.PromptConfirm,
 			PlayerID: playerID,
-			Message:  "【阴阳转换】你可使用同命格攻击牌应战，是否发动？",
+			Message:  message,
 			Options: []model.PromptOption{
 				{ID: "0", Label: "是"},
 				{ID: "1", Label: "否"},
@@ -450,7 +458,7 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 		}
 
 		// Apply 阴阳转换 + 式神转换 bonuses (统一入口)
-		ApplyFactionCounterBonuses(rt, actor, &card)
+		ApplyFactionCounterBonuses(rt, actor, &card, onmyojiCounterAttackerID(rt, ctxData))
 
 		// Add card to discard pile
 		rt.AppendToDiscard([]model.Card{card})
@@ -518,16 +526,22 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 			return true, fmt.Errorf("阴阳师不存在")
 		}
 
+		if !CanPayBindingCost(rt, actor.Camp) {
+			return true, fmt.Errorf("战绩区资源不足，式神咒束需要1宝石+1星石")
+		}
+
 		// Consume the card from actor's hand
 		card, ok := rt.ConsumePlayableCardByCardID(actorID, selectedCardID)
 		if !ok {
 			return true, fmt.Errorf("无法消耗选定的卡牌")
 		}
+		// 扣除战绩区代价：1宝石 + 1星石
+		PayBindingCost(rt, actor.Camp)
 
 		// Apply 阴阳转换 + 式神转换 bonuses (统一入口)
 		// 注意：selectedUseFaction 表示是否使用同命格应战（阴阳转换）
 		if selectedUseFaction {
-			ApplyFactionCounterBonuses(rt, actor, &card)
+			ApplyFactionCounterBonuses(rt, actor, &card, onmyojiCounterAttackerID(rt, ctxData))
 		}
 
 		// Add card to discard pile
@@ -648,14 +662,17 @@ func resolveOnmyojiLifeBarrierSupportTarget(rt engineplayer.ChoiceRuntime, ctxDa
 			TargetID:   user.ID,
 			Damage:     ghostFire,
 			DamageType: damageType,
+			// X=3 时该伤害不导致士气下降
+			NoMoraleLoss: ghostFire >= 3,
 		})
 	}
 	rt.Log(fmt.Sprintf("%s 的 [生命结界] 分支①生效：%s +%d宝石+1治疗，自身承受%d点法术伤害", user.Name, target.Name, gainedGem, ghostFire))
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
-		rt.RoutePendingDamageOr(model.TurnStageTurnEnd, func() {
-			rt.EnterTurnEndStage()
-		})
+		// 结算完正常走行动结束时点（之后再进额外行动 / ActionQueue）。
+		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionEnd) {
+			rt.EnterActionEndStage()
+		}
 	}
 	return nil
 }
@@ -684,6 +701,13 @@ func resolveOnmyojiLifeBarrierReleaseTarget(rt engineplayer.ChoiceRuntime, _ map
 				"prompt":        "【生命结界】请弃置1张手牌：",
 			},
 		})
+		return nil
+	}
+	// 队友没有手牌可弃：直接推进到行动结束，避免流程停住。
+	if rt.GetPendingInterrupt() == nil {
+		if !rt.RoutePendingDamageWithReturn(model.TurnStageActionEnd) {
+			rt.EnterActionEndStage()
+		}
 	}
 	return nil
 }
@@ -700,9 +724,6 @@ func resolveOnmyojiDarkRitualTarget(rt engineplayer.ChoiceRuntime, ctxData map[s
 	if target == nil {
 		return fmt.Errorf("目标不存在")
 	}
-	if target.Camp == user.Camp {
-		return fmt.Errorf("黑暗祭礼只能选择敌方目标")
-	}
 	if user.Tokens == nil {
 		user.Tokens = map[string]int{}
 	}
@@ -714,10 +735,22 @@ func resolveOnmyojiDarkRitualTarget(rt engineplayer.ChoiceRuntime, ctxData map[s
 		DamageType: model.MagicAttack,
 	})
 	rt.Log(fmt.Sprintf("%s 的 [黑暗祭礼] 生效：对 %s 造成2点法术伤害", user.Name, target.Name))
+	engineplayer.NotifySkillActivated(rt, user, user.ID, "onmyoji_dark_ritual", targetID)
 	rt.PopInterrupt()
 	if rt.GetPendingInterrupt() == nil {
 		rt.ApplyChoiceResumePoint(model.TurnStageTurnEnd)
 		rt.EnterDamageResolution(nil)
 	}
 	return nil
+}
+
+// onmyojiCounterAttackerID 返回被阴阳师应战的原攻击者 ID（优先取中断上下文，回退到战斗栈顶）。
+func onmyojiCounterAttackerID(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}) string {
+	if id, _ := ctxData["attacker_id"].(string); id != "" {
+		return id
+	}
+	if stack := rt.GetCombatStack(); len(stack) > 0 {
+		return stack[len(stack)-1].AttackerID
+	}
+	return ""
 }

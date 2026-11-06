@@ -148,6 +148,7 @@ func (h *SealBreakHandler) Execute(ctx *model.Context) error {
 	}
 	ctx.User.Hand = append(ctx.User.Hand, takenCard)
 	ctx.Game.Log(fmt.Sprintf("%s 的 [封印破碎] 发动，将 %s 收入手中", ctx.User.Name, options[0].Label))
+	ctx.Game.CheckHandLimit(ctx.User.ID, true)
 	return nil
 }
 
@@ -269,6 +270,10 @@ func canResolveElementalSealStatus(ctx *model.Context, fc *model.FieldCard) bool
 	if ctx.EventCtx == nil || ctx.EventCtx.Card == nil {
 		return false
 	}
+	// 一张封印只触发一次：同一次打出/展示多张同系牌时，后续牌不再触发
+	if fc.Meta != nil && fc.Meta[fieldMetaSealTriggered] != "" {
+		return false
+	}
 	// Get bound element (read from Meta, or infer from EffectType)
 	boundElement := model.BoundElementForFieldCard(fc)
 	// Check if the played/revealed card's element matches the seal element
@@ -299,6 +304,11 @@ func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 		model.BoundElementForFieldCard(fc),
 		elementalSealName(fc),
 	))
+	// 标记已触发，防止同批次其他同系牌重复触发（封印在伤害结算后移除）
+	if fc.Meta == nil {
+		fc.Meta = map[string]string{}
+	}
+	fc.Meta[fieldMetaSealTriggered] = "1"
 	// Add pending damage, mark EffectTypeToRemove for removal after damage is applied
 	ctx.Game.AddPendingDamage(model.PendingDamage{
 		SourceID:           sourceID,
@@ -309,6 +319,9 @@ func executeElementalSealStatus(ctx *model.Context, fc *model.FieldCard) error {
 	})
 	return nil
 }
+
+// fieldMetaSealTriggered 标记封印已被触发（等待伤害结算后移除）。
+const fieldMetaSealTriggered = "seal_triggered"
 
 // elementalSealName gets the seal name
 // Prefer card name on field card, otherwise return default name based on EffectType

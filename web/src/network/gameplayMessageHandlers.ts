@@ -1,3 +1,4 @@
+import { watch } from 'vue'
 import type { GameEvent, GameStateUpdate, Prompt } from '../types/game'
 import { extractGameplayEventsFromTimeline } from './gameplayTimeline'
 import type { RequireActionPayload, SyncStatePayload, TimelineDelta, TimelineNotifyPayload } from './protocol'
@@ -9,7 +10,13 @@ import { useMatchLifecycleStore } from '../stores/matchLifecycle.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useTimelineStore } from '../stores/timeline.store'
+import { useStageQueueStore } from '../stores/stageQueue.store'
+import { createStageQueueBridge } from './stageQueueBridge'
+import { cardArtSrc } from '../constants/cardArt'
 import { useUiStore } from '../stores/ui.store'
+import { playSfx } from '../audio/sfx'
+import { recoverFromRejectedSubmission } from './submissionRecovery'
+import { endCueFor } from '../audio/endCue'
 
 export interface GameplayMessageHandlerDeps {
   interruptStore: ReturnType<typeof useInterruptStore>
@@ -39,6 +46,18 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     return snapshotStore.players[id]?.name || id
   }
 
+  const stageQueue = useStageQueueStore()
+  const stageBridge = createStageQueueBridge({
+    stageQueue,
+    playerName: (id: string) => playerNameById(id),
+    roleName: (id: string) => {
+      const role = snapshotStore.players[id]?.role || ''
+      return snapshotStore.characters[role]?.name || ''
+    },
+    cardImage: (card) => (card?.name ? cardArtSrc(card) : undefined),
+    playerCamp: (id: string) => snapshotStore.players[id]?.camp || '',
+  })
+
   const normalizeCamp = (camp?: string): MoraleCamp | undefined => {
     if (camp === 'Red' || camp === 'Blue') return camp
     return undefined
@@ -48,6 +67,22 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     if (camp === 'Red') return '红方'
     if (camp === 'Blue') return '蓝方'
     return camp || ''
+  }
+
+  /**
+   * 回合徽章内容：主标题"狂战士 的回合"（轮到我时为"你的回合"），
+   * 副标题"红阵营 · 第 12 回合"；角色未知时退回玩家名。
+   */
+  const turnBannerContent = (playerId: string) => {
+    const player = snapshotStore.players[playerId]
+    if (!player) return null
+    const roleId = String(player.role || '').trim()
+    const roleName = (roleId && snapshotStore.characters[roleId]?.name) || roleId || player.name || playerId
+    const isMine = !!sessionStore.myPlayerId && playerId === sessionStore.myPlayerId
+    const campName = player.camp === 'Red' ? '红阵营' : player.camp === 'Blue' ? '蓝阵营' : ''
+    const turn = snapshotStore.turnNumber
+    const subtitle = [campName, turn > 0 ? `第 ${turn} 回合` : ''].filter(Boolean).join(' · ')
+    return { text: isMine ? '你的回合' : `${roleName} 的回合`, subtitle, roleId, isMine }
   }
 
   const signed = (value?: number) => {
@@ -144,6 +179,94 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     battleFxStore.startActingPlayerFocus(playerId, 'skill')
   }
 
+  /**
+   * 战斗链还在播放时先压住我的操作提示，播完再交出操作权，避免上一手还没看清就被催着决策。
+   * 新的 state_update 会作废压着的提示（与 syncAfterStateUpdate 语义一致）；
+   * 最多等 PROMPT_GATE_MAX_MS，防止后台标签页 rAF 暂停时永远拿不到操作权。
+   */
+  const PROMPT_GATE_MAX_MS = 8000
+  let gatedPrompt: Prompt | null = null
+  let gateTimer: ReturnType<typeof setTimeout> | null = null
+  let stopGateWatch: (() => void) | null = null
+
+  function clearPromptGate() {
+    gatedPrompt = null
+    interruptStore.setPromptGated(false)
+    if (gateTimer) clearTimeout(gateTimer)
+    gateTimer = null
+    stopGateWatch?.()
+    stopGateWatch = null
+  }
+
+  function releaseGatedPrompt() {
+    const prompt = gatedPrompt
+    clearPromptGate()
+    if (!prompt) return
+    showMyPrompt(prompt)
+  }
+
+  /** 把操作权交给我；从"没有提示"变成"有提示"时响一声，重复同步同一提示不重复提醒。 */
+  function showMyPrompt(prompt: Prompt) {
+    const wasIdle = !interruptStore.currentPrompt
+    interruptStore.setPrompt(prompt)
+    interruptStore.setWaiting('')
+    if (wasIdle) playSfx('prompt')
+  }
+
+  function presentMyPrompt(prompt: Prompt) {
+    clearPromptGate()
+    if (!uiStore.stageOverlayEnabled || !stageQueue.isPlaying) {
+      showMyPrompt(prompt)
+      return
+    }
+    gatedPrompt = prompt
+    interruptStore.setPrompt(null)
+    interruptStore.setWaiting('')
+    // 压着期间界面角落提示"即将轮到你"，并压住行动枢纽
+    interruptStore.setPromptGated(true)
+    stopGateWatch = watch(
+      () => stageQueue.isPlaying,
+      (playing) => {
+        if (!playing) releaseGatedPrompt()
+      },
+      { flush: 'sync' },
+    )
+    gateTimer = setTimeout(releaseGatedPrompt, PROMPT_GATE_MAX_MS)
+  }
+
+  /**
+   * 游戏结束有两条入口：game_end 事件，或 state_update 里星杯 / 士气已到终局（可能先到）。
+   * 哪条先把游戏标记为结束，就由哪条放结尾音；另一条看到已结束就不会重复。
+   */
+  function playEndCueFor(message: string) {
+    const myCamp = snapshotStore.players[sessionStore.myPlayerId]?.camp || sessionStore.myCamp
+    playEndCue(endCueFor(message, myCamp))
+  }
+
+  /** 结尾音乐等最后一手演出播完再响，免得盖住决胜的那一下；最多等 END_CUE_MAX_WAIT_MS。 */
+  const END_CUE_MAX_WAIT_MS = 4000
+  function playEndCue(cue: Parameters<typeof playSfx>[0]) {
+    if (!stageQueue.isPlaying) {
+      playSfx(cue)
+      return
+    }
+    let done = false
+    const fire = () => {
+      if (done) return
+      done = true
+      stop()
+      clearTimeout(timer)
+      playSfx(cue)
+    }
+    const stop = watch(
+      () => stageQueue.isPlaying,
+      (playing) => {
+        if (!playing) fire()
+      },
+    )
+    const timer = setTimeout(fire, END_CUE_MAX_WAIT_MS)
+  }
+
   function handleSyncState(payload: SyncStatePayload) {
     const state = buildGameStateUpdateFromSyncState(payload)
 
@@ -162,9 +285,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
     if (prompt) {
       focusPromptActor(prompt, payload.target_user_id)
       if (payload.target_user_id === sessionStore.myPlayerId) {
-        interruptStore.setPrompt(prompt)
-        interruptStore.setWaiting('')
+        presentMyPrompt(prompt)
       } else {
+        clearPromptGate()
         interruptStore.setPrompt(null)
         interruptStore.setWaiting(payload.target_user_id || '')
       }
@@ -173,8 +296,10 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
     if (payload.target_user_id === sessionStore.myPlayerId) {
       battleFxStore.startActingPlayerFocus(payload.target_user_id, 'skill')
+      interruptStore.endSubmit()
       interruptStore.setWaiting('')
     } else {
+      clearPromptGate()
       interruptStore.setPrompt(null)
       interruptStore.setWaiting(payload.target_user_id || '')
       battleFxStore.startActingPlayerFocus(payload.target_user_id || '', 'skill')
@@ -183,6 +308,9 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
   function handleNotifyTimeline(payload: TimelineNotifyPayload) {
     timelineStore.push(payload)
+    if (uiStore.stageOverlayEnabled) {
+      stageBridge.onTimeline(payload)
+    }
     const hasStructuredNarrative = battleFxStore.hasStructuredNarrative(payload.events || [])
     if (hasStructuredNarrative) {
       battleFxStore.applyStructuredTimelineNarrative(payload)
@@ -213,6 +341,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const prevCurrent = snapshotStore.currentPlayer
           battleFxStore.prepareForFlowUpdate(event.state.combat_stage, event.state.subflow)
           snapshotStore.updateGameState(event.state)
+          clearPromptGate()
           interruptStore.syncAfterStateUpdate()
           const me = sessionStore.myPlayerId ? event.state.players[sessionStore.myPlayerId] : undefined
           if (me?.camp || me?.role) {
@@ -225,6 +354,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const fallbackEndMsg = deriveEndMessageFromState(event.state)
           if (fallbackEndMsg && !uiStore.isGameEnded) {
             matchLifecycleStore.setGameEnded(fallbackEndMsg)
+            playEndCueFor(fallbackEndMsg)
             battleReviewStore.addLog(`游戏结束: ${fallbackEndMsg}`)
           }
           const nextCurrent = event.state.current_player
@@ -240,6 +370,14 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
             battleFxStore.startActingPlayerFocus(nextCurrent, 'turn')
           }
           if (nextCurrent && nextCurrent !== prevCurrent) {
+            const banner = turnBannerContent(nextCurrent)
+            if (banner) {
+              battleFxStore.showTurnBanner(banner.text, normalizeCamp(snapshotStore.players[nextCurrent]?.camp) || '', {
+                subtitle: banner.subtitle,
+                roleId: banner.roleId,
+                isMine: banner.isMine,
+              })
+            }
             if (prevCurrent) {
               const prevName = playerNameById(prevCurrent)
               battleReviewStore.addBattleFeed({
@@ -262,13 +400,13 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
 
       case 'prompt':
         if (event.prompt) {
-          interruptStore.setPrompt(event.prompt)
           focusPromptActor(event.prompt)
-          interruptStore.setWaiting('')
+          presentMyPrompt(event.prompt)
         }
         break
 
       case 'waiting':
+        clearPromptGate()
         interruptStore.setPrompt(null)
         interruptStore.setWaiting(event.player_id || '')
         battleFxStore.startActingPlayerFocus(event.player_id || '', 'skill')
@@ -278,13 +416,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
         {
           const msg = event.message || '游戏错误'
           interruptStore.showError(msg)
-          if (msg.includes('技能发动失败')) {
-            interruptStore.clearSkillMode()
-            interruptStore.clearActionMode()
-          }
-          if (msg.includes('无效的卡牌索引')) {
-            interruptStore.clearActionMode()
-          }
+          recoverFromRejectedSubmission(interruptStore, msg)
         }
         break
 
@@ -294,6 +426,7 @@ export function createGameplayMessageHandlers(deps: GameplayMessageHandlerDeps) 
           const isFirstEndSignal = !uiStore.isGameEnded
           matchLifecycleStore.setGameEnded(message)
           if (isFirstEndSignal) {
+            playEndCueFor(message)
             battleReviewStore.addBattleFeed({
               type: 'system',
               title: message,

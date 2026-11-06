@@ -279,8 +279,7 @@ describe('ActionPanel skill availability', () => {
     expect(mocks.submitUseSkill).toHaveBeenCalledWith(
       'sage_arcane_codex',
       [],
-      undefined,
-      { clearSkillMode: true },
+      undefined
     )
     expect(useInterruptStore().skillMode).not.toBe('choosing_target')
   })
@@ -336,10 +335,44 @@ describe('ActionPanel skill availability', () => {
     expect(mocks.submitUseSkill).toHaveBeenCalledWith(
       'adventurer_fraud',
       [],
-      undefined,
-      { clearSkillMode: true },
+      undefined
     )
     expect(useInterruptStore().skillMode).not.toBe('choosing_target')
+  })
+
+  it('greys out a skill the server marks disabled and shows its reason instead of erroring on click', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const stormSkill: AvailableSkill = {
+      id: 'hb_holy_shard_storm',
+      title: '圣屑飓暴',
+      description: '弃2张同系攻击牌并展示，视为1次圣命格同系主动攻击。',
+      min_targets: 0,
+      max_targets: 0,
+      target_type: 0,
+      cost_gem: 0,
+      cost_crystal: 0,
+      cost_discards: 0,
+      disabled: true,
+      disabled_reason: '手牌中没有2张同系攻击牌。',
+    }
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Blue', 'holy_bow')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p1: buildPlayer({ id: 'p1', name: '圣弓', camp: 'Blue', role: 'holy_bow' }),
+        p2: buildPlayer({ id: 'p2', name: '目标', camp: 'Red', role: 'enemy', is_active: false }),
+      },
+      available_skills: [stormSkill],
+      characters: [buildCharacter({ id: 'holy_bow', name: '圣弓', skills: [{ ...stormSkill, type: 2 }] })],
+    }))
+    useInterruptStore().setSkillMode('choosing_skill')
+
+    render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+
+    expect(screen.getByText('手牌中没有2张同系攻击牌。')).toBeTruthy()
+    await userEvent.click(screen.getByTestId('skill-hb_holy_shard_storm'))
+    expect(mocks.submitUseSkill).not.toHaveBeenCalled()
   })
 
   it('requires exclusive-card confirmation before target selection for prayer blessing skills', async () => {
@@ -497,10 +530,187 @@ describe('ActionPanel skill availability', () => {
       expect(mocks.submitUseSkill).toHaveBeenCalledWith(
         skill.id,
         [],
-        [0],
-        { clearSkillMode: true },
+        [0]
       )
       unmount()
     }
+  })
+})
+
+describe('ActionPanel action hub notice and end-turn', () => {
+  function hubPrompt(message: string, optionIds: string[] = ['attack', 'magic', 'cannot_act']) {
+    return {
+      type: 'confirm',
+      player_id: 'p1',
+      choice_type: 'action_hub',
+      message,
+      options: optionIds.map((id) => ({ id, label: id, button_label: id })),
+      min: 1,
+      max: 1,
+      presentation: { kind: 'action_hub', numeric_base: 0 },
+    } as unknown as Parameters<ReturnType<typeof useInterruptStore>['setPrompt']>[0]
+  }
+
+  function renderHub(message: string, optionIds?: string[]) {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'blood_priestess')
+    useSnapshotStore().updateGameState(buildState())
+    useInterruptStore().setPrompt(hubPrompt(message, optionIds))
+    return render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+  }
+
+  it('hides the default "请选择行动类型" notice', () => {
+    renderHub('请选择行动类型')
+    expect(screen.getByTestId('action-attack')).toBeInTheDocument()
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+  })
+
+  it('shows rule constraints as a warning without the trailing default sentence', () => {
+    renderHub('你的审判已达上限：本行动阶段必须发动【末日审判】。')
+    const notice = screen.getByTestId('action-hub-notice')
+    expect(notice).toHaveTextContent('必须发动【末日审判】')
+    expect(notice.className).toContain('dock-notice--rule')
+  })
+
+  it('moves the 充盈 bonus into a footer chip', () => {
+    renderHub('请选择行动类型（【充盈】下一次主动攻击伤害额外+2）')
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+    expect(screen.getByTestId('action-hub-fullness')).toHaveTextContent('+2')
+  })
+
+  it('never renders an end-turn button; cannot-act sits in the footer', () => {
+    renderHub('请选择行动类型')
+    expect(screen.queryByTestId('action-pass')).toBeNull()
+    expect(screen.queryByText('结束回合')).toBeNull()
+    const cannotAct = screen.getByTestId('action-cannot-act')
+    expect(cannotAct.closest('footer')).not.toBeNull()
+  })
+
+  it('labels cannot-act as giving up the extra action during an extra action', () => {
+    renderHub('当前为额外攻击行动，仅可执行攻击。请选择行动类型', ['attack', 'cannot_act'])
+    expect(screen.getByTestId('action-cannot-act')).toHaveTextContent('放弃额外行动')
+    expect(screen.queryByTestId('action-hub-notice')).toBeNull()
+    expect(screen.getByText('仅可攻击')).toBeInTheDocument()
+  })
+})
+
+describe('ActionPanel skill step confirmation', () => {
+  const discardSkill: AvailableSkill = {
+    id: 'test_discard_target',
+    title: '弃牌打击',
+    description: '弃1张牌，对1名目标造成伤害。',
+    min_targets: 1,
+    max_targets: 1,
+    target_type: 2,
+    cost_gem: 0,
+    cost_crystal: 0,
+    cost_discards: 1,
+  }
+
+  function setup(skill: AvailableSkill) {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    mocks.submitUseSkill.mockReset()
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'hero')
+    useSnapshotStore().updateGameState(buildState({
+      players: {
+        p1: buildPlayer({
+          id: 'p1',
+          role: 'hero',
+          hand_count: 2,
+          hand: [
+            { id: 'c1', name: '火焰斩', type: 'Attack', element: 'Fire', damage: 2, description: '' },
+            { id: 'c2', name: '水涟斩', type: 'Attack', element: 'Water', damage: 2, description: '' },
+          ],
+        }),
+        p2: buildPlayer({ id: 'p2', name: '目标', camp: 'Blue', role: 'enemy', is_active: false }),
+      },
+      available_skills: [skill],
+      characters: [buildCharacter({ id: 'hero', name: '英雄', skills: [{ ...skill, type: 2 }] })],
+    }))
+    const store = useInterruptStore()
+    store.setSelectedSkill(skill)
+    store.setSkillMode('choosing_discard')
+    render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+    return store
+  }
+
+  it('waits for "下一步" after the discard is full, and "上一步" keeps the discard', async () => {
+    const store = setup(discardSkill)
+    const next = screen.getByTestId('skill-discard-confirm-btn')
+    expect(next).toBeDisabled()
+    expect(next).toHaveTextContent('下一步')
+
+    store.setSkillDiscardHandIndexes([1])
+    await waitFor(() => expect(screen.getByTestId('skill-discard-confirm-btn')).not.toBeDisabled())
+    expect(store.skillMode).toBe('choosing_discard')
+
+    await userEvent.click(screen.getByTestId('skill-discard-confirm-btn'))
+    expect(store.skillMode).toBe('choosing_target')
+
+    await userEvent.click(screen.getByTestId('skill-target-back-btn'))
+    expect(store.skillMode).toBe('choosing_discard')
+    expect(store.skillDiscardHandIndexes).toEqual([1])
+  })
+
+  it('submits a targeted skill only through "确认发动"', async () => {
+    const store = setup(discardSkill)
+    store.setSkillDiscardHandIndexes([0])
+    store.setSkillMode('choosing_target')
+    await waitFor(() => expect(screen.getByTestId('skill-target-confirm-btn')).toBeDisabled())
+
+    store.setSkillTargetIds(['p2'])
+    await waitFor(() => expect(screen.getByTestId('skill-target-confirm-btn')).not.toBeDisabled())
+    expect(mocks.submitUseSkill).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByTestId('skill-target-confirm-btn'))
+    expect(mocks.submitUseSkill).toHaveBeenCalledWith('test_discard_target', ['p2'], [0])
+  })
+
+  it('labels the discard step "确认发动" and hides the target step for self-target skills', async () => {
+    const store = setup({ ...discardSkill, id: 'test_discard_self', target_type: 1, min_targets: 0, max_targets: 0 })
+    expect(screen.queryByText('② 选目标')).toBeNull()
+    expect(screen.getByTestId('skill-discard-confirm-btn')).toHaveTextContent('确认发动')
+
+    store.setSkillDiscardHandIndexes([0])
+    await waitFor(() => expect(screen.getByTestId('skill-discard-confirm-btn')).not.toBeDisabled())
+    await userEvent.click(screen.getByTestId('skill-discard-confirm-btn'))
+    expect(mocks.submitUseSkill).toHaveBeenCalledWith('test_discard_self', ['p1'], [0])
+  })
+
+  it('hints which target will be replaced once a multi-target skill is full', async () => {
+    const store = setup({ ...discardSkill, id: 'test_multi', cost_discards: 0, min_targets: 1, max_targets: 2 })
+    store.setSkillMode('choosing_target')
+    store.setSkillTargetIds(['p2', 'p1'])
+    await waitFor(() => expect(screen.getByTestId('skill-target-replace-hint')).toHaveTextContent('目标'))
+  })
+})
+
+describe('ActionPanel pending states', () => {
+  function renderIdleTurn() {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useSessionStore().setRoomInfo('ROOM', 'p1', 'Red', 'hero')
+    useSnapshotStore().updateGameState(buildState())
+    render(ActionPanel, { global: { plugins: [pinia], stubs: { PromptDialog: true } } })
+    return useInterruptStore()
+  }
+
+  it('hides the action hub while a submission awaits the server', async () => {
+    const store = renderIdleTurn()
+    expect(screen.getByTestId('action-attack')).toBeInTheDocument()
+    store.beginSubmit()
+    await waitFor(() => expect(screen.queryByTestId('action-attack')).toBeNull())
+    expect(screen.getByTestId('dock-pending-panel')).toHaveTextContent('等待服务器结算')
+    store.endSubmit()
+    await waitFor(() => expect(screen.getByTestId('action-attack')).toBeInTheDocument())
+  })
+
+  it('shows a light "即将轮到你" status while my prompt is gated', async () => {
+    const store = renderIdleTurn()
+    store.setPromptGated(true)
+    await waitFor(() => expect(screen.getByTestId('dock-pending-panel')).toHaveTextContent('战斗结算中，即将轮到你操作'))
+    expect(screen.queryByTestId('action-attack')).toBeNull()
   })
 })

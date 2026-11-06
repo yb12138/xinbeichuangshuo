@@ -4,10 +4,6 @@ import { useSessionStore } from '../stores/session.store'
 import { useBattleInteractionState } from './useBattleInteractionState'
 import type { PlayerAction } from '../types/game'
 
-type SkillSubmitOptions = {
-  clearSkillMode?: boolean
-}
-
 export function useSubmitAction() {
   const ws = useWebSocket()
   const interruptStore = useInterruptStore()
@@ -18,8 +14,17 @@ export function useSubmitAction() {
     return sessionStore.myPlayerId
   }
 
+  /**
+   * 发出一次对局操作：先记下当前选择并进入"提交中"。
+   * 选择不在发送前清空——成功时由随后的 state_update / prompt 清理，被拒绝时由 error 处理恢复。
+   */
+  function send(fn: () => void) {
+    interruptStore.beginSubmit()
+    fn()
+  }
+
   function submitAction(action: PlayerAction) {
-    ws.sendAction(action)
+    send(() => ws.sendAction(action))
   }
 
   function submitCannotAct() {
@@ -37,27 +42,27 @@ export function useSubmitAction() {
   }
 
   function submitBuy() {
-    ws.buy()
+    send(() => ws.buy())
   }
 
   function submitExtract() {
-    ws.extract()
+    send(() => ws.extract())
   }
 
   function submitPass() {
-    ws.pass()
+    send(() => ws.pass())
   }
 
   function submitConfirm() {
-    ws.confirm()
+    send(() => ws.confirm())
   }
 
   function submitCancel() {
-    ws.cancel()
+    send(() => ws.cancel())
   }
 
   function submitSelect(selections: number[]) {
-    ws.select(selections)
+    send(() => ws.select(selections))
   }
 
   function submitSelectCardIDs(cardIds: string[]) {
@@ -77,7 +82,7 @@ export function useSubmitAction() {
   }
 
   function submitRespondTake() {
-    ws.respond('take')
+    send(() => ws.respond('take'))
   }
 
   function selectedCardIDByPlayableIndex(playableIndex: number | undefined): string {
@@ -95,7 +100,8 @@ export function useSubmitAction() {
       interruptStore.showError('所选卡牌已变化，请重新选择')
       return false
     }
-    ws.respond('counter', cardID, interruptStore.promptCounterTarget || undefined)
+    const target = interruptStore.promptCounterTarget || undefined
+    send(() => ws.respond('counter', cardID, target))
     return true
   }
 
@@ -109,24 +115,23 @@ export function useSubmitAction() {
       interruptStore.showError('所选卡牌已变化，请重新选择')
       return false
     }
-    ws.respond('defend', cardID)
+    send(() => ws.respond('defend', cardID))
     return true
   }
 
-  function submitUseSkill(skillId: string, targetIds: string[] = [], selections?: number[], options?: SkillSubmitOptions) {
-    if (options?.clearSkillMode) {
-      interruptStore.clearSkillMode()
-    }
-    ws.useSkill(skillId, targetIds, selections)
+  /** 发动技能。已在等待上一次提交的回包时忽略，防止连点重复发动。 */
+  function submitUseSkill(skillId: string, targetIds: string[] = [], selections?: number[]) {
+    if (interruptStore.isSubmitting) return false
+    send(() => ws.useSkill(skillId, targetIds, selections))
     return true
   }
 
   function submitAttack(targetId: string, cardID: string) {
-    ws.attack(targetId, cardID)
+    send(() => ws.attack(targetId, cardID))
   }
 
   function submitMagic(targetId: string | undefined, cardID: string) {
-    ws.magic(targetId, cardID)
+    send(() => ws.magic(targetId, cardID))
   }
 
   function submitSelectedBoardTarget(playerId: string) {
@@ -152,7 +157,7 @@ export function useSubmitAction() {
         interruptStore.showError('所选卡牌不是攻击牌，请重新选择')
         return false
       }
-      ws.attack(playerId, selectedItem.card.id)
+      submitAttack(playerId, selectedItem.card.id)
       return true
     }
 
@@ -163,10 +168,10 @@ export function useSubmitAction() {
         return false
       }
       if (selectedItem.card.name === '魔弹') {
-        ws.magic(undefined, selectedItem.card.id)
+        submitMagic(undefined, selectedItem.card.id)
         return true
       }
-      ws.magic(playerId, selectedItem.card.id)
+      submitMagic(playerId, selectedItem.card.id)
       return true
     }
 

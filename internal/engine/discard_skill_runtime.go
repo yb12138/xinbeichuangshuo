@@ -133,6 +133,18 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 		return fmt.Errorf("最多只能选择 %d 张牌，你选择了 %d 张", maxSelect, len(indices))
 	}
 
+	if allowed := runtimeutil.ParseChoiceIntSlice(data["remaining_indices"]); len(allowed) > 0 {
+		allowedSet := make(map[int]struct{}, len(allowed))
+		for _, idx := range allowed {
+			allowedSet[idx] = struct{}{}
+		}
+		for _, idx := range indices {
+			if _, ok := allowedSet[idx]; !ok {
+				return fmt.Errorf("所选的第 %d 张牌不能用于发动该技能", idx+1)
+			}
+		}
+	}
+
 	userCtx, hasCtx := data["user_ctx"]
 	if !hasCtx {
 		return fmt.Errorf("技能上下文丢失")
@@ -153,8 +165,16 @@ func (e *GameEngine) handleContextSkillDiscardSelection(skillID string, indices 
 	}
 
 	beforePoses := e.SnapshotPlayerPoses()
-	if err := handler.Execute(ctx); err != nil {
-		return fmt.Errorf("技能执行失败: %v", err)
+	ownerID := ""
+	if ctx.User != nil {
+		ownerID = ctx.User.ID
+	}
+	var execErr error
+	e.WithSkillCause(skillID, ownerID, func() {
+		execErr = handler.Execute(ctx)
+	})
+	if execErr != nil {
+		return fmt.Errorf("技能执行失败: %v", execErr)
 	}
 	e.DispatchOrientationChanges(beforePoses)
 

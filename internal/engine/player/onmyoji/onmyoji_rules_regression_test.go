@@ -102,6 +102,10 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 	if game.State.PendingInterrupt == nil || choiceTypeOf(game.State.PendingInterrupt) != "onmyoji_yinyang_confirm" {
 		t.Fatalf("expected onmyoji_yinyang_confirm prompt, got %+v", game.State.PendingInterrupt)
 	}
+	// 确认弹窗要写明攻击的系别与命格，否则玩家不知道可以用哪张牌应战
+	if confirm := game.BuildChoicePrompt(); confirm == nil || !strings.Contains(confirm.Message, "火系·咏命格") || !strings.Contains(confirm.Message, "咏命格攻击牌") {
+		t.Fatalf("yinyang confirm prompt should name the attack faction, got %+v", confirm)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0}}); err != nil {
 		t.Fatalf("confirm yinyang failed: %v", err)
 	}
@@ -114,6 +118,10 @@ func TestOnmyojiYinYangShift_InShikigamiForm(t *testing.T) {
 	}
 	if prompt.Options[0].ID != "0" || prompt.Options[0].CardID != "55" {
 		t.Fatalf("expected option index id with numeric card_id preserved, got %+v", prompt.Options[0])
+	}
+	// 选牌面板只写牌名 / 系别 / 命格，不带类型、伤害、独有技这类调试信息
+	if got, want := prompt.Options[0].Label, "水涟斩 · 水系 · 咏命格（阴阳转换：转为水系）"; got != want {
+		t.Fatalf("counter card label = %q, want %q", got, want)
 	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", CardIDs: []string{"55"}}); err != nil {
 		t.Fatalf("choose yinyang card failed: %v", err)

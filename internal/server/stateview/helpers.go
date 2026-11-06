@@ -238,3 +238,74 @@ func GetBlockedSkillIDsBySkillGate(p *model.Player) []string {
 	}
 	return blockedIDs
 }
+
+// PublicFlowState 声明哪些 TurnState.SkillFlowState 键属于“持续中的公开效果”（凋零保护、额外回合、
+// 下一击加成……），需要下发给所有玩家并在座位上展示。其余流程记账键保持隐藏。
+// value 为指示物键名（前端 TOKEN_DISPLAY / battleMarks 按此键配置名称与说明）。
+var PublicFlowState = map[string]string{
+	"bt_wither_active":      "bt_wither_active",      // 凋零：对方阵营士气最低为1，到蝶舞者下回合开始
+	"mg_extra_turn_pending": "mg_extra_turn_pending", // 苍白之月①：本回合结束后再进行一个回合
+}
+
+// publicUsedSkillCounts 记在 TurnState.UsedSkillCounts 里、但实际是“本回合持续效果”的计数。
+var publicUsedSkillCounts = map[string]string{
+	"mg_next_attack_no_counter": "mg_next_attack_no_counter", // 苍白之月①：下次主动攻击不可应战
+}
+
+// publicNextAttackBonuses 跨行动持续到回合结束的“下次主动攻击 +N”（规则修正 ID）。
+// 只在一次攻击内有效的加成（怒吼、蓄力一击、火之矢……）在攻击结算时已体现，不单独展示。
+var publicNextAttackBonuses = []string{
+	"ml_dark_release_next_attack_bonus",
+	"ml_fullness_next_attack_bonus",
+}
+
+// PublicIndicators 返回玩家对所有人公开的派生指示物：盖牌计数、规则修正与公开的技能流程状态。
+// 同步状态（SyncState）与时间线快照共用这一份，保证两边一致。
+func PublicIndicators(state *model.GameState, p *model.Player) map[string]int {
+	indicators := map[string]int{}
+	if p == nil {
+		return indicators
+	}
+	set := func(key string, value int) {
+		if value > 0 {
+			indicators[key] = value
+		}
+	}
+	set("elf_blessing_count", CountElfBlessings(p))
+	set("mb_charge_count", CountMagicBowCharges(p))
+	set("sc_power_count", CountSpiritCasterPowers(p))
+	set("mg_dark_moon_count", CountMoonDarkMoons(p))
+	set("bt_cocoon_count", CountButterflyCocoons(p))
+	set("bp_shared_life_active", CountBloodSharedLifeAsSource(state, p.ID))
+	set("bp_shared_life_bound", CountBloodSharedLifeAsHolder(p))
+	set("se_sword_soul_count", CountSwordEmperorSwordSouls(p))
+	for _, modifierID := range publicNextAttackBonuses {
+		set(modifierID, CombatPolicyAttackBonusByModifierID(p, modifierID))
+	}
+	if HasRuleModifierWithModifierID(p, "ml_dark_release_lock_turn") {
+		indicators["ml_dark_release_lock_turn"] = 1
+	}
+	for flowKey, indicatorKey := range PublicFlowState {
+		set(indicatorKey, p.TurnState.SkillFlowState[flowKey])
+	}
+	for countKey, indicatorKey := range publicUsedSkillCounts {
+		set(indicatorKey, p.TurnState.UsedSkillCounts[countKey])
+	}
+	return indicators
+}
+
+// DerivedIndicatorKeys 是 PublicIndicators 里由引擎状态派生的键：Tokens 里若有同名镜像需删除，避免重复展示。
+var DerivedIndicatorKeys = []string{
+	"elf_blessing_count",
+	"mb_charge_count",
+	"sc_power_count",
+	"mg_dark_moon_count",
+	"bt_cocoon_count",
+	"bp_shared_life_active",
+	"bp_shared_life_bound",
+	"css_blood_cap",
+	"ml_dark_release_next_attack_bonus",
+	"ml_fullness_next_attack_bonus",
+	"ml_dark_release_lock_turn",
+	"se_sword_soul_count",
+}

@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 const DEFAULT_BACKEND = 'http://127.0.0.1:8080'
 const DEFAULT_FRONTEND = 'http://127.0.0.1:5173'
 const PLAYER_COUNT = 6
-const HUMAN_COUNT = 2
+const DEFAULT_HUMAN_COUNT = 2
 const DEFAULT_NAMES = ['A1', 'B1', 'BotA2', 'BotA3', 'BotB2', 'BotB3']
 const DEFAULT_ROLES = ['assassin', 'saintess', 'angel', 'blade_master', 'sealer', 'elementalist']
 const DEFAULT_CAMPS = ['Blue', 'Red', 'Blue', 'Blue', 'Red', 'Red']
@@ -16,10 +16,12 @@ function parseArgs(argv) {
     names: DEFAULT_NAMES,
     roles: DEFAULT_ROLES,
     camps: DEFAULT_CAMPS,
+    humans: DEFAULT_HUMAN_COUNT,
     firstTurn: 'human0',
     botsPaused: true,
     openPages: true,
     printJson: false,
+    extraFire: false,
   }
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -51,6 +53,11 @@ function parseArgs(argv) {
       i += 1
     } else if (arg.startsWith('--camps=')) {
       options.camps = splitList(arg.slice('--camps='.length))
+    } else if (arg === '--humans' && next) {
+      options.humans = Number(next)
+      i += 1
+    } else if (arg.startsWith('--humans=')) {
+      options.humans = Number(arg.slice('--humans='.length))
     } else if (arg === '--first-turn' && next) {
       options.firstTurn = next
       i += 1
@@ -62,12 +69,19 @@ function parseArgs(argv) {
       options.openPages = false
     } else if (arg === '--json') {
       options.printJson = true
+    } else if (arg === '--extra-fire') {
+      options.extraFire = true
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
     } else {
       console.warn(`忽略未知参数: ${arg}`)
     }
+  }
+
+  if (!Number.isInteger(options.humans) || options.humans < 1 || options.humans > PLAYER_COUNT) {
+    console.error(`--humans 需为 1-${PLAYER_COUNT} 的整数`)
+    process.exit(1)
   }
 
   return {
@@ -100,10 +114,12 @@ function trimTrailingSlash(value) {
 }
 
 function printHelp() {
-  console.log(`创建一个 2 真人 + 4 bot 的 3v3 测试对局，并打开两个真人页面。
+  console.log(`创建一个 N 真人 + (6-N) bot 的 3v3 测试对局（默认 2 真人），角色预选并自动开局，为每个真人打开一个页面。
 
 Usage:
   npm run dev:duo
+  npm run dev:six          # 6 真人，打开 6 个页面
+  npm run dev:duo -- --humans 6
   npm run dev:duo -- --names A1,B1,BotA2,BotA3,BotB2,BotB3 --no-open --json
 
 Prerequisite:
@@ -113,13 +129,15 @@ Prerequisite:
 Options:
   --backend <url>      后端地址，默认 ${DEFAULT_BACKEND}
   --frontend <url>     前端地址，默认 ${DEFAULT_FRONTEND}
-  --names <list>       逗号分隔的 ${PLAYER_COUNT} 个玩家名，前 ${HUMAN_COUNT} 个是真人
+  --humans <n>         真人数量 1-${PLAYER_COUNT}，默认 ${DEFAULT_HUMAN_COUNT}
+  --names <list>       逗号分隔的 ${PLAYER_COUNT} 个玩家名，前 n 个是真人
   --roles <list>       逗号分隔的 ${PLAYER_COUNT} 个角色 id
   --camps <list>       逗号分隔的 ${PLAYER_COUNT} 个阵营，默认 Blue,Red,Blue,Blue,Red,Red
   --first-turn <who>   human0、human1、bot0、bot1... 或玩家 id，默认 human0
   --bots-live          不暂停 bot 行动
   --no-open            只打印 URL，不打开浏览器
   --json               输出机器可读 JSON
+  --extra-fire         给前两名真人各加 2 张火系手牌（测应战用；默认不加，开局 4 张）
 `)
 }
 
@@ -156,15 +174,17 @@ function scenarioPayload(options) {
   }))
 
   return {
-    human_players: players.slice(0, HUMAN_COUNT),
-    bot_players: players.slice(HUMAN_COUNT),
+    human_players: players.slice(0, options.humans),
+    bot_players: players.slice(options.humans),
     setup: {
       first_turn_player: options.firstTurn,
       bots_paused: options.botsPaused,
-      cheats: [
-        { target: 'human0', command: 'card_element', args: ['Fire', '2'] },
-        { target: 'human1', command: 'card_element', args: ['Fire', '2'] },
-      ],
+      // 默认不加牌：开局手牌按规则是 4 张。需要测试应战时再用 --extra-fire 给前两名真人各加 2 张火系牌。
+      cheats: options.extraFire
+        ? Array.from({ length: Math.min(options.humans, 2) }, (_, index) => (
+          { target: `human${index}`, command: 'card_element', args: ['Fire', '2'] }
+        ))
+        : [],
     },
   }
 }
@@ -220,11 +240,11 @@ async function main() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(scenarioPayload(options)),
     },
-    '创建双真人测试对局失败',
+    `创建 ${options.humans} 真人测试对局失败`,
   )
 
   const humanUrls = options.names
-    .slice(0, HUMAN_COUNT)
+    .slice(0, options.humans)
     .map(name => buildFrontendUrl(options.frontend, options.backend, scenario.room_code, name))
 
   const result = {
@@ -240,12 +260,12 @@ async function main() {
   if (options.printJson) {
     console.log(JSON.stringify(result, null, 2))
   } else {
-    console.log(`双真人测试对局: ${scenario.room_code}`)
+    console.log(`${options.humans} 真人测试对局: ${scenario.room_code}`)
     console.log(`真人页面:`)
     humanUrls.forEach((url, index) => {
       console.log(`${index + 1}. ${options.names[index]} -> ${url}`)
     })
-    console.log(`bot: ${options.names.slice(HUMAN_COUNT).join(', ')}`)
+    if (options.humans < PLAYER_COUNT) console.log(`bot: ${options.names.slice(options.humans).join(', ')}`)
   }
 
   if (options.openPages) {

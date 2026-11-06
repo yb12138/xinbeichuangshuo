@@ -94,6 +94,7 @@ const (
 	EventSpecialAction  GameEventType = "SpecialAction"  // 购买/提炼/合成等特殊行动
 	EventStateDelta     GameEventType = "StateDelta"     // 公共可见状态变化
 	EventTimelineMarker GameEventType = "TimelineMarker" // 结构化叙事链标记
+	EventCauseBoundary  GameEventType = "CauseBoundary"  // 因果切换边界（无负载；服务端用于切分状态差值）
 )
 
 // GameEvent 引擎发送给 UI 的唯一数据包
@@ -112,6 +113,8 @@ type GameEvent struct {
 	StateDelta     *StateDeltaPayload     `json:"state_delta,omitempty"`
 	TimelineMarker *TimelineMarkerPayload `json:"timeline_marker,omitempty"`
 	Narrative      *NarrativeTracePayload `json:"narrative,omitempty"`
+	// Cause 发出事件时的当前因果（引擎在 emitGameEvent 统一盖章）。
+	Cause *Cause `json:"cause,omitempty"`
 }
 
 // GameObserver 观察者接口

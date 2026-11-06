@@ -103,18 +103,6 @@ func (h *AdventurerLuckyFortuneHandler) Execute(ctx *model.Context) error {
 	return nil
 }
 
-type AdventurerUndergroundLawHandler struct{ engineplayer.BaseHandler }
-
-func (h *AdventurerUndergroundLawHandler) CanUse(ctx *model.Context) bool {
-	return ctx.EventCtx != nil && ctx.EventCtx.ActionType == model.ActionBuy
-}
-
-func (h *AdventurerUndergroundLawHandler) Execute(ctx *model.Context) error {
-	ctx.Game.ModifyGem(string(ctx.User.Camp), 2)
-	ctx.Game.Log(fmt.Sprintf("%s 的 [地下法则] 触发，战绩区+2红宝石", ctx.User.Name))
-	return nil
-}
-
 type AdventurerStealSkyHandler struct{ engineplayer.BaseHandler }
 
 func (h *AdventurerStealSkyHandler) CanUse(ctx *model.Context) bool {

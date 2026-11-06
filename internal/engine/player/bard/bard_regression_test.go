@@ -320,6 +320,100 @@ func TestBardDissonanceChord_DrawModeAndReleasePrisoner(t *testing.T) {
 	}
 }
 
+// 不谐和弦弃牌分支：每人由自己选要弃的牌。弃牌提示必须发给当前弃牌者，
+// 否则目标角色收不到选择、吟游诗人那边又不能替他选，流程就卡住了。
+func TestBardDissonanceChord_DiscardModeAsksEachDiscarder(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	bard := game.State.Players["p1"]
+	enemy := game.State.Players["p2"]
+	bard.IsActive = true
+	bard.TurnState = model.NewPlayerTurnState()
+	bard.Tokens["bd_inspiration"] = 3
+	bard.Hand = []model.Card{
+		bardTestCard("h1", "手牌1", model.CardTypeAttack, model.ElementFire),
+		bardTestCard("h2", "手牌2", model.CardTypeAttack, model.ElementWater),
+		bardTestCard("h3", "手牌3", model.CardTypeAttack, model.ElementWind),
+	}
+	enemy.Hand = []model.Card{
+		bardTestCard("e1", "敌方牌1", model.CardTypeAttack, model.ElementWater),
+		bardTestCard("e2", "敌方牌2", model.CardTypeAttack, model.ElementFire),
+		bardTestCard("e3", "敌方牌3", model.CardTypeAttack, model.ElementWind),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.UseSkill("p1", "bd_dissonance_chord", nil, nil); err != nil {
+		t.Fatalf("use dissonance failed: %v", err)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}) // X=3
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}) // 弃牌分支
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}) // 目标 p2
+
+	testutils.RequireChoicePrompt(t, game, "p1", "bd_dissonance_discard_step")
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}})
+
+	// 轮到目标自己弃牌
+	testutils.RequireChoicePrompt(t, game, "p2", "bd_dissonance_discard_step")
+	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{0, 1}}); err == nil {
+		t.Fatalf("the bard must not be able to choose the target's discards")
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{Type: model.CmdSelect, PlayerID: "p2", Selections: []int{0, 1}})
+
+	if len(bard.Hand) != 1 || len(enemy.Hand) != 1 {
+		t.Fatalf("expected both to discard 2, hands bard=%d enemy=%d", len(bard.Hand), len(enemy.Hand))
+	}
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected dissonance flow completed, got pending interrupt %+v", game.State.PendingInterrupt)
+	}
+}
+
+// 永恒乐章只有一张：放置时从专属卡区移出，移除时原样放回，专属卡区始终最多一张。
+func TestBardEternalMovement_IsTheSingleExclusiveCard(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "AllyA", "priest", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p3", "AllyB", "angel", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p4", "Enemy", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	game.StartGame()
+	bard := game.State.Players["p1"]
+	rt := engine.NewRoleChoiceRuntime(game)
+	if len(bard.ExclusiveCards) != 1 {
+		t.Fatalf("expected the bard to start with one 永恒乐章, got %+v", bard.ExclusiveCards)
+	}
+	starterID := bard.ExclusiveCards[0].ID
+
+	for _, target := range []string{"p2", "p3"} { // 放置、再改放到另一名队友
+		if err := bardpkg.PlaceEternalMovement(rt, bard, game.State.Players[target]); err != nil {
+			t.Fatal(err)
+		}
+		if len(bard.ExclusiveCards) != 0 {
+			t.Fatalf("placed 永恒乐章 should leave the exclusive zone, got %+v", bard.ExclusiveCards)
+		}
+		fc := findFieldEffectCard(game.State.Players[target], model.EffectBardEternalMovement)
+		if fc == nil || fc.Card.ID != starterID {
+			t.Fatalf("the field card should be the bard's own 永恒乐章 (%s), got %+v", starterID, fc)
+		}
+	}
+	bardpkg.RemoveEternalMovement(rt, bard)
+	if len(bard.ExclusiveCards) != 1 || bard.ExclusiveCards[0].ID != starterID {
+		t.Fatalf("removed 永恒乐章 should return as the single exclusive card, got %+v", bard.ExclusiveCards)
+	}
+}
+
 func TestBardHopeFugue_PlaceUsesPlayedCardAsEternalMovement(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Bard", "bard", model.RedCamp); err != nil {
@@ -398,10 +492,21 @@ func TestBardHopeFugue_TransferMovesExistingEternalMovementAndGainsInspiration(t
 		t.Fatalf("use hope fugue failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_hope_draw_confirm")
+	// 第一步的选项直接写动作（而不是"是/否"），并标出这是多步流程的第 1 步
+	drawPrompt := game.GetCurrentPrompt()
+	if len(drawPrompt.Options) != 2 || drawPrompt.Options[0].Label != "摸1张牌" || drawPrompt.Options[1].Label != "不摸牌" {
+		t.Fatalf("draw step should name the action, got %+v", drawPrompt.Options)
+	}
+	if pres := drawPrompt.Presentation; pres == nil || pres.StepIndex != 1 || pres.TotalSteps < 3 {
+		t.Fatalf("draw step should be step 1 of a multi-step flow, got %+v", pres)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{1}}); err != nil { // 不摸牌
 		t.Fatalf("choose draw confirm failed: %v", err)
 	}
 	testutils.RequireChoicePrompt(t, game, "p1", "bd_hope_mode")
+	if pres := game.GetCurrentPrompt().Presentation; pres == nil || pres.StepIndex != 2 {
+		t.Fatalf("mode step should be step 2, got %+v", pres)
+	}
 	if err := game.HandleAction(model.PlayerAction{Type: model.CmdSelect, PlayerID: "p1", Selections: []int{2}}); err != nil { // 转移并+1灵感
 		t.Fatalf("choose hope mode failed: %v", err)
 	}

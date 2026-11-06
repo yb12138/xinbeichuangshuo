@@ -12,6 +12,66 @@ import (
 )
 
 func DecideAction(input DecisionInput) (model.PlayerAction, bool) {
+	if input.Prompt == nil {
+		return model.PlayerAction{}, false
+	}
+	// 禁用选项（展示给玩家但本次不可选）对机器人不可见；选完后把序号映射回原始选项。
+	visible, indexMap := withoutDisabledOptions(input.Prompt)
+	if visible != input.Prompt {
+		input.Prompt = visible
+		action, ok := decideAction(input)
+		if ok && action.Type == model.CmdSelect {
+			action.Selections = remapSelections(action.Selections, indexMap)
+		}
+		return action, ok
+	}
+	return decideAction(input)
+}
+
+// withoutDisabledOptions 返回去掉禁用选项的提示副本，以及"副本序号 → 原始序号"映射。
+// 没有禁用选项时原样返回同一个提示，映射为 nil。
+func withoutDisabledOptions(prompt *model.Prompt) (*model.Prompt, []int) {
+	hasDisabled := false
+	for _, o := range prompt.Options {
+		if o.Disabled {
+			hasDisabled = true
+			break
+		}
+	}
+	if !hasDisabled {
+		return prompt, nil
+	}
+	cp := *prompt
+	cp.Options = make([]model.PromptOption, 0, len(prompt.Options))
+	indexMap := make([]int, 0, len(prompt.Options))
+	for i, o := range prompt.Options {
+		if o.Disabled {
+			continue
+		}
+		cp.Options = append(cp.Options, o)
+		indexMap = append(indexMap, i)
+	}
+	return &cp, indexMap
+}
+
+// remapSelections 把基于过滤后选项的序号换回原始序号；
+// 以选项 ID（手牌索引等）表达的选择不在映射范围内时原样保留。
+func remapSelections(selections []int, indexMap []int) []int {
+	if indexMap == nil {
+		return selections
+	}
+	out := make([]int, len(selections))
+	for i, sel := range selections {
+		if sel >= 0 && sel < len(indexMap) {
+			out[i] = indexMap[sel]
+		} else {
+			out[i] = sel
+		}
+	}
+	return out
+}
+
+func decideAction(input DecisionInput) (model.PlayerAction, bool) {
 	me, ok := input.State.Players[input.PlayerID]
 	if !ok {
 		return model.PlayerAction{}, false
@@ -50,8 +110,27 @@ func DecideAction(input DecisionInput) (model.PlayerAction, bool) {
 
 func decideActionSelection(playerID string, state StateSnapshot, prompt *model.Prompt, me PlayerSnapshot, availableSkills []AvailableSkill, memory *Memory) (model.PlayerAction, bool) {
 	playable := botPlayableCards(me)
+	// 规则强制本行动发动指定技能（如审判满时的末日审判）：只能发动该技能。
+	if prompt.SkillID != "" && !hasPromptOption(prompt, "attack") {
+		for _, sk := range availableSkills {
+			if sk.ID == prompt.SkillID {
+				targetIDs := pickTargetsForSkill(state, me, sk)
+				return model.PlayerAction{
+					PlayerID:  playerID,
+					Type:      model.CmdSkill,
+					SkillID:   sk.ID,
+					TargetIDs: targetIDs,
+					TargetID:  firstOrEmpty(targetIDs),
+				}, true
+			}
+		}
+	}
+
 	attackCards := collectCardIndices(playable, model.CardTypeAttack)
 	magicCards := collectCardIndices(playable, model.CardTypeMagic)
+	if me.CannotCastMagic {
+		magicCards = nil
+	}
 
 	maxHand := estimateMaxHand(me.Role)
 	handPressure := float64(len(me.Hand)) / float64(maxHand)
@@ -89,21 +168,21 @@ func decideActionSelection(playerID string, state StateSnapshot, prompt *model.P
 	if hasPromptOption(prompt, "synthesize") && campNeed < 0.45 {
 		return model.PlayerAction{PlayerID: playerID, Type: model.CmdSynthesize}, true
 	}
-	if hasPromptOption(prompt, "extract") && me.Gem+me.Crystal < estimateMaxEnergy(me.Role) {
+	if hasPromptOption(prompt, "extract") && (me.Gem+me.Crystal < estimateMaxEnergy(me.Role) || adventurerCanExtractForAlly(state, me)) {
 		return model.PlayerAction{PlayerID: playerID, Type: model.CmdExtract}, true
 	}
 	if hasPromptOption(prompt, "buy") && handPressure <= 0.6 {
 		return model.PlayerAction{PlayerID: playerID, Type: model.CmdBuy}, true
 	}
-	if hasPromptOption(prompt, "cannot_act") {
-		return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
-	}
-
 	if canAttack {
 		return bestAttack, true
 	}
 	if canMagic {
 		return bestMagic, true
+	}
+	// 额外行动现在总能"跳过"；只有真的没有可打的牌时才放弃，避免白白丢掉额外行动。
+	if hasPromptOption(prompt, "cannot_act") {
+		return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 	}
 
 	// 特殊兜底：无牌可打但有可发动技能
@@ -113,7 +192,9 @@ func decideActionSelection(playerID string, state StateSnapshot, prompt *model.P
 		}
 	}
 
-	return model.PlayerAction{PlayerID: playerID, Type: model.CmdPass}, true
+	// 规则上每个行动阶段必须执行一个行动，引擎不接受 Pass；
+	// 实在无事可做时宣告【无法行动】（额外行动阶段则等价于放弃本次额外行动）。
+	return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 }
 
 func pickBestAttack(playerID string, state StateSnapshot, me PlayerSnapshot, attackCards []int, hand []model.Card, campNeed, handPressure, enemyThreat float64, memory *Memory) (model.PlayerAction, float64) {
@@ -122,7 +203,7 @@ func pickBestAttack(playerID string, state StateSnapshot, me PlayerSnapshot, att
 	for _, cardIdx := range attackCards {
 		card := hand[cardIdx]
 		for targetID, target := range state.Players {
-			if targetID == playerID || target.Camp == me.Camp {
+			if targetID == playerID || target.Camp == me.Camp || target.NotAttackTargetable {
 				continue
 			}
 			hitProb := estimateHitProbability(state, me, target, card.Element, memory)
@@ -227,6 +308,13 @@ func decideCombatResponse(playerID string, state StateSnapshot, prompt *model.Pr
 
 	defendCards := collectDefendCards(playable)
 	counterCards := collectCounterCards(playable, model.Element(prompt.AttackElement))
+	// 引擎在提示里给出了可用牌（魔弹只能用魔弹传递、命格限制等）时，以引擎为准，避免提交被拒。
+	if len(prompt.DefendCardIDs) > 0 {
+		defendCards = indicesByCardID(playable, prompt.DefendCardIDs)
+	}
+	if len(prompt.CounterCardIDs) > 0 {
+		counterCards = indicesByCardID(playable, prompt.CounterCardIDs)
+	}
 
 	// 先尝试防御：高压局、暗灭攻击、手牌接近上限时更偏防御
 	if hasPromptOption(prompt, "defend") && len(defendCards) > 0 {
@@ -273,6 +361,11 @@ func decideCombatResponse(playerID string, state StateSnapshot, prompt *model.Pr
 
 func decideChooseCards(playerID string, state StateSnapshot, prompt *model.Prompt, me PlayerSnapshot) (model.PlayerAction, bool) {
 	hand := me.Hand
+	// 选项 ID 不一定是手牌下标（如充盈的"-1=不弃置、1..n=候选序号"）；
+	// 选项带 card_id 时按牌 ID 作答，与真人客户端走同一条路径。
+	if action, ok := decideChooseCardsByCardID(playerID, prompt, me); ok {
+		return action, true
+	}
 	candidates := make([]int, 0, len(prompt.Options))
 	for _, opt := range prompt.Options {
 		idx, err := strconv.Atoi(opt.ID)
@@ -324,6 +417,50 @@ func decideChooseCards(playerID string, state StateSnapshot, prompt *model.Promp
 		Type:       model.CmdSelect,
 		Selections: selections,
 	}, true
+}
+
+// decideChooseCardsByCardID 选项 ID 与手牌下标对不上、但带 card_id 时，按牌 ID 选出保留价值最低的牌。
+func decideChooseCardsByCardID(playerID string, prompt *model.Prompt, me PlayerSnapshot) (model.PlayerAction, bool) {
+	if prompt.SkillID == "water_shadow" {
+		return model.PlayerAction{}, false
+	}
+	handIndexByID := make(map[string]int, len(me.Hand))
+	for i, c := range me.Hand {
+		handIndexByID[c.ID] = i
+	}
+	mismatch := false
+	cards := make([]int, 0, len(prompt.Options))
+	for _, opt := range prompt.Options {
+		if opt.CardID == "" || opt.Disabled {
+			continue
+		}
+		idx, ok := handIndexByID[opt.CardID]
+		if !ok {
+			continue
+		}
+		if opt.ID != strconv.Itoa(idx) {
+			mismatch = true
+		}
+		cards = append(cards, idx)
+	}
+	if !mismatch || len(cards) == 0 {
+		return model.PlayerAction{}, false
+	}
+	need := prompt.Min
+	if need <= 0 {
+		need = 1
+	}
+	if need > len(cards) {
+		need = len(cards)
+	}
+	sort.Slice(cards, func(i, j int) bool {
+		return cardKeepValue(me.Role, me.Hand[cards[i]], len(me.Hand)) < cardKeepValue(me.Role, me.Hand[cards[j]], len(me.Hand))
+	})
+	ids := make([]string, 0, need)
+	for _, idx := range cards[:need] {
+		ids = append(ids, me.Hand[idx].ID)
+	}
+	return model.PlayerAction{PlayerID: playerID, Type: model.CmdSelect, CardIDs: ids}, true
 }
 
 func pickWaterShadowDiscards(candidates []int, hand []model.Card, me PlayerSnapshot, minPick, maxPick int) []int {
@@ -767,7 +904,7 @@ func pickFirstEnemy(state StateSnapshot, playerID string) string {
 		if pid == playerID {
 			continue
 		}
-		if p.Camp != me.Camp {
+		if p.Camp != me.Camp && !p.NotAttackTargetable {
 			return pid
 		}
 	}
@@ -849,13 +986,29 @@ func BuildFallbackAction(playerID string, prompt *model.Prompt, state StateSnaps
 			}
 		}
 	}
-	return model.PlayerAction{PlayerID: playerID, Type: model.CmdPass}, true
+	// 引擎不接受 Pass（无效的行动类型），兜底改为宣告无法行动
+	return model.PlayerAction{PlayerID: playerID, Type: model.CmdCannotAct}, true
 }
 
 func collectCardIndices(hand []model.Card, t model.CardType) []int {
 	out := make([]int, 0, len(hand))
 	for i, c := range hand {
 		if c.Type == t {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// indicesByCardID 按引擎给出的可用牌 ID 取出在 hand 中的位置。
+func indicesByCardID(hand []model.Card, ids []string) []int {
+	allowed := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		allowed[id] = true
+	}
+	out := make([]int, 0, len(ids))
+	for i, c := range hand {
+		if allowed[c.ID] {
 			out = append(out, i)
 		}
 	}
@@ -928,6 +1081,23 @@ func estimateMaxHand(role string) int {
 		return v
 	}
 	return 6
+}
+
+// adventurerCanExtractForAlly 冒险家自身能量已满时，若有队友能量未满，
+// 仍可提炼并通过【冒险者天堂】把星石交给队友（引擎侧由 ExtractAtFullEnergy 放行）。
+func adventurerCanExtractForAlly(state StateSnapshot, me PlayerSnapshot) bool {
+	if me.Role != "adventurer" {
+		return false
+	}
+	for _, ally := range state.Players {
+		if ally.ID == me.ID || ally.Camp != me.Camp {
+			continue
+		}
+		if ally.Gem+ally.Crystal < estimateMaxEnergy(ally.Role) {
+			return true
+		}
+	}
+	return false
 }
 
 func estimateMaxEnergy(role string) int {

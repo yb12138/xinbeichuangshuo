@@ -112,7 +112,8 @@ func damageBeforeTakenHook(rt player.HookRuntime, ctx player.TimingHookContext) 
 		Context: map[string]interface{}{
 			"choice_type":      "ss_link_transfer_x",
 			"sorcerer_id":      sorcerer.ID,
-			"damage_index":     0,
+			"damage_seq":       pd.Seq,
+			"damage_index":     hookPendingDamageIndex(rt, pd),
 			"source_id":        pd.SourceID,
 			"target_id":        pd.TargetID,
 			"target_name":      target.Name,
@@ -124,4 +125,17 @@ func damageBeforeTakenHook(rt player.HookRuntime, ctx player.TimingHookContext) 
 	})
 	rt.Log(fmt.Sprintf("%s 的 [灵魂链接] 可触发：是否移除蓝色灵魂转移伤害（最多%d）", sorcerer.Name, maxX))
 	return player.TimingHookResult{Interrupted: true}
+}
+
+// hookPendingDamageIndex 返回 pd 在伤害队列中的实际下标（按指针匹配）；找不到返回 0。
+func hookPendingDamageIndex(rt player.HookRuntime, pd *model.PendingDamage) int {
+	for i := 0; ; i++ {
+		cur, ok := rt.GetPendingDamageByIndex(i)
+		if !ok {
+			return 0
+		}
+		if cur == pd {
+			return i
+		}
+	}
 }

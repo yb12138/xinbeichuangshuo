@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"starcup-engine/internal/data"
+	"starcup-engine/internal/engine/player/magic_lancer"
 	"starcup-engine/internal/engine/skill"
 	"starcup-engine/internal/model"
 )
@@ -86,29 +87,9 @@ func TestMagicLancerDarkRelease_HandCapAndAttackBonusAndLock(t *testing.T) {
 		t.Fatal("expected ml_black_spear to be blocked by active rule modifier")
 	}
 
-	attackCard := magicLancerTestCard("atk1", "雷斩", model.CardTypeAttack, model.ElementThunder, 2)
-	dmg1 := game.ApplyPassiveAttackEffects(p1, p2, 2, model.Action{
-		SourceID:         p1.ID,
-		TargetID:         p2.ID,
-		Type:             model.ActionAttack,
-		CounterInitiator: "",
-		Card:             &attackCard,
-	})
-	if dmg1 != 3 {
-		t.Fatalf("expected first active attack damage=3, got %d", dmg1)
-	}
-	if got := engine.AttackDamageRuleBonusForModifier(p1, "ml_dark_release_next_attack_bonus"); got != 0 {
-		t.Fatalf("expected dark release bonus consumed, got %d", got)
-	}
-	dmg2 := game.ApplyPassiveAttackEffects(p1, p2, 2, model.Action{
-		SourceID:         p1.ID,
-		TargetID:         p2.ID,
-		Type:             model.ActionAttack,
-		CounterInitiator: "",
-		Card:             &attackCard,
-	})
-	if dmg2 != 2 {
-		t.Fatalf("expected subsequent active attack damage back to 2, got %d", dmg2)
+	// 攻击伤害 +1 的消耗时机见 TestMagicLancerDarkRelease_BonusConsumedAtFirstAttackDeclare*。
+	if got := engine.AttackDamageRuleBonusForModifier(p1, "ml_dark_release_next_attack_bonus"); got != 1 {
+		t.Fatalf("expected dark release bonus armed before first attack, got %d", got)
 	}
 
 	game.NextTurn()
@@ -642,4 +623,205 @@ func TestMagicLancerFullness_AllyCanCancelAndFirstCardSelectsDiscard(t *testing.
 			t.Fatalf("expected enemy discard plus first ally discard to grant 2 bonus, got %d", got)
 		}
 	})
+}
+
+// 魔枪-1：幻影星尘自伤摸牌爆牌时，弃牌结束后应继续结算（转正、清理待结算标记）。
+func TestMagicLancerPhantomStardust_ContinuesAfterOverflowDiscard(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormMagicLancerPhantom
+	// 手里不放雷系/法术牌，避免触发暗之障壁响应
+	// 幻影形态手牌上限5：4张 + 自伤摸2 = 6，需弃1张
+	p1.Hand = []model.Card{
+		magicLancerTestCard("h1", "火焰斩", model.CardTypeAttack, model.ElementFire, 2),
+		magicLancerTestCard("h2", "水流斩", model.CardTypeAttack, model.ElementWater, 2),
+		magicLancerTestCard("h3", "风神斩", model.CardTypeAttack, model.ElementWind, 2),
+		magicLancerTestCard("h4", "地裂斩", model.CardTypeAttack, model.ElementEarth, 2),
+	}
+	game.State.Deck = []model.Card{
+		magicLancerTestCard("d1", "补牌1", model.CardTypeAttack, model.ElementFire, 2),
+		magicLancerTestCard("d2", "补牌2", model.CardTypeAttack, model.ElementWater, 2),
+		magicLancerTestCard("d3", "补牌3", model.CardTypeAttack, model.ElementWind, 2),
+		magicLancerTestCard("d4", "补牌4", model.CardTypeAttack, model.ElementThunder, 2),
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionStart
+	if err := game.UseSkill("p1", "ml_phantom_stardust", []string{"p2"}, nil); err != nil {
+		t.Fatalf("use ml_phantom_stardust failed: %v", err)
+	}
+	game.ProcessPendingDamages()
+	if game.State.PendingInterrupt == nil || !engine.IsDiscardSelectionInterrupt(game.State.PendingInterrupt) {
+		t.Fatalf("expected overflow discard interrupt, got %+v", game.State.PendingInterrupt)
+	}
+	if p1.TurnState.SkillFlowState["ml_stardust_wait_discard"] != 1 {
+		t.Fatalf("expected stardust waiting for discard")
+	}
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}})
+
+	if got := p1.Form; got != "" {
+		t.Fatalf("expected leave phantom form after discard resolves, got %q", got)
+	}
+	if got := p1.TurnState.SkillFlowState["ml_stardust_pending"]; got != 0 {
+		t.Fatalf("expected ml_stardust_pending cleared after discard, got %d", got)
+	}
+	if got := p1.TurnState.SkillFlowState["ml_stardust_wait_discard"]; got != 0 {
+		t.Fatalf("expected ml_stardust_wait_discard cleared after discard, got %d", got)
+	}
+}
+
+func newDarkReleaseAttackGame(t *testing.T) (*engine.GameEngine, *model.Player, *model.Player) {
+	t.Helper()
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Target", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormMagicLancerPhantom
+	game.ApplyNextAttackDamageRule(p1.ID, "ml_dark_release_next_attack_bonus", "ml_dark_release", 1, model.RuleLifeUntilTurnEnd)
+	p1.Hand = []model.Card{
+		magicLancerTestCard("atk1", "地裂斩", model.CardTypeAttack, model.ElementEarth, 2),
+		magicLancerTestCard("atk2", "地裂斩", model.CardTypeAttack, model.ElementEarth, 2),
+	}
+	p2.Heal = 0
+	for i := 0; i < 10; i++ {
+		game.State.Deck = append(game.State.Deck, magicLancerTestCard("d"+string(rune('a'+i)), "补牌", model.CardTypeAttack, model.ElementFire, 2))
+	}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+	return game, p1, p2
+}
+
+// 魔枪-3：第一次主动攻击命中，伤害 +1。
+func TestMagicLancerDarkRelease_BonusConsumedAtFirstAttackDeclareHit(t *testing.T) {
+	game, p1, p2 := newDarkReleaseAttackGame(t)
+	p2.Hand = nil
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	if got := engine.AttackDamageRuleBonusForModifier(p1, "ml_dark_release_next_attack_bonus"); got != 0 {
+		t.Fatalf("expected bonus consumed at attack declare, got %d", got)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}})
+	if got := len(p2.Hand); got != 3 {
+		t.Fatalf("expected first attack damage 2+1=3, p2 hand=%d", got)
+	}
+}
+
+// 魔枪-3：第一次主动攻击未命中（被圣光防御），+1 也随之作废，不留给之后的攻击。
+func TestMagicLancerDarkRelease_BonusConsumedAtFirstAttackDeclareEvenIfMiss(t *testing.T) {
+	game, p1, p2 := newDarkReleaseAttackGame(t)
+	p2.Hand = []model.Card{{ID: "hl", Name: "圣光", Type: model.CardTypeMagic, Element: model.ElementLight}}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdAttack, TargetID: "p2", CardID: testutils.PlayableCardID(t, game, "p1", 0)})
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"defend"}, CardID: testutils.PlayableCardID(t, game, "p2", 0)})
+	if got := engine.AttackDamageRuleBonusForModifier(p1, "ml_dark_release_next_attack_bonus"); got != 0 {
+		t.Fatalf("expected bonus gone after missed first attack, got %d", got)
+	}
+	if got := p1.TurnState.SkillFlowState["ml_dark_release_armed_bonus"]; got != 0 {
+		t.Fatalf("expected armed bonus not carried over after miss, got %d", got)
+	}
+	// 直接计算第二次主动攻击的伤害：不应再 +1。
+	card := magicLancerTestCard("atk2", "地裂斩", model.CardTypeAttack, model.ElementEarth, 2)
+	if got := game.ApplyPassiveAttackEffects(p1, p2, 2, model.Action{SourceID: p1.ID, TargetID: p2.ID, Type: model.ActionAttack, Card: &card}); got != 2 {
+		t.Fatalf("expected later attack without dark release bonus, got %d", got)
+	}
+}
+
+// 魔枪-4/5：充盈选代价牌时可以取消，退回行动标记，手牌不变，回到行动选择。
+func TestMagicLancerFullness_CancelAtCostCardRefunds(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{magicLancerTestCard("t1", "雷斩", model.CardTypeAttack, model.ElementThunder, 2)}
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdSkill, SkillID: "ml_fullness"})
+	testutils.RequireChoicePrompt(t, game, "p1", "ml_fullness_cost_card")
+	if prompt := game.GetCurrentPrompt(); prompt == nil || prompt.Presentation == nil || prompt.Presentation.CancelPolicy != model.CancelPolicyAbort {
+		t.Fatalf("expected cancelable cost-card prompt, got %+v", prompt)
+	}
+	testutils.MustHandleAction(t, game, model.PlayerAction{PlayerID: "p1", Type: model.CmdCancel})
+	if game.State.PendingInterrupt != nil {
+		t.Fatalf("expected flow aborted, got %+v", game.State.PendingInterrupt)
+	}
+	if len(p1.Hand) != 1 {
+		t.Fatalf("expected hand untouched, got %d", len(p1.Hand))
+	}
+	if p1.TurnState.HasActed || p1.TurnState.UsedSkillCounts["ml_fullness"] != 0 {
+		t.Fatalf("expected action marks rolled back, got %+v", p1.TurnState)
+	}
+	if !game.IsActionSelectionWindow() {
+		t.Fatalf("expected action selection window, stage=%s", game.State.TurnStage)
+	}
+}
+
+// 魔枪-4/5：漆黑之枪选 X 时可以取消，不扣水晶，攻击伤害照常结算。
+func TestMagicLancerBlackSpear_CancelAtXKeepsCrystal(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Lancer", "magic_lancer", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Enemy", "angel", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1 := game.State.Players["p1"]
+	p2 := game.State.Players["p2"]
+	p1.TurnState = model.NewPlayerTurnState()
+	p1.Form = model.FormMagicLancerPhantom
+	p1.Crystal = 2
+	p2.Hand = []model.Card{magicLancerTestCard("h1", "火斩", model.CardTypeAttack, model.ElementFire, 2)}
+	game.State.PendingDamageQueue = []model.PendingDamage{{SourceID: p1.ID, TargetID: p2.ID, Damage: 2, DamageType: model.AttackDamage}}
+	ctx := game.BuildContext(p1, p2, model.TimingAttackHit, &model.EventContext{
+		Type: model.EventAttack, SourceID: p1.ID, TargetID: p2.ID,
+		AttackInfo: &model.AttackEventInfo{ActionType: "Attack", IsHit: true},
+	})
+	if err := skills.GetHandler("ml_black_spear").Execute(ctx); err != nil {
+		t.Fatalf("execute black spear failed: %v", err)
+	}
+	if prompt := game.GetCurrentPrompt(); prompt == nil || prompt.Presentation == nil || prompt.Presentation.CancelPolicy != model.CancelPolicyAbort {
+		t.Fatalf("expected cancelable X prompt, got %+v", prompt)
+	}
+	if err := game.HandleInterruptAction(model.PlayerAction{Type: model.CmdCancel, PlayerID: "p1"}); err != nil {
+		t.Fatalf("cancel black spear failed: %v", err)
+	}
+	if testutils.ChoiceTypeOfInterrupt(game.State.PendingInterrupt) == "ml_black_spear_x" {
+		t.Fatalf("expected X prompt closed after cancel")
+	}
+	if p1.Crystal != 2 {
+		t.Fatalf("expected crystal untouched, got %d", p1.Crystal)
+	}
+	for _, pd := range game.State.PendingDamageQueue {
+		if pd.SourceID == p1.ID && pd.Damage != 2 {
+			t.Fatalf("expected attack damage unchanged, got %d", pd.Damage)
+		}
+	}
+}
+
+// 魔枪-7：充盈不再带"其他队友"目标规则，不指定目标也能发动。
+func TestMagicLancerFullness_NoLeftoverTargetRule(t *testing.T) {
+	for _, entry := range magic_lancer.SkillEntries() {
+		if entry.ID == "ml_fullness" && (entry.Policy.TargetRules.Count.Max != 0 || len(entry.Policy.TargetRules.Slots) != 0) {
+			t.Fatalf("expected no target rule on ml_fullness, got %+v", entry.Policy.TargetRules)
+		}
+	}
 }

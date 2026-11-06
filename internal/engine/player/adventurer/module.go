@@ -30,9 +30,25 @@ func RoleEntry() player.RoleEntry {
 				return player.BuyRewardResult{
 					Handled:    true,
 					AddGems:    2,
+					SkillID:    "adventurer_underground_law",
 					LogMessage: fmt.Sprintf("[Skill] %s 使用了技能: 地下法则（购买改写：战绩区+2宝石）", p.Name),
 				}
 			},
+		},
+		// 冒险者天堂：自身能量已满时，只要有能承接的队友，仍可执行提炼（交给队友）。
+		ExtractAtFullEnergy: func(game model.IGameEngine, p *model.Player) bool {
+			if !hasParadiseSkill(p) {
+				return false
+			}
+			for _, ally := range game.GetAllPlayers() {
+				if ally == nil || ally.Camp != p.Camp || ally.ID == p.ID {
+					continue
+				}
+				if ally.Gem+ally.Crystal < game.GetPlayerEnergyCap(ally) {
+					return true
+				}
+			}
+			return false
 		},
 		SkillUsabilityCheckers: map[string]player.SkillUsabilityChecker{
 			"adventurer_fraud": CheckFraudUsability,
@@ -51,7 +67,6 @@ func SkillEntries() []player.SkillEntry {
 			},
 		},
 		{ID: "adventurer_lucky_fortune", Handler: &AdventurerLuckyFortuneHandler{}},
-		{ID: "adventurer_underground_law", Handler: &AdventurerUndergroundLawHandler{}},
 		{ID: "adventurer_steal_sky", Handler: &AdventurerStealSkyHandler{}},
 	}
 }
@@ -59,11 +74,11 @@ func SkillEntries() []player.SkillEntry {
 // ChoiceRouteSpecs 导出角色 choice 路由声明。
 func ChoiceRouteSpecs() map[string]types.ChoiceRouteSpec {
 	return map[string]types.ChoiceRouteSpec{
-		"adventurer_extract_paradise_check": types.ChoiceRouteRole("adventurer"),
-		"adventurer_fraud_attack_element":   types.ChoiceRouteRole("adventurer"),
-		"adventurer_fraud_pick":             types.ChoiceRouteRole("adventurer"),
-		"adventurer_fraud_target":           types.ChoiceRouteRole("adventurer"),
-		"adventurer_paradise_pick":          types.ChoiceRouteRole("adventurer"),
-		"adventurer_steal_sky_mode":         types.ChoiceRouteRole("adventurer"),
+		"adventurer_extract_paradise_check": types.ChoiceRouteRole("adventurer").WithSkill("adventurer_paradise"),
+		"adventurer_fraud_attack_element":   types.ChoiceRouteRole("adventurer").WithSkill("adventurer_fraud"),
+		"adventurer_fraud_pick":             types.ChoiceRouteRole("adventurer").WithSkill("adventurer_fraud"),
+		"adventurer_fraud_target":           types.ChoiceRouteRole("adventurer").WithSkill("adventurer_fraud"),
+		"adventurer_paradise_pick":          types.ChoiceRouteRole("adventurer").WithSkill("adventurer_paradise"),
+		"adventurer_steal_sky_mode":         types.ChoiceRouteRole("adventurer").WithSkill("adventurer_steal_sky"),
 	}
 }

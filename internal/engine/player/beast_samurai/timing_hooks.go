@@ -59,16 +59,31 @@ func attackGatingHook(rt player.HookRuntime, ctx player.TimingHookContext) playe
 
 func postAttackHitHook(rt player.HookRuntime, ctx player.TimingHookContext) player.TimingHookResult {
 	p := rt.GetPlayer(ctx.SourceID)
-	if p == nil {
+	// 命中后 hook 只要攻击方或目标是兽灵武士就会分派；兽灵武士被别人打中时 SourceID 是攻击者，必须跳过。
+	if p == nil || !player.IsCharacter(p, "beast_samurai") {
 		return player.TimingHookResult{}
 	}
-	if ctx.IsCounter || InIaijutsuForm(p) {
+	if ctx.IsCounter {
+		return player.TimingHookResult{}
+	}
+	// 逆反居合斩：攻击前已发动，命中时②改为目标弃牌。
+	if p.TurnState.SkillFlowState[reversalArmedKey] > 0 {
+		x := p.TurnState.SkillFlowState["bs_reversal_pending_x"]
+		p.TurnState.SkillFlowState[reversalArmedKey] = 0
+		target := rt.GetPlayer(ctx.TargetID)
+		if target != nil && startReversalHitDiscard(rt.AsChoiceRuntime(), p, target, x, ctx.PendingDamage, ctx.Card) {
+			return player.TimingHookResult{Interrupted: true}
+		}
+		return player.TimingHookResult{}
+	}
+	if InIaijutsuForm(p) {
 		return player.TimingHookResult{}
 	}
 	before := BeastSoul(p)
 	after := AddBeastSoul(p, 1, false)
 	if after > before {
 		rt.Log(fmt.Sprintf("%s 的 [兽魂意念] 生效：普通形态主动攻击命中，兽魂+1（当前%d）", p.Name, after))
+		player.NotifySkillActivated(rt, p, p.ID, "bs_beast_soul_will", p.ID)
 	}
 	return player.TimingHookResult{}
 }

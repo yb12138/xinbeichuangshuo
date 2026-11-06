@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>决策面板 · 布局与收放示意</title>
+<!--
+  布局示意：真实棋盘截图（decision-dock-board.png，1600×900，已隐藏原行动面板）上叠加三种状态。
+  ?state=panel | strip | pill | interrupt   切换展示；不带参数时三联排展示。
+  坐标来自真实对局：两侧座位 x=40/1397，宽 163；手牌顶 y=711，横跨 561–1015。
+-->
+<style>
+  :root {
+    --bg0: #070b14; --panel: rgba(13, 18, 27, 0.94); --panel-hi: rgba(20, 27, 39, 0.97);
+    --chrome-hi: #e9edf3; --chrome: #b9c1cd; --chrome-mid: #7d8796; --hair: rgba(185, 193, 205, 0.22);
+    --gold: #f0c35a; --gold-glow: rgba(240, 195, 90, 0.45); --select: #9fd4ff; --select-glow: rgba(159, 212, 255, 0.45);
+    --red: #c0303c; --text: #e8ecf4; --sub: #9aa4b5; --dim: #66707f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #05080f; color: var(--text); font: 13px/1.4 "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .sheet { display: flex; flex-direction: column; gap: 22px; padding: 22px; width: 1644px; }
+  .sheet h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: 6px; text-align: center; }
+  .caption { color: var(--sub); font-size: 13px; margin: 0 0 8px; }
+  .caption b { color: var(--text); }
+
+  .board { position: relative; width: 1600px; height: 900px; background: url(decision-dock-board.png) 0 0 / 1600px 900px; overflow: hidden; border-radius: 6px; box-shadow: 0 0 0 1px var(--hair); }
+  .board::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+  .board.dim-unselectable .seat-dim { display: block; }
+
+  /* —— 通用面板外壳：来由条 / 内容 / 操作条 —— */
+  .dock { position: absolute; background: linear-gradient(180deg, var(--panel-hi), var(--panel)); border-radius: 10px;
+    box-shadow: 0 0 0 1px var(--chrome-mid), 0 0 0 3px rgba(0,0,0,.55), 0 18px 40px rgba(0,0,0,.6); }
+  .dock::before { content: ''; position: absolute; inset: 4px; border-radius: 7px; border: 1px solid var(--hair); pointer-events: none; }
+  .grip { position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%); width: 54px; height: 14px; border-radius: 7px;
+    background: var(--bg0); box-shadow: 0 0 0 1px var(--chrome-mid); display: flex; align-items: center; justify-content: center; gap: 3px; cursor: grab; }
+  .grip i { width: 3px; height: 3px; border-radius: 50%; background: var(--chrome); }
+  .head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--hair); }
+  .avatar { width: 42px; height: 42px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #d9a26a, #6b3f2a); box-shadow: 0 0 0 2px var(--gold), 0 0 10px var(--gold-glow); flex: none; }
+  .head .who { color: var(--sub); font-size: 11px; }
+  .head .name { font-size: 20px; font-weight: 800; letter-spacing: 3px; }
+  .head .why { color: var(--sub); font-size: 12px; }
+  .steps { margin-left: auto; text-align: right; color: var(--sub); font-size: 11px; }
+  .steps .dots { display: flex; gap: 4px; justify-content: flex-end; margin-bottom: 2px; }
+  .steps .dots i { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--chrome-mid); }
+  .steps .dots i.on { background: var(--select); box-shadow: 0 0 5px var(--select-glow); }
+  .head-tools { display: flex; gap: 6px; margin-left: 10px; }
+  .tool { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--chrome);
+    background: var(--bg0); box-shadow: 0 0 0 1px var(--chrome-mid); font-size: 14px; }
+  .foot { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px 14px; }
+  .btn { padding: 7px 22px; border-radius: 999px; font-weight: 700; font-size: 13px; }
+  .btn.ghost { color: var(--chrome); background: var(--bg0); box-shadow: 0 0 0 1px var(--chrome-mid); }
+  .btn.gold { color: #2a1d00; background: linear-gradient(180deg, #ffe39a, #e0a93c); box-shadow: 0 0 0 1px #fff3c4, 0 0 14px var(--gold-glow); }
+
+  /* —— 状态①：放大面板（在面板内作答） —— */
+  .dock--panel { left: 540px; top: 238px; width: 520px; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px 16px; }
+  .opt { border-radius: 10px; padding: 14px 12px; text-align: center; background: rgba(9,14,26,.85); box-shadow: 0 0 0 1px var(--chrome-mid); }
+  .opt.sel { box-shadow: 0 0 0 2px var(--select), 0 0 18px var(--select-glow); }
+  .opt .ico { width: 46px; height: 46px; margin: 0 auto 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px;
+    background: radial-gradient(circle, rgba(159,212,255,.18), transparent 70%); box-shadow: 0 0 0 1px var(--select); }
+  .opt .t { font-size: 16px; font-weight: 800; }
+  .opt .c { color: var(--sub); font-size: 12px; margin-top: 4px; }
+  .opt .c b { color: var(--text); }
+  .shared { margin: 0 16px 6px; padding: 9px 12px; border-radius: 8px; color: var(--sub); font-size: 12px; background: rgba(9,14,26,.7); box-shadow: 0 0 0 1px var(--hair); }
+  .shared b { color: var(--text); }
+
+  /* —— 状态②：窄条（在棋盘上作答） —— */
+  .dock--strip { left: 482px; top: 626px; width: 636px; display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+  .dock--strip .avatar { width: 34px; height: 34px; }
+  .dock--strip .name { font-size: 16px; letter-spacing: 2px; }
+  .counter { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--sub); font-size: 12px; }
+  .counter .num { font-size: 18px; font-weight: 800; color: var(--select); font-family: Georgia, serif; }
+  .rule { padding: 2px 10px; border-radius: 999px; font-size: 11px; color: var(--select); box-shadow: 0 0 0 1px var(--select); }
+  .strip-btns { display: flex; gap: 8px; }
+  .strip-btns .btn { padding: 6px 16px; }
+  .seat-glow, .seat-dim { position: absolute; border-radius: 10px; pointer-events: none; }
+  .seat-glow { box-shadow: 0 0 0 2px var(--select), 0 0 22px var(--select-glow); animation: pulse 1.6s ease-in-out infinite; }
+  .seat-glow.picked { box-shadow: 0 0 0 3px var(--gold), 0 0 26px var(--gold-glow); animation: none; }
+  .seat-glow .tag { position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%); padding: 1px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    background: var(--bg0); color: var(--select); box-shadow: 0 0 0 1px var(--select); white-space: nowrap; }
+  .seat-glow.picked .tag { color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .seat-dim { background: rgba(4,7,14,.62); }
+  .preview { position: absolute; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; background: rgba(9,14,26,.95); box-shadow: 0 0 0 1px #e2525e; color: #ffb3b9; white-space: nowrap; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 2px var(--select), 0 0 8px transparent; } }
+
+  /* —— 状态③：收起胶囊 —— */
+  .pill { position: absolute; left: 1290px; top: 650px; display: flex; align-items: center; gap: 10px; padding: 7px 16px 7px 7px; border-radius: 999px;
+    background: var(--panel-hi); box-shadow: 0 0 0 1px var(--gold), 0 0 0 3px rgba(0,0,0,.55), 0 0 18px var(--gold-glow); animation: pillpulse 1.4s ease-in-out infinite; }
+  .pill .avatar { width: 30px; height: 30px; }
+  .pill .t { font-weight: 800; font-size: 14px; }
+  .pill .s { color: var(--sub); font-size: 11px; }
+  .pill .timer { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(240,195,90,.3); border-top-color: var(--gold); margin-left: 4px; }
+  .pill .open { margin-left: 6px; color: var(--gold); font-size: 16px; }
+  @keyframes pillpulse { 50% { box-shadow: 0 0 0 1px var(--gold), 0 0 0 3px rgba(0,0,0,.55), 0 0 6px transparent; } }
+
+  /* —— 状态④：打断（对手回合，强制展开） —— */
+  .dock--panel.interrupt { box-shadow: 0 0 0 1px #e2525e, 0 0 0 3px rgba(0,0,0,.55), 0 0 30px rgba(226,82,94,.35), 0 18px 40px rgba(0,0,0,.6); }
+  .band { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 16px; background: linear-gradient(90deg, rgba(192,48,60,.85), rgba(192,48,60,0)); font-size: 12px; font-weight: 700; border-radius: 10px 10px 0 0; }
+  .band b { padding: 0 8px; border-radius: 3px; background: #fff; color: var(--red); }
+  .effect-row { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 16px; }
+  .effect-row .n { font-size: 30px; font-weight: 900; color: #ff6a6a; font-family: Georgia, serif; }
+  .effect-row .arrow { color: var(--sub); font-size: 20px; }
+  .effect-row .chip { padding: 6px 12px; border-radius: 8px; background: rgba(9,14,26,.85); box-shadow: 0 0 0 1px var(--chrome-mid); }
+
+  /* —— 标注 —— */
+  .note { position: absolute; padding: 6px 10px; border-radius: 6px; font-size: 12px; color: #2a1d00; background: #ffe39a; box-shadow: 0 2px 8px rgba(0,0,0,.5); max-width: 240px; }
+  .note::before { content: attr(data-n); display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin-right: 6px; border-radius: 50%; background: #2a1d00; color: #ffe39a; font-weight: 800; font-size: 11px; }
+  .drag-ghost { position: absolute; border-radius: 10px; border: 2px dashed rgba(159,212,255,.55); pointer-events: none; }
+  .drag-arrow { position: absolute; color: var(--select); font-size: 26px; text-shadow: 0 0 8px var(--select-glow); }
+  .single .sheet { padding: 0; width: 1600px; }
+  .single .sheet h1, .single .caption { display: none; }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet">
+  <h1>决策面板 · 布局与收放</h1>
+
+  <!-- ① 放大面板 -->
+  <section data-state="panel">
+    <p class="caption"><b>① 在面板内作答</b>（文字分支 / 是否发动 / 选数字 / 分配 / 方向元素）：面板放大到 520px，位于中央偏下、手牌上方；不压两侧座位，也不压战斗链。可拖拽，位置会记住。</p>
+    <div class="board">
+      <div class="drag-ghost" style="left:300px;top:150px;width:520px;height:300px"></div>
+      <div class="drag-arrow" style="left:470px;top:300px">⤢</div>
+      <div class="dock dock--panel">
+        <div class="grip"><i></i><i></i><i></i></div>
+        <div class="head">
+          <div class="avatar"></div>
+          <div>
+            <div class="who">蝶舞者 · A1 发动</div>
+            <div class="name">舞动</div>
+            <div class="why">请选择先执行的动作</div>
+          </div>
+          <div class="steps"><div class="dots"><i class="on"></i><i></i></div>第 1/2 步</div>
+          <div class="head-tools"><span class="tool" title="收起">—</span></div>
+        </div>
+        <div class="opts">
+          <div class="opt sel"><div class="ico">🂠</div><div class="t">摸 1 张牌</div><div class="c">手牌 <b>4 → 5</b></div></div>
+          <div class="opt"><div class="ico">🗑</div><div class="t">弃 1 张牌</div><div class="c">手牌 <b>4 → 3</b></div></div>
+        </div>
+        <div class="shared">然后：将牌库顶 1 张牌放置为 <b>茧</b></div>
+        <div class="foot"><span class="btn ghost">放弃</span><span class="btn gold">确认</span></div>
+      </div>
+      <div class="note" data-n="1" style="left:1078px;top:250px">拖拽把手：按住顶部拖到任意位置，下次出现仍在原处</div>
+      <div class="note" data-n="2" style="left:1078px;top:318px">右上角「—」收起为胶囊，随时再展开</div>
+      <div class="note" data-n="3" style="left:1078px;top:386px">来由条：谁、哪个技能、为什么；右侧是多步进度</div>
+    </div>
+  </section>
+
+  <!-- ② 窄条 -->
+  <section data-state="strip">
+    <p class="caption"><b>② 在棋盘上作答</b>（选目标 / 选手牌 / 选扩展区盖牌）：面板缩成手牌上方的窄条，只留来由、计数与确认；可选座位发冷光，不可选压暗，棋盘本身就是操作界面。</p>
+    <div class="board dim-unselectable">
+      <!-- 可选：左列 3 个对手；已选：剑帝 -->
+      <div class="seat-glow" style="left:38px;top:108px;width:167px;height:161px"><span class="tag">可选</span></div>
+      <div class="seat-glow" style="left:38px;top:291px;width:167px;height:161px"><span class="tag">可选</span></div>
+      <div class="seat-glow picked" style="left:38px;top:473px;width:167px;height:161px"><span class="tag">已选</span></div>
+      <div class="preview" style="left:214px;top:540px">将承受 3 点法术伤害</div>
+      <!-- 不可选：右列队友压暗 -->
+      <div class="seat-dim" style="left:1397px;top:110px;width:163px;height:157px"></div>
+      <div class="seat-dim" style="left:1397px;top:475px;width:163px;height:157px"></div>
+      <div class="dock dock--strip">
+        <div class="grip"><i></i><i></i><i></i></div>
+        <div class="avatar"></div>
+        <div>
+          <div class="who" style="color:var(--sub);font-size:11px">剑帝 · 剑气斩</div>
+          <div class="name" style="font-weight:800">选择 1 名目标</div>
+        </div>
+        <span class="rule">对手 · 剩余可选 2 人</span>
+        <div class="counter">已选 <span class="num">1</span>/1</div>
+        <div class="strip-btns"><span class="btn ghost">放弃</span><span class="btn gold">确认</span></div>
+        <span class="tool" title="收起">—</span>
+      </div>
+      <div class="note" data-n="1" style="left:520px;top:560px">窄条不挡座位和手牌，只在手牌上方占一行</div>
+      <div class="note" data-n="2" style="left:240px;top:600px">选中后直接在目标旁预览后果</div>
+    </div>
+  </section>
+
+  <!-- ③ 收起胶囊 -->
+  <section data-state="pill">
+    <p class="caption"><b>③ 收起</b>：面板收成右下角胶囊「待决策：舞动」，棋盘完全露出；计时照走，胶囊闪烁提醒，点击即展开回原位置。</p>
+    <div class="board">
+      <div class="pill">
+        <div class="avatar"></div>
+        <div><div class="t">待决策：舞动</div><div class="s">点击展开 · 剩余 18 秒</div></div>
+        <div class="timer"></div>
+        <span class="open">▲</span>
+      </div>
+      <div class="note" data-n="1" style="left:1060px;top:600px">收起不放弃决策：计时继续，超时按默认处理</div>
+    </div>
+  </section>
+
+  <!-- ④ 打断 -->
+  <section data-state="interrupt">
+    <p class="caption"><b>④ 打断</b>：别人回合要你响应时强制展开（忽略上次的收起状态），顶部红色打断色带说明是谁的什么技能。</p>
+    <div class="board">
+      <div class="dock dock--panel interrupt" style="top:248px">
+        <div class="band"><b>打断</b>剑帝的攻击要求你响应</div>
+        <div class="head">
+          <div class="avatar"></div>
+          <div>
+            <div class="who">蝶舞者 · 你的被动</div>
+            <div class="name">朝圣</div>
+            <div class="why">是否移除 1 个茧抵御 1 点伤害？</div>
+          </div>
+          <div class="head-tools" style="margin-left:auto"><span class="tool" title="收起">—</span></div>
+        </div>
+        <div class="effect-row">
+          <span class="n">-3</span><span class="arrow">→</span><span class="chip">移除 1 茧</span><span class="arrow">→</span><span class="n" style="color:#ffd27a">-2</span>
+        </div>
+        <div class="foot"><span class="btn ghost">放弃</span><span class="btn gold">发动</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+  const state = new URLSearchParams(location.search).get('state')
+  if (state) {
+    document.body.classList.add('single')
+    for (const s of document.querySelectorAll('section')) if (s.dataset.state !== state) s.remove()
+  }
+</script>
+</body>
+</html>

@@ -8,7 +8,8 @@ import (
 	"starcup-engine/internal/model"
 )
 
-func TestAngelSong_RunsAsTurnStartResponseAndResumesActionSelection(t *testing.T) {
+// 天使之歌在"回合开始前"发动，排在中毒/虚弱结算之前：可以先移除自己面前的中毒。
+func TestAngelSong_RunsBeforeTurnStartAndRemovesOwnPoisonFirst(t *testing.T) {
 	game := engine.NewGameEngine(testutils.NoopObserver{})
 	if err := game.AddPlayer("p1", "Angel", "angel", model.RedCamp); err != nil {
 		t.Fatal(err)
@@ -18,40 +19,38 @@ func TestAngelSong_RunsAsTurnStartResponseAndResumesActionSelection(t *testing.T
 	}
 
 	game.State.CurrentTurn = 0
-	game.State.TurnStage = model.TurnStageActionStart
+	game.State.TurnStage = model.TurnStageTurnBeforeStart
 
 	p1 := game.State.Players["p1"]
 	p2 := game.State.Players["p2"]
+	p1.IsActive = true
 	p1.TurnState = model.NewPlayerTurnState()
 	p2.TurnState = model.NewPlayerTurnState()
 	p1.Crystal = 1
-	p2.AddFieldCard(&model.FieldCard{
-		Card:     model.Card{ID: "weak-1", Name: "虚弱", Type: model.CardTypeMagic, Element: model.ElementWind},
-		OwnerID:  p2.ID,
-		SourceID: "p3",
+	p1.AddFieldCard(&model.FieldCard{
+		Card:     model.Card{ID: "poison-1", Name: "中毒", Type: model.CardTypeMagic, Element: model.ElementEarth},
+		OwnerID:  p1.ID,
+		SourceID: p2.ID,
 		Mode:     model.FieldEffect,
-		Effect:   model.EffectWeak,
+		Effect:   model.EffectPoison,
 		Hook:     model.FieldHookOnBeforeAction,
 	})
+	handBefore := len(p1.Hand)
 
 	game.Drive()
 
 	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptResponseSkill {
-		t.Fatalf("expected angel_song response interrupt at startup, got %+v", game.State.PendingInterrupt)
+		t.Fatalf("expected angel_song response interrupt before turn start, got %+v", game.State.PendingInterrupt)
 	}
 	if !testutils.InterruptHasSkillID(game.State.PendingInterrupt, "angel_song") {
 		t.Fatalf("expected angel_song in pending skills, got %+v", game.State.PendingInterrupt.SkillIDs)
 	}
-
-	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	}); err != nil {
-		t.Fatalf("confirm angel_song failed: %v", err)
+	if got := testutils.CountFieldEffect(p1, model.EffectPoison); got != 1 {
+		t.Fatalf("poison must not resolve before angel_song window, got %d poison", got)
 	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
-		t.Fatalf("expected basic effect choice after angel_song, got %+v", game.State.PendingInterrupt)
+
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}); err != nil {
+		t.Fatalf("confirm angel_song failed: %v", err)
 	}
 	ctxData, _ := game.State.PendingInterrupt.Context.(map[string]interface{})
 	if got, _ := ctxData["choice_type"].(string); got != "basic_effect_pick" {
@@ -60,34 +59,24 @@ func TestAngelSong_RunsAsTurnStartResponseAndResumesActionSelection(t *testing.T
 	if p1.Crystal != 0 {
 		t.Fatalf("angel_song should consume 1 crystal before selection, got %d", p1.Crystal)
 	}
-
-	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}); err != nil {
 		t.Fatalf("resolve angel_song basic effect pick failed: %v", err)
 	}
-	if got := testutils.CountFieldEffect(p2, model.EffectWeak); got != 0 {
-		t.Fatalf("expected weakness removed by angel_song, got %d", got)
-	}
-	if game.State.PendingInterrupt == nil || game.State.PendingInterrupt.Type != model.InterruptChoice {
-		t.Fatalf("expected angel bond follow-up choice after angel_song removal, got %+v", game.State.PendingInterrupt)
+	if got := testutils.CountFieldEffect(p1, model.EffectPoison); got != 0 {
+		t.Fatalf("expected poison removed by angel_song, got %d", got)
 	}
 	ctxData, _ = game.State.PendingInterrupt.Context.(map[string]interface{})
 	if got, _ := ctxData["choice_type"].(string); got != "angel_bond_heal_target" {
 		t.Fatalf("expected angel_bond_heal_target, got %q", got)
 	}
-
-	if err := game.HandleAction(model.PlayerAction{
-		PlayerID:   "p1",
-		Type:       model.CmdSelect,
-		Selections: []int{0},
-	}); err != nil {
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdSelect, Selections: []int{0}}); err != nil {
 		t.Fatalf("resolve angel bond after angel_song failed: %v", err)
 	}
 	if game.State.PendingInterrupt != nil {
 		t.Fatalf("expected no pending interrupt after angel bond resolution, got %+v", game.State.PendingInterrupt)
+	}
+	if got := len(p1.Hand); got != handBefore {
+		t.Fatalf("poison was removed first, angel should not take poison damage; hand %d -> %d", handBefore, got)
 	}
 	if game.State.TurnStage != model.TurnStageActionExecution || game.State.CombatStage != model.CombatStageNone || game.State.Subflow != model.SubflowNone {
 		t.Fatalf("expected turn to continue to action execution window, got turn=%s combat=%s subflow=%s", game.State.TurnStage, game.State.CombatStage, game.State.Subflow)
@@ -492,5 +481,52 @@ func TestAngelBlessing_ReceiverCanConfirmGiveCardsByCardIDs(t *testing.T) {
 	}
 	if got := len(p1.Hand); got <= 1 {
 		t.Fatalf("expected receiver to gain cards after card_id confirm, got %d", got)
+	}
+}
+
+// 魔弹来源身上的圣盾不能替别人挡伤害：只有承伤者自己的圣盾生效。
+func TestHolyShield_OnlyProtectsItsHolder(t *testing.T) {
+	game := engine.NewGameEngine(testutils.NoopObserver{})
+	if err := game.AddPlayer("p1", "Caster", "berserker", model.BlueCamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := game.AddPlayer("p2", "Victim", "berserker", model.RedCamp); err != nil {
+		t.Fatal(err)
+	}
+	p1, p2 := game.State.Players["p1"], game.State.Players["p2"]
+	p1.IsActive = true
+	p1.TurnState = model.NewPlayerTurnState()
+	p2.TurnState = model.NewPlayerTurnState()
+	p1.Hand = []model.Card{{ID: "mb", Name: "魔弹", Type: model.CardTypeMagic, Element: model.ElementFire, Damage: 2}}
+	p2.Hand = nil
+	game.State.Deck = []model.Card{
+		{ID: "d1", Name: "水涟斩", Type: model.CardTypeAttack, Element: model.ElementWater, Damage: 2},
+		{ID: "d2", Name: "火焰斩", Type: model.CardTypeAttack, Element: model.ElementFire, Damage: 2},
+		{ID: "d3", Name: "风神斩", Type: model.CardTypeAttack, Element: model.ElementWind, Damage: 2},
+	}
+	p1.AddFieldCard(&model.FieldCard{
+		Card:    model.Card{ID: "sh", Name: "圣盾", Type: model.CardTypeMagic, Element: model.ElementEarth},
+		OwnerID: p1.ID, SourceID: p1.ID, Mode: model.FieldEffect, Effect: model.EffectShield,
+	})
+	game.State.CurrentTurn = 0
+	game.State.TurnStage = model.TurnStageActionExecution
+
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p1", Type: model.CmdMagic, CardID: testutils.PlayableCardID(t, game, "p1", 0)}); err != nil {
+		t.Fatalf("cast magic bullet failed: %v", err)
+	}
+	if err := game.HandleAction(model.PlayerAction{PlayerID: "p2", Type: model.CmdRespond, ExtraArgs: []string{"take"}}); err != nil {
+		t.Fatalf("take magic bullet failed: %v", err)
+	}
+	for i := 0; i < 6 && len(game.State.PendingDamageQueue) > 0; i++ {
+		if intr := game.State.PendingInterrupt; intr != nil {
+			break
+		}
+		game.Drive()
+	}
+	if !p1.HasFieldEffect(model.EffectShield) {
+		t.Fatalf("caster's 圣盾 must not be consumed by damage dealt to someone else")
+	}
+	if len(p2.Hand) != 2 {
+		t.Fatalf("expected victim to take 2 magic damage (draw 2), got hand=%d", len(p2.Hand))
 	}
 }

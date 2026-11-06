@@ -53,7 +53,7 @@ describe('PlayerArea indicators', () => {
     setActivePinia(createPinia())
   })
 
-  it('renders sword emperor sword qi with Chinese label', () => {
+  it('renders sword emperor sword qi as an icon with its Chinese name', () => {
     render(PlayerArea, {
       props: {
         player: buildPlayer({
@@ -63,7 +63,7 @@ describe('PlayerArea indicators', () => {
       global: { plugins: [createPinia()] },
     })
 
-    expect(screen.getByText('剑气')).toBeTruthy()
+    expect(screen.getByRole('img', { name: '剑气' })).toBeTruthy()
     expect(screen.getByTitle('剑气: 2')).toBeTruthy()
     expect(screen.queryByText('se_sword_qi')).toBeNull()
   })
@@ -82,7 +82,7 @@ describe('PlayerArea indicators', () => {
       global: { plugins: [createPinia()] },
     })
 
-    expect(screen.getByText('怒气')).toBeTruthy()
+    expect(screen.getByTitle('怒气: 2')).toBeTruthy()
     expect(screen.queryByText('下次主动攻+伤')).toBeNull()
     expect(screen.queryByText('本回合锁技能')).toBeNull()
   })
@@ -99,6 +99,37 @@ describe('PlayerArea indicators', () => {
 
     expect(screen.queryByText('sc_power_count')).toBeNull()
     expect(screen.queryByTitle('sc_power_count: 2')).toBeNull()
+  })
+
+  it('shows cover cards as one card-back mark with a count, and hides the duplicated count token', () => {
+    render(PlayerArea, {
+      props: {
+        player: buildPlayer({
+          tokens: { se_sword_soul_count: 2, se_sword_qi: 1 },
+          field: [
+            { ...buildEffectField('SwordSoul'), mode: 'Cover' },
+            { ...buildEffectField('SwordSoul'), mode: 'Cover' },
+          ],
+        }),
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(screen.getByTitle('剑魂: 2')).toBeTruthy()
+    expect(screen.getByRole('img', { name: '剑魂' })).toBeTruthy()
+    expect(screen.queryByTitle('剑魂: 2')?.textContent).toContain('2')
+    expect(screen.getAllByTitle(/^剑魂/)).toHaveLength(1)
+  })
+
+  it('draws small-cap tokens as a dot grid', () => {
+    const { container } = render(PlayerArea, {
+      props: { player: buildPlayer({ tokens: { onmyoji_ghost_fire: 2 } }) },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(screen.getByTitle('鬼火: 2')).toBeTruthy()
+    expect(container.querySelectorAll('.seat-mark-pip')).toHaveLength(3)
+    expect(container.querySelectorAll('.seat-mark-pip--on')).toHaveLength(2)
   })
 
   it('keeps blood cap out of the token chip row', () => {
@@ -208,5 +239,26 @@ describe('PlayerArea indicators', () => {
     })
 
     expect(container.querySelectorAll('.effect-icon-item')).toHaveLength(3)
+  })
+
+  it('renders a persistent effect as a glowing seat chip with its rule as tooltip (额外回合)', () => {
+    render(PlayerArea, {
+      props: { player: buildPlayer({ role: 'moon_goddess', indicators: { mg_extra_turn_pending: 1 } }) },
+    })
+    const chip = screen.getByTestId('seat-persistent-effect')
+    expect(chip.textContent).toContain('额外回合')
+    expect(chip.getAttribute('title')).toContain('苍白之月')
+  })
+
+  it('keeps a form aura and badge on the seat for as long as the player stays in the form', async () => {
+    const { rerender, queryByTestId, getByTestId } = render(PlayerArea, {
+      props: { player: buildPlayer({ role: 'holy_bow', form: 'holy_bow_holy_glory_form' }) },
+    })
+    expect(getByTestId('seat-form-badge').textContent).toContain('圣煌形态')
+    expect(getByTestId('seat-form-aura')).toBeTruthy()
+
+    await rerender({ player: buildPlayer({ role: 'holy_bow', form: '' }) })
+    expect(queryByTestId('seat-form-aura')).toBeNull()
+    expect(queryByTestId('seat-form-badge')).toBeNull()
   })
 })

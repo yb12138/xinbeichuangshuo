@@ -313,16 +313,16 @@ export function hopeDrawConfirmPrompt(): WsMessage {
   return requireActionMessage({
     type: 'confirm',
     player_id: BARD_PLAYER_ID,
-    message: '【希望赋格曲】是否先摸1张牌？',
+    message: '【希望赋格曲】发动后可先摸1张牌，然后选择放置或转移永恒乐章：',
     choice_type: 'bd_hope_draw_confirm',
     skill_id: BD_HOPE_FUGUE_SKILL_ID,
     options: [
-      { id: '0', label: '是', button_label: '是' },
-      { id: '1', label: '否', button_label: '否' },
+      { id: '0', label: '摸1张牌', button_label: '摸1张牌', hint: '手牌 4 → 5' },
+      { id: '1', label: '不摸牌', button_label: '不摸牌' },
     ],
     min: 1,
     max: 1,
-    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0 },
+    presentation: { kind: 'branch_select', layout: 'overlay', numeric_base: 0, step_index: 1, total_steps: 4 },
   } satisfies Prompt);
 }
 

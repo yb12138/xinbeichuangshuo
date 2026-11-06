@@ -334,8 +334,16 @@ func (e *GameEngine) HandleExtractChoiceSelections(playerID string, selections [
 		}
 	}
 
-	energyCap := e.getPlayerEnergyCap(player)
-	if extractedGems+extractedCrystals > playerrole.PlayerEnergyRoom(player, energyCap) {
+	// 星石接收者：默认为提炼者本人；冒险者天堂等会交给队友。
+	recipient := player
+	if rid, _ := data["extract_recipient_id"].(string); rid != "" {
+		recipient = e.State.Players[rid]
+		if recipient == nil {
+			return fmt.Errorf("星石接收者不存在")
+		}
+	}
+	energyCap := e.getPlayerEnergyCap(recipient)
+	if extractedGems+extractedCrystals > playerrole.PlayerEnergyRoom(recipient, energyCap) {
 		return fmt.Errorf("能量空间不足，无法提炼")
 	}
 
@@ -353,10 +361,29 @@ func (e *GameEngine) HandleExtractChoiceSelections(playerID string, selections [
 		e.State.BlueCrystals -= extractedCrystals
 	}
 
-	gainedGems := playerrole.AddPlayerGemCapped(player, extractedGems, energyCap)
-	gainedCrystals := playerrole.AddPlayerCrystalCapped(player, extractedCrystals, energyCap)
-	e.Log(fmt.Sprintf("[Action] %s 提炼：从战绩区获得 %d 宝石 %d 水晶（当前能量: %d）",
-		player.Name, gainedGems, gainedCrystals, player.Gem+player.Crystal))
+	gainedGems := playerrole.AddPlayerGemCapped(recipient, extractedGems, energyCap)
+	gainedCrystals := playerrole.AddPlayerCrystalCapped(recipient, extractedCrystals, energyCap)
+	if recipient.ID != player.ID {
+		e.Log(fmt.Sprintf("[Action] %s 提炼：从战绩区提炼 %d 宝石 %d 水晶交给 %s（%s 当前能量: %d）",
+			player.Name, gainedGems, gainedCrystals, recipient.Name, recipient.Name, recipient.Gem+recipient.Crystal))
+	} else {
+		e.Log(fmt.Sprintf("[Action] %s 提炼：从战绩区获得 %d 宝石 %d 水晶（当前能量: %d）",
+			player.Name, gainedGems, gainedCrystals, player.Gem+player.Crystal))
+	}
+
+	// 提炼者额外移除能量（冒险者天堂："然后移除你的1能量"；没有能量时不移除）。
+	// 优先移除水晶，再移除宝石。
+	for cost := runtimeutil.ToIntContextValue(data["extract_extractor_energy_cost"]); cost > 0; cost-- {
+		if player.Crystal > 0 {
+			player.Crystal--
+			e.Log(fmt.Sprintf("[Action] %s 移除1水晶（剩余能量: %d）", player.Name, player.Gem+player.Crystal))
+		} else if player.Gem > 0 {
+			player.Gem--
+			e.Log(fmt.Sprintf("[Action] %s 移除1宝石（剩余能量: %d）", player.Name, player.Gem+player.Crystal))
+		} else {
+			break
+		}
+	}
 
 	return nil
 }

@@ -149,10 +149,37 @@ func (sd *SkillDispatcher) PopInterrupt() {
 	sd.engine.PopInterrupt()
 }
 
+func (sd *SkillDispatcher) RunInSkillCause(skill model.SkillDefinition, ctx *model.Context, fn func()) {
+	if sd == nil || sd.engine == nil {
+		fn()
+		return
+	}
+	ownerID := ""
+	if ctx != nil && ctx.User != nil {
+		ownerID = ctx.User.ID
+	}
+	// 场上牌技能（封印、圣盾）：归属放置者，Origin 指向放置时的因果。
+	if ctx != nil && ctx.User != nil {
+		for _, fc := range ctx.User.Field {
+			if fc == nil || fc.Mode != model.FieldEffect || model.GetHandlerIDByEffect(fc.Effect) != skill.ID {
+				continue
+			}
+			origin := fc.Cause
+			if origin == nil {
+				origin = &model.Cause{SkillID: skill.ID, OwnerID: fc.SourceID}
+			}
+			sd.engine.withOriginCause(origin, fn)
+			return
+		}
+	}
+	sd.engine.WithSkillCause(skill.ID, ownerID, fn)
+}
+
 func (sd *SkillDispatcher) SetPendingInterrupt(intr *model.Interrupt) {
 	if sd == nil || sd.engine == nil {
 		return
 	}
+	sd.engine.stampInterruptCause(intr)
 	sd.engine.State.SetPendingInterrupt(intr)
 }
 

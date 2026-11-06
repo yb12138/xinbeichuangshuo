@@ -9,8 +9,12 @@ import { useSessionStore } from '../../stores/session.store'
 import { useSnapshotStore } from '../../stores/snapshot.store'
 import { useTimelineStore } from '../../stores/timeline.store'
 import { useUiStore } from '../../stores/ui.store'
+import { useStageQueueStore } from '../../stores/stageQueue.store'
 import type { Prompt } from '../../types/game'
 import type { RequireActionPayload, SyncStatePayload, TimelineNotifyPayload } from '../protocol'
+import { playSfx } from '../../audio/sfx'
+
+vi.mock('../../audio/sfx', () => ({ playSfx: vi.fn() }))
 
 function buildSyncPlayer(id: string, camp: 'Red' | 'Blue') {
   return {
@@ -70,6 +74,50 @@ describe('createGameplayMessageHandlers', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()
+    vi.mocked(playSfx).mockClear()
+  })
+
+  function endState(overrides: Partial<SyncStatePayload>): SyncStatePayload {
+    return {
+      room_state: 'Playing',
+      turn_stage: 'Main',
+      turn_player_id: 'p1',
+      has_performed_startup: true,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0],
+      stones_blue: [0, 0],
+      deck_count: 10,
+      discard_count: 0,
+      available_skills: [],
+      characters: [],
+      players: [buildSyncPlayer('p1', 'Red'), buildSyncPlayer('p2', 'Blue')],
+      ...overrides,
+    }
+  }
+
+  it('plays the victory cue when the end is first seen in a state update', () => {
+    const { handlers, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+
+    handlers.handleSyncState(endState({ morale_blue: 0 }))
+    // 随后到达的 game_end 不再重复放
+    handlers.handleGameplayEvent({ event_type: 'game_end', message: '红方胜利！蓝方士气归零' })
+
+    const endCalls = vi.mocked(playSfx).mock.calls.filter(([cue]) => ['victory', 'defeat', 'game-end'].includes(cue))
+    expect(endCalls).toEqual([['victory']])
+  })
+
+  it('plays the defeat cue from a game_end event', () => {
+    const { handlers, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    handlers.handleSyncState(endState({}))
+
+    handlers.handleGameplayEvent({ event_type: 'game_end', message: '蓝方胜利！星杯达到 5' })
+
+    expect(vi.mocked(playSfx)).toHaveBeenCalledWith('defeat')
   })
 
   afterEach(() => {
@@ -181,6 +229,37 @@ describe('createGameplayMessageHandlers', () => {
     expect(battleFxStore.initiatorFocus?.side).toBe('right')
   })
 
+  it('builds the turn badge from the acting role, camp and turn number', () => {
+    const { handlers, battleFxStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    const sync = (turnPlayer: string, turn: number): SyncStatePayload => ({
+      room_state: 'Playing',
+      turn_stage: 'ActionExecution',
+      turn_player_id: turnPlayer,
+      has_performed_startup: true,
+      turn_number: turn,
+      morale_red: 15,
+      morale_blue: 15,
+      cups_red: 0,
+      cups_blue: 0,
+      stones_red: [0, 0],
+      stones_blue: [0, 0],
+      deck_count: 30,
+      discard_count: 0,
+      available_skills: [],
+      characters: [{ id: 'hero', name: '勇者', title: '', faction: '', skills: [] }],
+      players: [buildSyncPlayer('p1', 'Red'), buildSyncPlayer('p2', 'Blue')],
+    })
+
+    handlers.handleSyncState(sync('p2', 11))
+    expect(battleFxStore.turnBannerRequest).toMatchObject({ text: '勇者 的回合', camp: 'Blue', isMine: false, roleId: 'hero' })
+    expect(battleFxStore.turnBannerRequest?.subtitle).toBe('蓝阵营 · 第 11 回合')
+
+    handlers.handleSyncState(sync('p1', 12))
+    expect(battleFxStore.turnBannerRequest).toMatchObject({ text: '你的回合', camp: 'Red', isMine: true, roleId: 'hero' })
+    expect(battleFxStore.turnBannerRequest?.subtitle).toBe('红阵营 · 第 12 回合')
+  })
+
   it('routes RequireAction into prompt or waiting state based on target player', () => {
     const { handlers, interruptStore, sessionStore } = buildHandlers()
     sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
@@ -219,6 +298,92 @@ describe('createGameplayMessageHandlers', () => {
 
     expect(interruptStore.currentPrompt?.player_id).toBe('p1')
     expect(interruptStore.waitingFor).toBe('')
+  })
+
+  it('holds my prompt until the combat chain finishes playing', () => {
+    const { handlers, interruptStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    const stageQueue = useStageQueueStore()
+    stageQueue.enqueue({ type: 'narration-row', html: 'p2 攻击 p1', tag: '攻击', tagColor: 'attack' })
+    expect(stageQueue.isPlaying).toBe(true)
+
+    handlers.handleRequireAction({
+      interrupt_type: 'WaitChoice',
+      target_user_id: 'p1',
+      timeout: 0,
+      msg: '请选择应战方式',
+      prompt: { type: 'confirm', player_id: 'p1', message: '应战？', options: [{ id: 'take', label: '承受', button_label: '承受' }], min: 1, max: 1, presentation: { kind: 'target_picker', numeric_base: 0 } },
+    })
+    expect(interruptStore.currentPrompt).toBeNull()
+
+    stageQueue.tick(0)
+    stageQueue.tick(10_000)
+    expect(stageQueue.isPlaying).toBe(false)
+    expect(interruptStore.currentPrompt?.player_id).toBe('p1')
+  })
+
+  it('flags the prompt gate while my prompt is held so the hub stays hidden', () => {
+    const { handlers, interruptStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    useStageQueueStore().enqueue({ type: 'narration-row', html: 'x', tag: '攻击', tagColor: 'attack' })
+
+    handlers.handleRequireAction({
+      interrupt_type: 'WaitChoice',
+      target_user_id: 'p1',
+      timeout: 0,
+      msg: '',
+      prompt: { type: 'confirm', player_id: 'p1', message: '应战？', options: [{ id: 'take', label: '承受', button_label: '承受' }], min: 1, max: 1, presentation: { kind: 'target_picker', numeric_base: 0 } },
+    })
+    expect(interruptStore.promptGated).toBe(true)
+    vi.advanceTimersByTime(8000)
+    expect(interruptStore.promptGated).toBe(false)
+    expect(interruptStore.currentPrompt?.player_id).toBe('p1')
+  })
+
+  it('restores skill selections when the server rejects a skill submission', () => {
+    const { handlers, interruptStore } = buildHandlers()
+    interruptStore.setSelectedSkill({ id: 's', title: 'S', description: '', min_targets: 1, max_targets: 1, target_type: 2, cost_gem: 0, cost_crystal: 0, cost_discards: 0 })
+    interruptStore.setSkillMode('choosing_target')
+    interruptStore.setSkillTargetIds(['p2'])
+    interruptStore.beginSubmit()
+
+    handlers.handleGameplayEvent({ event_type: 'error', message: '技能发动失败: 目标不合法' })
+
+    expect(interruptStore.isSubmitting).toBe(false)
+    expect(interruptStore.skillMode).toBe('choosing_target')
+    expect(interruptStore.skillTargetIds).toEqual(['p2'])
+    expect(interruptStore.errorMessage).toContain('技能发动失败')
+  })
+
+  it('clears a rejected counter target so another target can be picked', () => {
+    const { handlers, interruptStore } = buildHandlers()
+    interruptStore.setCounterFlowStage('target')
+    interruptStore.setSelectedHandIndexes([0])
+    interruptStore.setPromptCounterTarget('p3')
+    interruptStore.beginSubmit()
+
+    handlers.handleGameplayEvent({ event_type: 'error', message: '该目标不能被应战' })
+
+    expect(interruptStore.promptCounterTarget).toBe('')
+    expect(interruptStore.counterFlowStage).toBe('target')
+    expect(interruptStore.isSubmitting).toBe(false)
+  })
+
+  it('releases a held prompt after the safety timeout', () => {
+    const { handlers, interruptStore, sessionStore } = buildHandlers()
+    sessionStore.setRoomInfo('ROOM1', 'p1', 'Red', 'hero')
+    useStageQueueStore().enqueue({ type: 'narration-row', html: 'x', tag: '攻击', tagColor: 'attack' })
+
+    handlers.handleRequireAction({
+      interrupt_type: 'WaitChoice',
+      target_user_id: 'p1',
+      timeout: 0,
+      msg: '',
+      prompt: { type: 'confirm', player_id: 'p1', message: '应战？', options: [{ id: 'take', label: '承受', button_label: '承受' }], min: 1, max: 1, presentation: { kind: 'target_picker', numeric_base: 0 } },
+    })
+    expect(interruptStore.currentPrompt).toBeNull()
+    vi.advanceTimersByTime(8000)
+    expect(interruptStore.currentPrompt?.player_id).toBe('p1')
   })
 
   it('focuses the prompt actor when a prompt arrives', () => {

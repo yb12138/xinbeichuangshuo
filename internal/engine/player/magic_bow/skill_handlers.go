@@ -163,7 +163,11 @@ func (h *MagicBowMagicPierceHandler) CanUse(ctx *model.Context) bool {
 		return false
 	}
 	// 魔贯冲击发动时，不能选择"手牌达到上限"的目标。
-	if len(ctx.Target.Hand) >= ctx.Target.MaxHand {
+	maxHand := ctx.Target.MaxHand
+	if ctx.Game != nil {
+		maxHand = ctx.Game.GetMaxHand(ctx.Target)
+	}
+	if len(ctx.Target.Hand) >= maxHand {
 		return false
 	}
 	return true
@@ -369,15 +373,13 @@ func (h *MagicBowChargeHandler) Execute(ctx *model.Context) error {
 }
 
 func (h *MagicBowDemonEyeHandler) CanUse(ctx *model.Context) bool {
-	return ctx != nil && ctx.User != nil && ctx.User.Gem > 0 && len(ctx.User.Hand) > 0
+	// 分支②会先摸3张牌，没有手牌时也能发动。
+	return ctx != nil && ctx.User != nil && ctx.User.Gem > 0
 }
 
 func (h *MagicBowDemonEyeHandler) Execute(ctx *model.Context) error {
 	if ctx == nil || ctx.User == nil || ctx.Game == nil {
 		return fmt.Errorf("魔眼上下文无效")
-	}
-	if len(ctx.User.Hand) == 0 {
-		return fmt.Errorf("魔眼需要至少1张手牌作为充能")
 	}
 	// 启动技和行动技的能耗已由 runtime/UseSkill 流程在调用 Execute 前扣减。
 	// 这里仅负责进入分支选择，避免与框架统一扣费重复扣宝石。

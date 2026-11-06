@@ -9,11 +9,16 @@ import (
 
 func handleMagicLancerAfterDiscard(rt engineplayer.ChoiceRuntime, cont model.FlowContinuation) error {
 	user := rt.GetPlayers()[cont.PlayerID]
-	ResolveStardustAfterSelf(rt, user)
+	// 续接在弃牌结算完成后触发，此时弃牌中断可能尚未出栈，不能再按"仍有待弃牌"推迟。
+	resolveStardustAfterSelf(rt, user, true)
 	return nil
 }
 
 func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player) bool {
+	return resolveStardustAfterSelf(rt, user, false)
+}
+
+func resolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player, discardResolved bool) bool {
 	if user == nil || !engineplayer.IsCharacter(user, "magic_lancer") {
 		return false
 	}
@@ -21,7 +26,7 @@ func ResolveStardustAfterSelf(rt engineplayer.ChoiceRuntime, user *model.Player)
 		return false
 	}
 
-	if rt.PendingDiscardVictimID() == user.ID {
+	if !discardResolved && rt.PendingDiscardVictimID() == user.ID {
 		user.TurnState.SkillFlowState["ml_stardust_wait_discard"] = 1
 		return false
 	}

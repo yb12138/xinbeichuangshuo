@@ -13,18 +13,19 @@ type CharacterView struct {
 
 // SkillView 技能摘要（含主动技元数据，供前端 fallback）
 type SkillView struct {
-	ID               string `json:"id"`
-	Title            string `json:"title"`
-	Description      string `json:"description"`
-	Type             int    `json:"type"`        // SkillType: 0=Passive, 1=Startup, 2=Action, 3=Response
-	MinTargets       int    `json:"min_targets"` // 仅主动技有效
-	MaxTargets       int    `json:"max_targets"` // 仅主动技有效
-	TargetType       int    `json:"target_type"` // 仅主动技有效
-	CostGem          int    `json:"cost_gem"`
-	CostCrystal      int    `json:"cost_crystal"`
-	CostDiscards     int    `json:"cost_discards"`
-	DiscardElement   string `json:"discard_element,omitempty"`
-	RequireExclusive bool   `json:"require_exclusive,omitempty"` // 是否必须使用独有牌
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	Description      string   `json:"description"`
+	Type             int      `json:"type"`        // SkillType: 0=Passive, 1=Startup, 2=Action, 3=Response
+	MinTargets       int      `json:"min_targets"` // 仅主动技有效
+	MaxTargets       int      `json:"max_targets"` // 仅主动技有效
+	TargetType       int      `json:"target_type"` // 仅主动技有效
+	CostGem          int      `json:"cost_gem"`
+	CostCrystal      int      `json:"cost_crystal"`
+	CostDiscards     int      `json:"cost_discards"`
+	DiscardElement   string   `json:"discard_element,omitempty"`
+	RequireExclusive bool     `json:"require_exclusive,omitempty"` // 是否必须使用独有牌
+	Tags             []string `json:"tags,omitempty"`              // 技能标签（Ultimate / TurnLimit / Force …）
 }
 
 // RoomEvent represents room-related events.
@@ -70,6 +71,10 @@ type AvailableSkill struct {
 	RequireExclusive bool   `json:"require_exclusive,omitempty"` // 是否必须使用独有牌（卡牌下标了技能名）
 	PlaceCard        bool   `json:"place_card,omitempty"`        // 是否放置场上牌
 	PlaceEffect      string `json:"place_effect,omitempty"`      // 放置的效果类型（如 Shield/Poison/Weak）
+	// Disabled 该技能当前不可发动：仍下发给前端置灰展示，原因写在 DisabledReason。
+	// 可用性完全由服务端判定，前端不再自行复刻规则。
+	Disabled       bool   `json:"disabled,omitempty"`
+	DisabledReason string `json:"disabled_reason,omitempty"`
 }
 
 // GameStateUpdate represents a filtered game state for a specific player.
@@ -79,6 +84,7 @@ type GameStateUpdate struct {
 	Subflow             string                `json:"subflow,omitempty"`
 	CurrentPlayer       string                `json:"current_player"`
 	HasPerformedStartup bool                  `json:"has_performed_startup"`
+	TurnNumber          int                   `json:"turn_number,omitempty"`
 	Players             map[string]PlayerView `json:"players"`
 	RedMorale           int                   `json:"red_morale"`
 	BlueMorale          int                   `json:"blue_morale"`
@@ -96,26 +102,28 @@ type GameStateUpdate struct {
 
 // PlayerView represents a player's view (hiding other players' hands).
 type PlayerView struct {
-	ID                 string             `json:"id"`
-	Name               string             `json:"name"`
-	Camp               string             `json:"camp"`
-	Role               string             `json:"role"`
-	Orientation        string             `json:"orientation,omitempty"`
-	Form               string             `json:"form,omitempty"`
-	HandCount          int                `json:"hand_count"`
-	MaxHand            int                `json:"max_hand"`
-	ExclusiveCardCount int                `json:"exclusive_card_count"`
-	Hand               []model.Card       `json:"hand,omitempty"`            // Only for self
-	ExclusiveCards     []model.Card       `json:"exclusive_cards,omitempty"` // Only for self (专属技能卡区)
-	Field              []*model.FieldCard `json:"field"`
-	Heal               int                `json:"heal"`
-	MaxHeal            int                `json:"max_heal"`
-	Gem                int                `json:"gem"`     // 个人能量：宝石
-	Crystal            int                `json:"crystal"` // 个人能量：水晶
-	IsActive           bool               `json:"is_active"`
-	Buffs              []model.Buff       `json:"buffs"`
-	Tokens             map[string]int     `json:"tokens,omitempty"`     // 纯游戏状态指示物；不含 Field / RuleModifier / TurnState 派生镜像
-	Indicators         map[string]int     `json:"indicators,omitempty"` // Field / RuleModifier / TurnState 派生展示状态
+	ID                  string             `json:"id"`
+	Name                string             `json:"name"`
+	Camp                string             `json:"camp"`
+	Role                string             `json:"role"`
+	Orientation         string             `json:"orientation,omitempty"`
+	Form                string             `json:"form,omitempty"`
+	HandCount           int                `json:"hand_count"`
+	MaxHand             int                `json:"max_hand"`
+	ExclusiveCardCount  int                `json:"exclusive_card_count"`
+	Hand                []model.Card       `json:"hand,omitempty"`            // Only for self
+	ExclusiveCards      []model.Card       `json:"exclusive_cards,omitempty"` // Only for self (专属技能卡区)
+	Field               []*model.FieldCard `json:"field"`
+	Heal                int                `json:"heal"`
+	MaxHeal             int                `json:"max_heal"`
+	Gem                 int                `json:"gem"`     // 个人能量：宝石
+	Crystal             int                `json:"crystal"` // 个人能量：水晶
+	IsActive            bool               `json:"is_active"`
+	Buffs               []model.Buff       `json:"buffs"`
+	Tokens              map[string]int     `json:"tokens,omitempty"`                // 纯游戏状态指示物；不含 Field / RuleModifier / TurnState 派生镜像
+	Indicators          map[string]int     `json:"indicators,omitempty"`            // Field / RuleModifier / TurnState 派生展示状态
+	CannotCastMagic     bool               `json:"cannot_cast_magic,omitempty"`     // 行动阶段不能使用法术牌（如魔枪黑暗束缚、魔剑士暗影抗拒）
+	NotAttackTargetable bool               `json:"not_attack_targetable,omitempty"` // 不能成为主动攻击目标（如暗杀者潜行）
 
 	// 额外行动约束（仅自身可见）
 	CurrentExtraAction  string   `json:"current_extra_action,omitempty"`

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { toStagePx } from '../composables/useStageScale'
+import { campPersistentEffects, seatPersistentEffects } from '../constants/persistentEffects'
+import { FORM_DISPLAY } from '../constants/forms'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBattleFxStore } from '../stores/battlefx.store'
@@ -7,17 +10,34 @@ import { useInterruptStore } from '../stores/interrupt.store'
 import { useSessionStore } from '../stores/session.store'
 import { useSnapshotStore } from '../stores/snapshot.store'
 import { useUiStore } from '../stores/ui.store'
-import type { AvailableSkill, FieldCard, PlayerView, Prompt } from '../types/game'
+import type { FieldCard, PlayerView, Prompt } from '../types/game'
 import PlayerArea from './PlayerArea.vue'
 import ActionPanel from './ActionPanel.vue'
 import CardComponent from './CardComponent.vue'
+import CoverCard from './card/CoverCard.vue'
+import ExpansionTypeTile from './card/ExpansionTypeTile.vue'
+import { EXCLUSIVE_GROUP_KEY, expansionGroupView } from '../constants/expansionZone'
 import SkillDetailModal from './SkillDetailModal.vue'
 import BattleZone from './BattleZone.vue'
 import VfxLayer from './VfxLayer.vue'
 import StatusEffectIcon from './StatusIcons/StatusEffectIcon.vue'
+import BattleMarkIcon from './marks/BattleMarkIcon.vue'
+import { seatCoverMarks, seatStatusMarks, seatTokenMarks } from '../constants/seatMarks'
+import { COVER_MARKS } from '../constants/battleMarks'
 import { useSubmitAction } from '../composables/useSubmitAction'
 import { useBattleInteractionState } from '../composables/useBattleInteractionState'
+import StageOverlay from './StageOverlay.vue'
+import DecisionDock from './DecisionDock.vue'
+import SoundToggle from './SoundToggle.vue'
+import { characterArtSrc } from '../constants/characterArt'
 import { useInteractionController } from '../composables/useInteractionController'
+import {
+  nextSkillTargets,
+  requiredSkillDiscardCount,
+  requiresExclusiveCardSelectionBeforeTarget,
+  skillTargetBounds,
+  targetToBeReplaced,
+} from '../constants/skillFlowRules'
 import {
   hasBlazeWitchFlameElementOverride,
   skillDiscardEffectiveElement,
@@ -49,9 +69,60 @@ const {
   moraleChanges,
   moraleBurstRanking: rawMoraleBurstRanking,
 } = storeToRefs(battleReviewStore)
-const { drawBursts, initiatorFocus } = storeToRefs(battleFxStore)
+const { drawBursts, initiatorFocus, turnBannerRequest } = storeToRefs(battleFxStore)
+
+// 回合徽章（方案A，outimage/暗黑奇幻卡牌回合提示方案板.png）：行动者切换时从顶部牌堆下方滑出，
+// 头像 + "狂战士 的回合" + "红阵营 · 第 12 回合"；只占顶部一窄条，不遮挡中央战斗链。
+const TURN_BANNER_DURATION_MS = 2200
+const turnBanner = ref<{
+  text: string
+  subtitle: string
+  portrait: string
+  isMine: boolean
+  visible: boolean
+  camp: 'Red' | 'Blue' | ''
+  id: number
+}>({
+  text: '',
+  subtitle: '',
+  portrait: '',
+  isMine: false,
+  visible: false,
+  camp: '',
+  id: 0,
+})
+const turnBannerPortraitFailed = ref(false)
+
+let turnBannerTimer: ReturnType<typeof setTimeout> | null = null
+const turnBannerTrigger = computed(() => turnBannerRequest.value)
+watch(turnBannerTrigger, (request) => {
+  if (turnBannerTimer) {
+    clearTimeout(turnBannerTimer)
+    turnBannerTimer = null
+  }
+  if (!request) {
+    turnBanner.value = { ...turnBanner.value, visible: false }
+    return
+  }
+  turnBannerPortraitFailed.value = false
+  turnBanner.value = {
+    text: request.text,
+    subtitle: request.subtitle || '',
+    portrait: characterArtSrc(request.roleId),
+    isMine: !!request.isMine,
+    visible: true,
+    camp: request.camp,
+    id: request.id,
+  }
+  turnBannerTimer = setTimeout(() => {
+    turnBanner.value = { ...turnBanner.value, visible: false }
+    turnBannerTimer = null
+  }, TURN_BANNER_DURATION_MS)
+})
 const { roomPlayers, myPlayerId, myCamp } = storeToRefs(sessionStore)
 const {
+  currentPlayer: turnPlayerId,
+  turnNumber,
   players,
   redMorale,
   blueMorale,
@@ -64,6 +135,29 @@ const {
   deckCount,
   characters,
 } = storeToRefs(snapshotStore)
+/**
+ * 常驻停靠徽章：大徽章收起后，缩成紧凑款停在当前行动方的阵营条内侧，直到下次换人。
+ * 由快照计算（不依赖换回合事件），刷新 / 重连后也能显示。
+ */
+const dockedTurnBadge = computed(() => {
+  const pid = turnPlayerId.value
+  const player = pid ? players.value[pid] : undefined
+  if (!player || (player.camp !== 'Red' && player.camp !== 'Blue')) return null
+  const roleId = String(player.role || '').trim()
+  const roleName = (roleId && characters.value[roleId]?.name) || player.name || pid
+  const isMine = !!myPlayerId.value && pid === myPlayerId.value
+  return {
+    camp: player.camp as 'Red' | 'Blue',
+    text: isMine ? '你的回合' : roleName,
+    sub: turnNumber.value > 0 ? `第 ${turnNumber.value} 回合` : '',
+    portrait: characterArtSrc(roleId),
+    isMine,
+  }
+})
+const dockedTurnBadgePortraitFailed = ref(false)
+watch(() => dockedTurnBadge.value?.portrait, () => {
+  dockedTurnBadgePortraitFailed.value = false
+})
 const {
   currentPrompt,
   selectedHandIndexes,
@@ -78,7 +172,16 @@ const {
   selectedSkill,
   skillTargetIds,
   skillDiscardHandIndexes,
+  counterFlowStage,
 } = storeToRefs(interruptStore)
+/** 作用于整个阵营的持续效果（凋零：士气最低为 1），显示在该阵营士气旁。 */
+const blueCampEffects = computed(() => campPersistentEffects(players.value, 'Blue'))
+const redCampEffects = computed(() => campPersistentEffects(players.value, 'Red'))
+function campEffectTitle(effect: { hint: string; sourceId: string }): string {
+  const source = players.value[effect.sourceId]
+  const who = source ? characters.value[source.role || '']?.name || source.name : ''
+  return who ? `${effect.hint}（来源：${who}）` : effect.hint
+}
 const {
   skillModalCharacterId,
   skillModalAnchor,
@@ -109,8 +212,32 @@ const myCoverCards = computed<CoverCardEntry[]>(() =>
       fieldCard: entry.fc
     }))
 )
-const expansionCardCount = computed(() => myExclusiveCards.value.length + myCoverCards.value.length)
+
+type CoverGroup = { key: string; label: string; entries: CoverCardEntry[] }
+
+/** 盖牌按种类（effect）分组，保持首次出现的顺序。 */
+const myCoverGroups = computed<CoverGroup[]>(() => {
+  const groups = new Map<string, CoverGroup>()
+  for (const entry of myCoverCards.value) {
+    const key = entry.fieldCard.effect || 'Cover'
+    let group = groups.get(key)
+    if (!group) {
+      group = { key, label: COVER_MARKS[key]?.label ?? coverEffectLabel(entry.fieldCard.effect), entries: [] }
+      groups.set(key, group)
+    }
+    group.entries.push(entry)
+  }
+  return [...groups.values()]
+})
 const boardRootRef = ref<HTMLElement | null>(null)
+const stageOverlayEnabled = computed(() => uiStore.stageOverlayEnabled)
+
+function stageSeatLabel(playerId: string) {
+  const player = players.value?.[playerId]
+  if (!player) return ''
+  const roleName = characters.value?.[player.role || '']?.name || ''
+  return roleName ? `${roleName} · ${player.name}` : player.name
+}
 const deckCounterRef = ref<HTMLElement | null>(null)
 const showExpansionCards = ref(false)
 const ELF_BLESSING_EFFECT = 'ElfBlessing'
@@ -120,6 +247,99 @@ const COVER_EFFECT_LABEL: Record<string, string> = {
   SpiritCasterPower: '妖力',
   MoonDarkMoon: '暗月',
   ButterflyCocoon: '茧',
+}
+
+/**
+ * 扩展区：立绘旁按种类列出「图标 + 数量」，悬停某一种时向右展开该种的牌。
+ * 悬停为临时展开；点击图标固定；进入扩展区选牌时自动固定到可选的那一种。
+ */
+type ExpansionGroup = { key: string; label: string; count: number }
+
+const expansionGroups = computed<ExpansionGroup[]>(() => {
+  const groups: ExpansionGroup[] = []
+  if (myExclusiveCards.value.length > 0) {
+    groups.push({ key: EXCLUSIVE_GROUP_KEY, label: '专属牌', count: myExclusiveCards.value.length })
+  }
+  for (const group of myCoverGroups.value) {
+    groups.push({ key: group.key, label: group.label, count: group.entries.length })
+  }
+  return groups
+})
+
+const expansionHoverGroup = ref<string | null>(null)
+const expansionPinnedGroup = ref<string | null>(null)
+let expansionHoverCloseTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 当前有可选盖牌的那一种（选牌时自动展开它）。 */
+const expansionChoosingGroupKey = computed(() =>
+  myCoverGroups.value.find((group) =>
+    group.entries.some((entry) => isCoverSelectable(entry.fieldIndex) || isCoverSelected(entry.fieldIndex))
+  )?.key ?? null
+)
+
+const expansionActiveGroupKey = computed<string | null>(() => {
+  const keys = new Set(expansionGroups.value.map((group) => group.key))
+  const pick = (key: string | null) => (key && keys.has(key) ? key : null)
+  return (
+    pick(expansionHoverGroup.value) ??
+    pick(expansionPinnedGroup.value) ??
+    (showExpansionCards.value ? pick(expansionChoosingGroupKey.value) ?? expansionGroups.value[0]?.key ?? null : null)
+  )
+})
+
+const expansionActiveGroup = computed(
+  () => expansionGroups.value.find((group) => group.key === expansionActiveGroupKey.value) ?? null
+)
+const expansionActiveCovers = computed(
+  () => myCoverGroups.value.find((group) => group.key === expansionActiveGroupKey.value)?.entries ?? []
+)
+const expansionOpen = computed(() => expansionActiveGroupKey.value !== null)
+const expansionIsPinned = computed(() => expansionPinnedGroup.value !== null || showExpansionCards.value)
+
+function clearExpansionHoverTimer() {
+  if (expansionHoverCloseTimer) {
+    clearTimeout(expansionHoverCloseTimer)
+    expansionHoverCloseTimer = null
+  }
+}
+
+function onExpansionChipPointerEnter(event: PointerEvent, key: string) {
+  // 触屏没有悬停，交给点击
+  if (event.pointerType !== 'mouse') return
+  clearExpansionHoverTimer()
+  expansionHoverGroup.value = key
+}
+
+function onExpansionPointerLeave(event: PointerEvent) {
+  if (event.pointerType !== 'mouse') return
+  clearExpansionHoverTimer()
+  // 稍作延迟：鼠标从图标移向展开的牌时会掠过一小段空隙
+  expansionHoverCloseTimer = setTimeout(() => {
+    expansionHoverGroup.value = null
+    expansionHoverCloseTimer = null
+  }, 220)
+}
+
+function onExpansionChipClick(key: string) {
+  if (expansionPinnedGroup.value === key || (showExpansionCards.value && expansionActiveGroupKey.value === key)) {
+    collapseExpansion()
+    return
+  }
+  expansionPinnedGroup.value = key
+}
+
+function collapseExpansion() {
+  clearExpansionHoverTimer()
+  showExpansionCards.value = false
+  expansionPinnedGroup.value = null
+  expansionHoverGroup.value = null
+}
+
+/** 专属牌可打出：当前可用技能里有需要该专属牌的技能。 */
+function isExclusivePlayable(card: { exclusive_skill1?: string; exclusive_skill2?: string }): boolean {
+  const titles = [card.exclusive_skill1, card.exclusive_skill2].filter(Boolean)
+  if (!titles.length) return false
+  return snapshotStore.availableSkills.some((skill) => !skill.disabled && skill.require_exclusive && titles.includes(skill.title))
 }
 
 function coverEffectLabel(effect?: string): string {
@@ -300,10 +520,10 @@ function rebuildLinkLines() {
 
       const srcRect = srcEl.getBoundingClientRect()
       const tgtRect = tgtEl.getBoundingClientRect()
-      const x1 = srcRect.left + srcRect.width / 2 - rootRect.left
-      const y1 = srcRect.top + srcRect.height / 2 - rootRect.top
-      const x2 = tgtRect.left + tgtRect.width / 2 - rootRect.left
-      const y2 = tgtRect.top + tgtRect.height / 2 - rootRect.top
+      const x1 = toStagePx(srcRect.left + srcRect.width / 2 - rootRect.left)
+      const y1 = toStagePx(srcRect.top + srcRect.height / 2 - rootRect.top)
+      const x2 = toStagePx(tgtRect.left + tgtRect.width / 2 - rootRect.left)
+      const y2 = toStagePx(tgtRect.top + tgtRect.height / 2 - rootRect.top)
 
       const info = LINK_EFFECT_INFO[fc.effect]
       const stroke = LINK_EFFECT_STROKE[fc.effect] ?? { opacity: 0.22, strokeWidth: 1.5 }
@@ -433,10 +653,35 @@ const myStatusRoleName = computed(() => {
   return characters.value[roleId]?.name || roleId
 })
 
-const myStatusPortraitSrc = computed(() => {
-  const roleId = String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim()
-  return roleId ? `/characters/${roleId}.png` : ''
+const myStatusPortraitSrc = computed(() => characterArtSrc(myAreaPlayer.value?.role || sessionStore.myCharRole))
+
+/** 自己的形态 / 持续效果 / 指示物：与座位卡同源，放在自己的立绘区里（盖牌由旁边的扩展区展示）。 */
+const myStatusForm = computed(() => {
+  const form = myAreaPlayer.value?.form
+  if (!form) return null
+  const cfg = FORM_DISPLAY[form]
+  return { label: cfg?.label || '形态', accent: cfg?.accent || '#ffb15c' }
 })
+const myStatusPersistentEffects = computed(() => (myAreaPlayer.value ? seatPersistentEffects(myAreaPlayer.value) : []))
+const myStatusTokens = computed(() => (myAreaPlayer.value ? seatTokenMarks(myAreaPlayer.value) : []))
+const myStatusRoleId = computed(() => String(myAreaPlayer.value?.role || sessionStore.myCharRole || '').trim())
+const myStatusHasSkills = computed(() => !!characters.value[myStatusRoleId.value]?.skills?.length)
+
+function openMySkillModal(event: MouseEvent) {
+  const roleId = myStatusRoleId.value
+  if (!roleId) return
+  if (skillModalCharacterId.value === roleId) {
+    uiStore.openSkillModal(null)
+    return
+  }
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  uiStore.openSkillModal(roleId, {
+    x: toStagePx(rect.left),
+    y: toStagePx(rect.top),
+    width: toStagePx(rect.width),
+    height: toStagePx(rect.height),
+  })
+}
 
 function portraitSrcForPlayer(player: PlayerView): string {
   const roleId = String(player.role || '').trim()
@@ -454,17 +699,6 @@ function handCountForPlayer(player: PlayerView): number {
 
 function maxHandForPlayer(player: PlayerView): number {
   return typeof player.max_hand === 'number' && player.max_hand >= 0 ? player.max_hand : handCountForPlayer(player)
-}
-
-function fieldStatusItemsForPlayer(player: PlayerView) {
-  return (player.field || [])
-    .filter((fc) => fc.mode === 'Effect' && fc.effect && !HIDDEN_MY_FIELD_EFFECTS.has(fc.effect))
-    .map((fc, idx) => ({
-      key: `${fc.effect}-${idx}`,
-      effect: fc.effect,
-      label: PLAYER_STATUS_EFFECT_LABEL[fc.effect] || fc.effect,
-    }))
-    .slice(0, 4)
 }
 
 function battleStatusItemsForPlayer(player: PlayerView) {
@@ -488,15 +722,28 @@ function battleStatusItemsForPlayer(player: PlayerView) {
   return [...items.values()]
 }
 
-function tokenItemsForPlayer(player: PlayerView) {
-  const source = {
-    ...(player.tokens ?? {}),
-    ...(player.indicators ?? {}),
+interface SeatMarkRow {
+  kind: 'status' | 'cover' | 'token'
+  key: string
+  label: string
+  hint: string
+  /** "×2" / "2/3"；单个场上状态不显示。 */
+  amount: string
+}
+
+/** 悬停展开面板：列出座位上全部标记的名称、数量与一句规则。 */
+function seatMarkRowsFor(player: PlayerView): SeatMarkRow[] {
+  const rows: SeatMarkRow[] = []
+  for (const m of seatStatusMarks(player, HIDDEN_MY_FIELD_EFFECTS)) {
+    rows.push({ kind: 'status', key: m.key, label: m.label, hint: m.hint, amount: m.count > 1 ? `×${m.count}` : '' })
   }
-  return Object.entries(source)
-    .filter(([, value]) => typeof value === 'number' && value > 0)
-    .map(([key, value]) => ({ key, value }))
-    .slice(0, 4)
+  for (const m of seatCoverMarks(player)) {
+    rows.push({ kind: 'cover', key: m.key, label: m.label, hint: m.hint, amount: `×${m.count}` })
+  }
+  for (const m of seatTokenMarks(player)) {
+    rows.push({ kind: 'token', key: m.key, label: m.label, hint: m.hint, amount: m.cap ? `${m.value}/${m.cap}` : `×${m.value}` })
+  }
+  return rows
 }
 
 const hoveredBattleSeatPlayerId = ref<string | null>(null)
@@ -570,14 +817,6 @@ function isMagicBulletCard(cardIdx: number): boolean {
   const card = myPlayableCards.value.find(item => item.index === cardIdx)?.card
   return !!card && card.type === 'Magic' && card.name === '魔弹'
 }
-
-const SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS = new Set([
-  'water_seal',
-  'fire_seal',
-  'earth_seal',
-  'wind_seal',
-  'thunder_seal',
-])
 
 function moraleDeltaLabel(delta: number): string {
   return delta > 0 ? `+${delta}` : `${delta}`
@@ -871,6 +1110,54 @@ const canConfirmCocoonSelection = computed(() => {
   const n = selectedCocoonFieldIndices.value.length
   return n >= ctx.min && n <= ctx.max
 })
+
+/** 扩展区选牌时的提示：茧/闇月/妖力/元素射击都在扩展区里选。 */
+const expansionChoosing = computed(() =>
+  promptNeedsCocoonGuide.value || promptNeedsSpiritCasterPowerGuide.value || promptNeedsElementalShotGuide.value
+)
+
+const expansionSelectionHeader = computed(() => {
+  if (!expansionChoosing.value) return null
+  const p = promptGuideContext.value
+  if (!p) return null
+  const skillId = String(p.skill_id || '').trim()
+  let title = ''
+  if (skillId) {
+    for (const character of Object.values(characters.value)) {
+      const skill = character.skills?.find((s) => s.id === skillId)
+      if (skill) {
+        title = skill.title
+        break
+      }
+    }
+  }
+  const bracket = (p.message || '').match(/【([^】]+)】/)?.[1] || ''
+  const promptMessage = String(p.message || '').replace(/^【[^】]+】\s*[:：]?\s*/, '').trim()
+  let selected = 0
+  let max = 0
+  let message = promptMessage
+  if (promptNeedsCocoonGuide.value) {
+    const ctx = cocoonPromptContext.value
+    max = ctx.mode === 'cards' ? ctx.max : 0
+    selected = selectedCocoonFieldIndices.value.length
+    message = promptMessage || cocoonGuideText.value
+  } else if (promptNeedsSpiritCasterPowerGuide.value) {
+    const ctx = spiritCasterPowerPromptContext.value
+    max = ctx.max > 1 ? ctx.max : 0
+    selected = selectedFieldOptionIndexes.value.length
+    message = promptMessage || spiritCasterPowerGuideText.value
+  } else {
+    message = promptMessage || '请点击手牌区或扩展区的法术牌/祝福牌完成元素射击消耗选择。'
+  }
+  return { title: title || bracket || '请选择', message, selected, max }
+})
+
+watch(
+  () => expansionChoosing.value,
+  (active, wasActive) => {
+    if (wasActive && !active) collapseExpansion()
+  }
+)
 
 watch(
   () => cocoonPromptContext.value.active,
@@ -1170,7 +1457,7 @@ const promptNeedsTargetGuide = computed(() => {
   if (!p) return false
   if (p.presentation?.kind === 'target_picker') return true
   if (p.type === 'choose_target') return true
-  if ((p.counter_target_ids?.length ?? 0) > 0) return true
+  if ((p.counter_target_ids?.length ?? 0) > 0) return counterFlowStage.value === 'target'
   return Object.keys(players.value).some((playerId) => promptOptionIndexForPlayer(playerId) >= 0)
 })
 
@@ -1289,8 +1576,18 @@ function playerSelectState(playerId: string): PlayerSelectState {
 function isPromptCounterTargetSelectable(playerId: string): boolean {
   const ids = currentPrompt.value?.counter_target_ids
   if (!currentPrompt.value || !isPromptForMe.value || !ids?.length) return false
+  // 应战两步流程：只有第二步（已选应战牌）才能点目标
+  if (counterFlowStage.value !== 'target') return false
   return ids.includes(playerId)
 }
+
+/** 多目标技能已选满时，下一次点新目标会被替换掉的那个座位（加虚线提示）。 */
+const skillTargetReplaceNextId = computed(() => {
+  if (skillMode.value !== 'choosing_target' || !selectedSkill.value) return ''
+  const { max } = skillTargetBounds(selectedSkill.value)
+  if (max <= 1) return ''
+  return targetToBeReplaced(skillTargetIds.value, max)
+})
 
 function isPlayerSelected(playerId: string): boolean {
   if (skillMode.value === 'choosing_target' && skillTargetIds.value.includes(playerId)) return true
@@ -1385,65 +1682,22 @@ function onTargetClick(playerId: string) {
       return
     }
 
+    // 已提交、等回包时锁住目标，避免改了选择却和实际发出的不一致
+    if (interruptStore.isSubmitting) return
+    // 点头像只负责选择：点已选目标 = 取消；选满后点新目标 = 替换最早选择的那个。
+    // 发动统一走选目标面板的「确认发动」按钮，避免误触直接发动。
     const skill = selectedSkill.value
-    const requiresManualConfirm = SKILL_REQUIRE_MANUAL_TARGET_CONFIRM_IDS.has(skill.id)
-    const fallbackMinTargets = skill.target_type >= 2 ? 1 : 0
-    const minTargets = (skill.min_targets || 0) > 0 ? (skill.min_targets || 0) : fallbackMinTargets
-    const maxTargets = (skill.max_targets || 0) > 0 ? (skill.max_targets || 0) : 1
+    const { min: minTargets, max: maxTargets } = skillTargetBounds(skill)
     const currentTargets = [...skillTargetIds.value]
-    const alreadySelected = currentTargets.includes(playerId)
-
-    if (alreadySelected) {
-      // 头像模式下：范围多目标技能通过“再次点击已选目标”来确认发动。
-      if (!requiresManualConfirm && currentTargets.length >= minTargets && currentTargets.length > 0) {
-        logTargetDebug('skill_target_confirm_by_rec_click', {
-          playerId,
-          skillId: skill.id,
-          minTargets,
-          maxTargets,
-          skillTargets: currentTargets,
-        })
-        const selections = skillDiscardHandIndexes.value.length > 0 ? [...skillDiscardHandIndexes.value] : undefined
-        actions.submitUseSkill(skill.id, currentTargets, selections, { clearSkillMode: true })
-        return
-      }
-      const nextTargets = currentTargets.filter((id) => id !== playerId)
-      interruptStore.setSkillTargetIds(nextTargets)
-      logTargetDebug('skill_target_unselected', {
-        playerId,
-        skillId: skill.id,
-        skillTargets: nextTargets,
-      })
-      return
-    }
-
-    let nextTargets = currentTargets
-    if (maxTargets > 0 && nextTargets.length >= maxTargets) {
-      nextTargets = maxTargets === 1 ? [] : nextTargets.slice(-(maxTargets - 1))
-    }
-    nextTargets = [...nextTargets, playerId]
+    const nextTargets = nextSkillTargets(currentTargets, playerId, maxTargets)
     interruptStore.setSkillTargetIds(nextTargets)
-    logTargetDebug('skill_target_selected', {
+    logTargetDebug(currentTargets.includes(playerId) ? 'skill_target_unselected' : 'skill_target_selected', {
       playerId,
       skillId: skill.id,
       minTargets,
       maxTargets,
-      requiresManualConfirm,
       skillTargets: nextTargets,
     })
-
-    const shouldAutoSubmitSingle = !requiresManualConfirm && maxTargets === 1 && nextTargets.length === 1
-    const shouldAutoSubmitExactCount = !requiresManualConfirm && minTargets > 0 && minTargets === maxTargets && nextTargets.length === maxTargets
-    if (shouldAutoSubmitSingle || shouldAutoSubmitExactCount) {
-      logTargetDebug('skill_target_auto_use', {
-        playerId,
-        skillId: skill.id,
-        minTargets,
-        maxTargets,
-      })
-      const selections = skillDiscardHandIndexes.value.length > 0 ? [...skillDiscardHandIndexes.value] : undefined
-      actions.submitUseSkill(skill.id, nextTargets, selections, { clearSkillMode: true })
-    }
     return
   }
   // 攻击/法术模式
@@ -1528,14 +1782,6 @@ function isStealthedForWaterShadow(): boolean {
   return !!myAreaPlayer.value?.field?.some((fc) => fc.mode === 'Effect' && fc.effect === 'Stealth')
 }
 
-function canUseShadowRejectMagicResponse(): boolean {
-  const me = myAreaPlayer.value
-  if (!me) return false
-  if (isMyTurn.value) return false
-  if (me.role !== 'magic_swordsman') return false
-  return me.form === 'magic_swordsman_shadow_form'
-}
-
 type PromptCardSelectionState = {
   selectable: boolean
   reason: string
@@ -1581,49 +1827,34 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
   const hasCounter = optionIds.has('counter')
   const hasDefend = optionIds.has('defend')
   const isMagicMissilePrompt = prompt.presentation?.kind === 'response' && prompt.presentation?.layout === 'magic_missile'
-  const allowShadowMagicCounter = canUseShadowRejectMagicResponse()
+  const isCombatResponse = prompt.presentation?.kind === 'response' && optionIds.has('take')
 
-  if (hasCounter || hasDefend) {
-    const validForCounter = hasCounter && (
-      isMagicMissilePrompt
-        ? playableCard.type === 'Magic' && playableCard.name === '魔弹'
-        : (
-          (playableCard.type === 'Attack' && (!prompt.attack_element || playableCard.element === prompt.attack_element || playableCard.element === 'Dark')) ||
-          (allowShadowMagicCounter && playableCard.type === 'Magic' && playableCard.name === '魔弹')
-        )
-    )
-    const validForDefend = hasDefend && playableCard.type === 'Magic' && playableCard.name === '圣光'
-    const counterOnlyHint = isMagicMissilePrompt
-      ? '请先选择一张【魔弹】进行传递'
-      : (allowShadowMagicCounter
-        ? '请先选择同系攻击牌/暗灭，或在暗影形态下选择【魔弹】进行应战'
-        : '请先选择同系攻击牌或暗灭进行应战')
-    const counterAndDefendHint = isMagicMissilePrompt
-      ? '应战请选择【魔弹】，防御请选择【圣光】'
-      : (allowShadowMagicCounter
-        ? '应战请选择同系攻击牌/暗灭（暗影形态下也可【魔弹】），防御请选择【圣光】'
-        : '应战请选择同系攻击牌或暗灭，防御请选择【圣光】')
-    if (validForCounter || validForDefend) {
+  // 应战/防御：只有引擎列出的牌可选（与提交校验同源，已含角色形态、暗影抗拒、命格应战等特例）
+  if (isCombatResponse || hasCounter || hasDefend) {
+    const cardID = String(playableCard.id || '').trim()
+    const counterIDs = new Set(prompt.counter_card_ids || [])
+    const defendIDs = new Set(prompt.defend_card_ids || [])
+    // 应战两步流程中只允许选应战牌（防御要先返回响应面板）
+    if (counterFlowStage.value !== 'none') {
+      if (hasCounter && counterIDs.has(cardID)) return { selectable: true, reason: 'prompt_counter_flow_card_valid' }
+      return {
+        selectable: false,
+        reason: 'prompt_counter_flow_card_invalid',
+        error: isMagicMissilePrompt ? '传递只能使用【魔弹】' : '应战需同系攻击牌或暗灭',
+      }
+    }
+    if ((hasCounter && counterIDs.has(cardID)) || (hasDefend && defendIDs.has(cardID))) {
       return { selectable: true, reason: 'prompt_counter_defend_valid' }
     }
-    if (hasCounter && hasDefend) {
-      return {
-        selectable: false,
-        reason: 'prompt_counter_defend_invalid',
-        error: counterAndDefendHint
-      }
+    if (!hasCounter && !hasDefend) {
+      return { selectable: false, reason: 'prompt_take_only', error: '没有可用于应战或防御的牌，只能承受' }
     }
-    if (hasCounter) {
-      return {
-        selectable: false,
-        reason: 'prompt_counter_invalid',
-        error: counterOnlyHint
-      }
-    }
+    const counterHint = isMagicMissilePrompt ? '传递只能使用【魔弹】' : '应战需同系攻击牌或暗灭'
+    const defendHint = '防御只能使用【圣光】（圣盾需提前放置）'
     return {
       selectable: false,
-      reason: 'prompt_defend_invalid',
-      error: '防御只能选择【圣光】（圣盾需提前放置）'
+      reason: 'prompt_counter_defend_invalid',
+      error: hasCounter && hasDefend ? `${counterHint}；${defendHint}` : (hasCounter ? counterHint : defendHint),
     }
   }
 
@@ -1697,6 +1928,25 @@ function promptCardSelectionState(idx: number): PromptCardSelectionState {
       }
     }
     return { selectable: true, reason: 'prompt_fraud_pick_same_element' }
+  }
+
+  // 圣洁法典等"异系牌"选择：与已选牌同系的手牌不可再选
+  if (prompt.presentation?.card_filter === 'distinct_elements') {
+    if (selectedHandIndexes.value.includes(idx)) {
+      return { selectable: true, reason: 'prompt_distinct_elements_keep_selected' }
+    }
+    const selectedElements = new Set(
+      selectedHandIndexes.value
+        .map((i) => myHand.value[i]?.element)
+        .filter((e): e is NonNullable<typeof e> => !!e)
+    )
+    if (card.element && selectedElements.has(card.element)) {
+      return {
+        selectable: false,
+        reason: 'prompt_distinct_elements_duplicate',
+        error: '需选择不同系别的牌'
+      }
+    }
   }
 
   if (prompt.presentation?.card_filter === 'plague_death_touch_element') {
@@ -1938,11 +2188,14 @@ function shouldShowEffectiveHandCardElement(): boolean {
   return prompt.choice_type === 'system_discard_cards' && !!prompt.skill_id
 }
 
+/** 技能弃牌上限：与 ActionPanel 弃牌面板同一口径（requiredSkillDiscardCount）。 */
+const selectedSkillDiscardLimit = computed(() => requiredSkillDiscardCount(selectedSkill.value, myHand.value.length))
+
 function isCardSelectableForSkillDiscard(idx: number): boolean {
   if (idx < 0 || idx >= myHand.value.length) return false
   if (!selectedSkill.value) return false
   if (skillDiscardHandIndexes.value.includes(idx)) return true
-  if (skillDiscardHandIndexes.value.length >= selectedSkill.value.cost_discards) return false
+  if (skillDiscardHandIndexes.value.length >= selectedSkillDiscardLimit.value) return false
   return cardPassesSkillDiscardRules(idx).selectable
 }
 
@@ -1955,6 +2208,17 @@ function isCardSelectableForExclusiveSkillCard(idx: number): boolean {
   const roleId = sessionStore.myCharRole || myAreaPlayer.value?.role || ''
   return cardMatchesExclusive(card, roleId, skill?.title || '')
 }
+
+// 正在从手牌里挑牌（攻击/法术选牌、技能弃牌、需要选牌的提示）时，不可选的牌才压暗；其余时候整手牌保持原色
+const isHandChoosing = computed(() =>
+  !isGameEnded.value && (
+    skillMode.value === 'choosing_discard' ||
+    skillMode.value === 'choosing_exclusive' ||
+    actionMode.value === 'attack' ||
+    (actionMode.value === 'magic' && magicSubChoice.value === 'card') ||
+    (isPromptForMe.value && myHandEntries.value.some(entry => promptCardSelectionState(entry.index).selectable))
+  )
+)
 
 function isCardSelectableForAction(idx: number): boolean {
   if (isGameEnded.value) return false
@@ -1975,13 +2239,6 @@ function isCardSelectableForAction(idx: number): boolean {
   }
   if (isPromptForMe.value) return promptCardSelectionState(idx).selectable
   return isMyTurn.value
-}
-
-function requiresExclusiveCardSelectionBeforeTarget(skill?: AvailableSkill | null): boolean {
-  return !!skill &&
-    !!skill.require_exclusive &&
-    (skill.target_type ?? 0) !== 0 &&
-    (skill.cost_discards ?? 0) === 0
 }
 
 function togglePromptSelectedCard(idx: number) {
@@ -2045,8 +2302,9 @@ function onCardClick(idx: number) {
       return
     }
     // 检查是否已选满
-    if (!skillDiscardHandIndexes.value.includes(idx) && skillDiscardHandIndexes.value.length >= skill.cost_discards) {
-      interruptStore.showError(`最多选择 ${skill.cost_discards} 张牌`)
+    const limit = requiredSkillDiscardCount(skill, myHand.value.length)
+    if (!skillDiscardHandIndexes.value.includes(idx) && skillDiscardHandIndexes.value.length >= limit) {
+      interruptStore.showError(`最多选择 ${limit} 张牌`)
       return
     }
     interruptStore.toggleSkillDiscardHandIndex(idx)
@@ -2114,16 +2372,16 @@ function rebuildDrawFlights() {
 
   const rootRect = root.getBoundingClientRect()
   const deckRect = deck.getBoundingClientRect()
-  const startX = deckRect.left + deckRect.width / 2 - rootRect.left
-  const startY = deckRect.top + deckRect.height / 2 - rootRect.top
+  const startX = toStagePx(deckRect.left + deckRect.width / 2 - rootRect.left)
+  const startY = toStagePx(deckRect.top + deckRect.height / 2 - rootRect.top)
   const visuals: DrawFlightVisual[] = []
 
   for (const burst of drawBursts.value) {
     const anchor = root.querySelector<HTMLElement>(`[data-player-anchor="${burst.playerId}"]`)
     if (!anchor) continue
     const targetRect = anchor.getBoundingClientRect()
-    const targetX = targetRect.left + targetRect.width / 2 - rootRect.left
-    const targetY = targetRect.top + targetRect.height / 2 - rootRect.top
+    const targetX = toStagePx(targetRect.left + targetRect.width / 2 - rootRect.left)
+    const targetY = toStagePx(targetRect.top + targetRect.height / 2 - rootRect.top)
     const visibleCount = Math.min(6, Math.max(1, burst.count))
 
     for (let i = 0; i < visibleCount; i++) {
@@ -2183,9 +2441,7 @@ function handleResize() {
   rebuildLinkLines()
 }
 
-function toggleExpansionCards() {
-  showExpansionCards.value = !showExpansionCards.value
-}
+onBeforeUnmount(clearExpansionHoverTimer)
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
@@ -2193,6 +2449,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  if (turnBannerTimer) {
+    clearTimeout(turnBannerTimer)
+    turnBannerTimer = null
+  }
 })
 
 function leaveToLobby() {
@@ -2293,7 +2553,10 @@ const fighterHundredDragonByPlayer = computed(() => {
 </script>
 
 <template>
-  <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative" data-testid="game-board">
+  <div ref="boardRootRef" class="h-full w-full flex flex-col board-shell p-2 sm:p-3 md:p-4 min-h-0 relative"
+    :class="{ 'board-shell--xp-choosing': expansionOpen && expansionChoosing }"
+    data-testid="game-board"
+  >
     <div class="board-ambient board-ambient-left" />
     <div class="board-ambient board-ambient-right" />
     <div v-if="roseCourtyardActive" class="rose-courtyard-vfx" data-testid="rose-courtyard-vfx" aria-hidden="true">
@@ -2314,6 +2577,9 @@ const fighterHundredDragonByPlayer = computed(() => {
         :class="`rose-courtyard-vfx__petal--${idx}`"
       />
     </div>
+    <div class="board-corner-tools" :class="{ 'board-corner-tools--host': isHostInRoom }">
+      <SoundToggle />
+    </div>
     <button
       v-if="isHostInRoom"
       type="button"
@@ -2324,33 +2590,179 @@ const fighterHundredDragonByPlayer = computed(() => {
     </button>
 
     <div class="top-hud">
+      <!-- 资源图标（银色镀铬风格），以 symbol 定义一次，两侧阵营条复用 -->
+      <svg class="top-hud-defs" aria-hidden="true" focusable="false">
+        <symbol id="bt-hud-icon-cup" viewBox="0 0 16 16">
+          <path d="M4.2 3.4H2.4v1.2a2.6 2.6 0 0 0 2.4 2.6M11.8 3.4h1.8v1.2a2.6 2.6 0 0 1-2.4 2.6" style="fill: none; stroke: var(--bt-chrome); stroke-width: 1.1" />
+          <path d="M4 1.6h8v3.6a4 4 0 0 1-8 0z" style="fill: var(--bt-chrome)" />
+          <path d="M4 1.6h4v7.6a4 4 0 0 1-4-4z" style="fill: var(--bt-chrome-hi)" />
+          <path d="M10.4 2.6v2.8a2.4 2.4 0 0 1-1.2 2.1" style="fill: none; stroke: var(--bt-chrome-lo); stroke-width: 0.9" />
+          <rect x="7.1" y="9.1" width="1.8" height="2.6" style="fill: var(--bt-chrome-mid)" />
+          <path d="M4.8 14.4l0.8-2.4h4.8l0.8 2.4z" style="fill: var(--bt-chrome)" />
+          <path d="M4.8 14.4l0.8-2.4H8v2.4z" style="fill: var(--bt-chrome-hi)" />
+        </symbol>
+        <symbol id="bt-hud-icon-gem" viewBox="0 0 16 16">
+          <polygon points="8,1 13.4,5.6 8,15 2.6,5.6" style="fill: var(--bt-red)" />
+          <polygon points="8,1 2.6,5.6 8,6.6" style="fill: var(--bt-chrome-hi); fill-opacity: 0.55" />
+          <polygon points="8,1 13.4,5.6 8,6.6" style="fill: var(--bt-chrome-hi); fill-opacity: 0.2" />
+          <polygon points="2.6,5.6 8,6.6 8,15" style="fill: var(--bt-chrome-hi); fill-opacity: 0.12" />
+          <polygon points="13.4,5.6 8,6.6 8,15" style="fill: var(--bt-bg-0); fill-opacity: 0.38" />
+          <polygon points="8,1 13.4,5.6 8,15 2.6,5.6" style="fill: none; stroke: var(--bt-chrome-hi); stroke-opacity: 0.72; stroke-width: 0.6; stroke-linejoin: round" />
+        </symbol>
+        <symbol id="bt-hud-icon-crystal" viewBox="0 0 16 16">
+          <polygon points="8,0.8 12.6,4.6 12.6,10.8 8,15.2 3.4,10.8 3.4,4.6" style="fill: var(--bt-blue)" />
+          <polygon points="8,0.8 3.4,4.6 8,5.8" style="fill: var(--bt-chrome-hi); fill-opacity: 0.6" />
+          <polygon points="8,0.8 12.6,4.6 8,5.8" style="fill: var(--bt-chrome-hi); fill-opacity: 0.25" />
+          <polygon points="3.4,4.6 8,5.8 8,15.2 3.4,10.8" style="fill: var(--bt-select); fill-opacity: 0.3" />
+          <polygon points="12.6,4.6 8,5.8 8,15.2 12.6,10.8" style="fill: var(--bt-bg-0); fill-opacity: 0.35" />
+          <polygon points="8,0.8 12.6,4.6 12.6,10.8 8,15.2 3.4,10.8 3.4,4.6" style="fill: none; stroke: var(--bt-chrome-hi); stroke-opacity: 0.75; stroke-width: 0.6; stroke-linejoin: round" />
+        </symbol>
+      </svg>
+
       <div class="camp-bar camp-blue-bar">
         <span class="camp-side-label camp-side-label-left">蓝阵营</span>
+        <Transition name="turn-dock">
+          <span
+            v-if="dockedTurnBadge && dockedTurnBadge.camp === 'Blue' && !turnBanner.visible"
+            :key="dockedTurnBadge.text"
+            class="turn-dock turn-dock--blue"
+            :class="{ 'turn-dock--mine': dockedTurnBadge.isMine }"
+            role="status"
+            :aria-label="`${dockedTurnBadge.text} ${dockedTurnBadge.sub}`"
+            data-testid="turn-dock"
+          >
+            <span class="turn-dock__avatar" aria-hidden="true">
+              <img
+                v-if="dockedTurnBadge.portrait && !dockedTurnBadgePortraitFailed"
+                :src="dockedTurnBadge.portrait"
+                alt=""
+                draggable="false"
+                @error="dockedTurnBadgePortraitFailed = true"
+              />
+            </span>
+            <span class="turn-dock__text">{{ dockedTurnBadge.text }}</span>
+            <span v-if="!dockedTurnBadge.isMine" class="turn-dock__verb">行动中</span>
+            <span v-if="dockedTurnBadge.sub" class="turn-dock__sub">{{ dockedTurnBadge.sub }}</span>
+          </span>
+        </Transition>
+
         <div class="camp-center-metrics">
-          <span class="camp-score">{{ blueMorale }}</span>
-          <span class="camp-cup">🏆 {{ blueCups }}</span>
-          <span class="camp-gem">♦ {{ blueGems }}</span>
-          <span class="camp-crystal">🔷 {{ blueCrystals }}</span>
+          <!-- :key 绑定数值，数值变化时重新挂载以触发 bump 动画 -->
+          <span :key="'blue-morale-' + blueMorale" class="camp-score" title="士气">{{ blueMorale }}</span>
+          <span
+            v-for="effect in blueCampEffects"
+            :key="effect.key + effect.sourceId"
+            class="camp-effect"
+            :title="campEffectTitle(effect)"
+            data-testid="camp-persistent-effect"
+          >{{ effect.label }}</span>
+          <span class="camp-divider" aria-hidden="true"></span>
+          <span class="camp-cup" title="星杯">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-cup" /></svg>
+            <span :key="'blue-cups-' + blueCups" class="camp-num">{{ blueCups }}</span>
+          </span>
+          <span class="camp-gem" title="宝石" data-camp-anchor="Blue:gem">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-gem" /></svg>
+            <span :key="'blue-gems-' + blueGems" class="camp-num">{{ blueGems }}</span>
+          </span>
+          <span class="camp-crystal" title="水晶" data-camp-anchor="Blue:crystal">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-crystal" /></svg>
+            <span :key="'blue-crystals-' + blueCrystals" class="camp-num">{{ blueCrystals }}</span>
+          </span>
         </div>
       </div>
 
       <div
         ref="deckCounterRef"
         class="top-deck-indicator"
+        data-deck-anchor
         :class="{ 'top-deck-indicator--active': drawBursts.length > 0 }"
         title="当前公共牌堆剩余卡牌"
       >
         <span class="top-deck-label">公共牌堆</span>
-        <span class="top-deck-count">{{ deckCount }}</span>
+        <span :key="'deck-' + deckCount" class="top-deck-count">{{ deckCount }}</span>
       </div>
+
+      <Transition name="turn-banner">
+        <div
+          v-if="turnBanner.visible"
+          :key="turnBanner.id"
+          class="turn-banner"
+          :class="{
+            'turn-banner--red': turnBanner.camp === 'Red',
+            'turn-banner--blue': turnBanner.camp === 'Blue',
+            'turn-banner--mine': turnBanner.isMine,
+          }"
+          role="status"
+          aria-live="polite"
+          data-testid="turn-banner"
+        >
+          <span class="turn-banner__avatar" aria-hidden="true">
+            <img
+              v-if="turnBanner.portrait && !turnBannerPortraitFailed"
+              :src="turnBanner.portrait"
+              alt=""
+              draggable="false"
+              @error="turnBannerPortraitFailed = true"
+            />
+          </span>
+          <span class="turn-banner__body">
+            <span class="turn-banner__text" data-testid="turn-banner-text">{{ turnBanner.text }}</span>
+            <span v-if="turnBanner.subtitle" class="turn-banner__sub" data-testid="turn-banner-sub">{{ turnBanner.subtitle }}</span>
+          </span>
+          <i class="turn-banner__gem" aria-hidden="true" />
+        </div>
+      </Transition>
 
       <div class="camp-bar camp-red-bar">
         <span class="camp-side-label camp-side-label-right">红阵营</span>
+        <Transition name="turn-dock">
+          <span
+            v-if="dockedTurnBadge && dockedTurnBadge.camp === 'Red' && !turnBanner.visible"
+            :key="dockedTurnBadge.text"
+            class="turn-dock turn-dock--red"
+            :class="{ 'turn-dock--mine': dockedTurnBadge.isMine }"
+            role="status"
+            :aria-label="`${dockedTurnBadge.text} ${dockedTurnBadge.sub}`"
+            data-testid="turn-dock"
+          >
+            <span class="turn-dock__avatar" aria-hidden="true">
+              <img
+                v-if="dockedTurnBadge.portrait && !dockedTurnBadgePortraitFailed"
+                :src="dockedTurnBadge.portrait"
+                alt=""
+                draggable="false"
+                @error="dockedTurnBadgePortraitFailed = true"
+              />
+            </span>
+            <span class="turn-dock__text">{{ dockedTurnBadge.text }}</span>
+            <span v-if="!dockedTurnBadge.isMine" class="turn-dock__verb">行动中</span>
+            <span v-if="dockedTurnBadge.sub" class="turn-dock__sub">{{ dockedTurnBadge.sub }}</span>
+          </span>
+        </Transition>
+
         <div class="camp-center-metrics">
-          <span class="camp-score">{{ redMorale }}</span>
-          <span class="camp-cup">🏆 {{ redCups }}</span>
-          <span class="camp-gem">♦ {{ redGems }}</span>
-          <span class="camp-crystal">🔷 {{ redCrystals }}</span>
+          <span :key="'red-morale-' + redMorale" class="camp-score" title="士气">{{ redMorale }}</span>
+          <span
+            v-for="effect in redCampEffects"
+            :key="effect.key + effect.sourceId"
+            class="camp-effect"
+            :title="campEffectTitle(effect)"
+            data-testid="camp-persistent-effect"
+          >{{ effect.label }}</span>
+          <span class="camp-divider" aria-hidden="true"></span>
+          <span class="camp-cup" title="星杯">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-cup" /></svg>
+            <span :key="'red-cups-' + redCups" class="camp-num">{{ redCups }}</span>
+          </span>
+          <span class="camp-gem" title="宝石" data-camp-anchor="Red:gem">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-gem" /></svg>
+            <span :key="'red-gems-' + redGems" class="camp-num">{{ redGems }}</span>
+          </span>
+          <span class="camp-crystal" title="水晶" data-camp-anchor="Red:crystal">
+            <svg class="camp-icon" aria-hidden="true" focusable="false"><use href="#bt-hud-icon-crystal" /></svg>
+            <span :key="'red-crystals-' + redCrystals" class="camp-num">{{ redCrystals }}</span>
+          </span>
         </div>
       </div>
     </div>
@@ -2404,7 +2816,8 @@ const fighterHundredDragonByPlayer = computed(() => {
                     'battle-table-seat--me': p.id === myPlayerId,
                     'battle-table-seat--active': p.is_active,
                     'battle-table-seat--previewing': hoveredBattleSeatPlayerId === p.id,
-                    'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id)
+                    'target-guide-pulse': promptNeedsTargetGuide && isPlayerSelectable(p.id),
+                    'battle-table-seat--replace-next': skillTargetReplaceNextId === p.id
                   }
                 ]"
                 :data-player-anchor="p.id"
@@ -2430,6 +2843,7 @@ const fighterHundredDragonByPlayer = computed(() => {
                   :bloodSharedLifeRole="bloodSharedLifeByPlayer[p.id]?.role"
                   compact
                   @select="onTargetClick"
+                  @cover-preview="(open) => (hoveredStatusRailPlayerId = open ? p.id : null)"
                 />
                 <div
                   v-if="battleStatusItemsForPlayer(p).length"
@@ -2522,28 +2936,29 @@ const fighterHundredDragonByPlayer = computed(() => {
                         </div>
                       </div>
 
-                      <div v-if="fieldStatusItemsForPlayer(p).length" class="player-overlay-effects active-popout-effects">
-                        <div
-                          v-for="field in fieldStatusItemsForPlayer(p)"
-                          :key="`active-field-${p.id}-${field.key}`"
-                          class="effect-icon-item"
-                          :title="field.label"
+                      <ul
+                        v-if="seatMarkRowsFor(p).length"
+                        class="active-popout-marks"
+                        :class="{ 'active-popout-marks--dense': seatMarkRowsFor(p).length > 4 }"
+                        aria-label="标记明细"
+                      >
+                        <li
+                          v-for="row in seatMarkRowsFor(p)"
+                          :key="`popout-mark-${p.id}-${row.kind}-${row.key}`"
+                          class="active-popout-mark"
                         >
-                          <StatusEffectIcon :effect="field.effect" />
-                        </div>
-                      </div>
-
-                      <div v-if="tokenItemsForPlayer(p).length" class="active-popout-tokens">
-                        <span
-                          v-for="token in tokenItemsForPlayer(p)"
-                          :key="`active-token-${p.id}-${token.key}`"
-                          class="active-popout-token"
-                          :title="`${token.key}: ${token.value}`"
-                        >
-                          <span>{{ token.key }}</span>
-                          <span>×{{ token.value }}</span>
-                        </span>
-                      </div>
+                          <span class="active-popout-mark-icon" :class="`active-popout-mark-icon--${row.kind}`">
+                            <BattleMarkIcon :kind="row.kind" :mark-key="row.key" />
+                          </span>
+                          <span class="active-popout-mark-body">
+                            <span class="active-popout-mark-head">
+                              <span class="active-popout-mark-name">{{ row.label }}</span>
+                              <span v-if="row.amount" class="active-popout-mark-amount">{{ row.amount }}</span>
+                            </span>
+                            <span v-if="row.hint" class="active-popout-mark-hint">{{ row.hint }}</span>
+                          </span>
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 </div>
@@ -2554,10 +2969,12 @@ const fighterHundredDragonByPlayer = computed(() => {
           <div class="center-battle battle-field">
             <BattleZone
               class="battle-zone-fill"
+              :stage-overlay-active="stageOverlayEnabled"
               :narrative-suspended="!!hoveredBattleSeatPlayerId"
               :actor-seat-positions="battleSeatPositionByPlayerId"
             />
           </div>
+
         </div>
 
         <div class="bottom-hud flex-shrink-0 min-h-0 mt-2">
@@ -2566,8 +2983,10 @@ const fighterHundredDragonByPlayer = computed(() => {
               class="my-status-strip"
               :class="{
                 'my-status-strip--empty': !myAreaPlayer,
-                'my-status-strip--active': isMyTurn || isPromptForMe
+                'my-status-strip--active': isMyTurn || isPromptForMe,
+                'my-status-strip--in-form': !!myStatusForm
               }"
+              :style="myStatusForm ? { '--form-accent': myStatusForm.accent } : undefined"
               data-testid="my-status-strip"
             >
               <template v-if="myAreaPlayer">
@@ -2592,10 +3011,55 @@ const fighterHundredDragonByPlayer = computed(() => {
                     {{ (myStatusRoleName || '?').charAt(0) }}
                   </span>
                 </div>
+                <span
+                  class="my-status-emblem"
+                  :class="myAreaPlayer.camp === 'Red' ? 'my-status-emblem--red' : 'my-status-emblem--blue'"
+                  :title="myAreaPlayer.camp === 'Red' ? '红方' : '蓝方'"
+                  aria-hidden="true"
+                />
                 <div class="player-overlay my-status-overlay">
+                  <!-- 形态 / 持续效果 / 指示物 -->
+                  <div
+                    v-if="myStatusForm || myStatusPersistentEffects.length || myStatusTokens.length"
+                    class="my-status-chips"
+                    data-testid="my-status-chips"
+                  >
+                    <span v-if="myStatusForm" class="my-status-chip my-status-chip--form" :title="myStatusForm.label">
+                      {{ myStatusForm.label }}
+                    </span>
+                    <span
+                      v-for="effect in myStatusPersistentEffects"
+                      :key="effect.key"
+                      class="my-status-chip my-status-chip--effect"
+                      :title="effect.hint"
+                    >
+                      {{ effect.label }}<span v-if="effect.valueText" class="my-status-chip__value">{{ effect.valueText }}</span>
+                    </span>
+                    <span
+                      v-for="token in myStatusTokens"
+                      :key="token.key"
+                      class="my-status-chip"
+                      :title="token.hint ? `${token.label}: ${token.value}（${token.hint}）` : `${token.label}: ${token.value}`"
+                      :data-mark-key="token.key"
+                    >
+                      <span v-if="token.mark" class="my-status-chip__icon"><BattleMarkIcon kind="token" :mark-key="token.key" /></span>
+                      <span v-else>{{ token.label }}</span>
+                      <span class="my-status-chip__value">{{ token.cap ? `${token.value}/${token.cap}` : token.value }}</span>
+                    </span>
+                  </div>
+
                   <div class="player-overlay-title-row">
                     <span class="text-sm" aria-hidden="true">{{ myAreaPlayer.camp === 'Red' ? '🔴' : '🔵' }}</span>
                     <span class="player-overlay-role" :title="myStatusRoleName">{{ myStatusRoleName }}</span>
+                    <button
+                      v-if="myStatusHasSkills"
+                      type="button"
+                      class="my-status-skill-btn"
+                      data-testid="my-status-skill-btn"
+                      @click.stop="openMySkillModal($event)"
+                    >
+                      技能
+                    </button>
                   </div>
 
                   <div class="player-overlay-player" :title="`玩家：${myAreaPlayer.name || myAreaPlayer.id}`">
@@ -2621,6 +3085,21 @@ const fighterHundredDragonByPlayer = computed(() => {
                     </div>
                   </div>
 
+                  <div
+                    class="my-status-progress"
+                    :class="{ 'my-status-progress--over': myStatusMaxHand > 0 && myStatusHandCount > myStatusMaxHand }"
+                    role="progressbar"
+                    :aria-label="`手牌 ${myStatusHandCount}/${myStatusMaxHand}`"
+                    :aria-valuenow="myStatusHandCount"
+                    aria-valuemin="0"
+                    :aria-valuemax="myStatusMaxHand"
+                  >
+                    <span
+                      class="my-status-progress__fill"
+                      :style="{ width: `${myStatusMaxHand > 0 ? Math.min(100, Math.round((myStatusHandCount / myStatusMaxHand) * 100)) : 0}%` }"
+                    />
+                  </div>
+
                   <div v-if="myFieldStatusItems.length" class="player-overlay-effects">
                     <div
                       v-for="field in myFieldStatusItems"
@@ -2641,83 +3120,134 @@ const fighterHundredDragonByPlayer = computed(() => {
                 'hand-rail--overflow-discard': promptNeedsOverflowDiscardGuide
               }"
             >
-              <div class="exclusive-toggle-row mb-2">
-                <button
-                  type="button"
-                  class="exclusive-toggle-btn"
-                  :disabled="expansionCardCount === 0"
-                  @click="toggleExpansionCards"
-                >
-                  <span class="exclusive-toggle-title">扩展区</span>
-                  <span class="exclusive-toggle-meta">
-                    {{
-                      expansionCardCount > 0
-                        ? `专属 ${myExclusiveCards.length} ｜ 盖牌 ${myCoverCards.length}`
-                        : '暂无扩展牌'
-                    }}
-                  </span>
-                  <span v-if="expansionCardCount > 0" class="exclusive-toggle-arrow">
-                    {{ showExpansionCards ? '收起 ▲' : '展开 ▼' }}
-                  </span>
-                </button>
-    </div>
-              <div v-if="showExpansionCards && expansionCardCount > 0" class="expansion-zone mb-2">
-                <div v-if="promptNeedsCocoonGuide" class="expansion-cocoon-guide">
-                  <div class="expansion-cocoon-guide-text">{{ cocoonGuideText }}</div>
-                  <button
-                    v-if="cocoonPromptContext.mode === 'cards'"
-                    class="expansion-cocoon-confirm-btn"
-                    :class="{ 'expansion-cocoon-confirm-btn--disabled': !canConfirmCocoonSelection }"
-                    :disabled="!canConfirmCocoonSelection"
-                    @click="confirmCocoonSelection"
+              <div
+                v-if="expansionGroups.length > 0"
+                class="expansion-tray"
+                :class="{
+                  'expansion-tray--open': expansionOpen,
+                  'expansion-tray--choosing': expansionChoosing,
+                  'expansion-tray--pinned': expansionIsPinned
+                }"
+                @pointerenter="clearExpansionHoverTimer"
+                @pointerleave="onExpansionPointerLeave"
+              >
+                <!-- 立绘旁的种类标记：图标 + 名称 + 数量，无边框 -->
+                <ul class="expansion-chips" aria-label="扩展区">
+                  <li v-for="group in expansionGroups" :key="`chip-${group.key}`">
+                    <button
+                      type="button"
+                      class="expansion-chip"
+                      :class="{
+                        'expansion-chip--active': expansionActiveGroupKey === group.key,
+                        'expansion-chip--choosing': expansionChoosingGroupKey === group.key && expansionChoosing,
+                        'expansion-chip--exclusive': group.key === EXCLUSIVE_GROUP_KEY
+                      }"
+                      :style="{ '--xp-tint': expansionGroupView(group.key).tint }"
+                      :aria-label="`扩展区 ${group.label} ×${group.count}`"
+                      :aria-expanded="expansionActiveGroupKey === group.key"
+                      aria-controls="expansion-fan"
+                      @pointerenter="onExpansionChipPointerEnter($event, group.key)"
+                      @click="onExpansionChipClick(group.key)"
+                    >
+                      <ExpansionTypeTile :group-key="group.key" :active="expansionActiveGroupKey === group.key" />
+                      <span class="expansion-chip-text">
+                        <span class="expansion-chip-label">{{ group.label }}</span>
+                        <span class="expansion-chip-count">×{{ group.count }}</span>
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+
+                <!-- 悬停 / 固定的那一种：牌从图标右侧依次滑出，浮在手牌上方 -->
+                <Transition name="xp-fan">
+                  <div
+                    v-if="expansionActiveGroup"
+                    id="expansion-fan"
+                    class="expansion-fan"
+                    :style="{ '--xp-tint': expansionGroupView(expansionActiveGroup.key).tint }"
+                    data-testid="expansion-drawer"
+                    :data-group="expansionActiveGroup.key"
                   >
-                    确认选择
-                  </button>
-    </div>
-                <div v-else-if="promptNeedsElementalShotGuide" class="expansion-cocoon-guide">
-                  <div class="expansion-cocoon-guide-text">
-                    请点击手牌区或扩展区的法术牌/祝福牌完成元素射击消耗选择。
-                  </div>
-                </div>
-                <div v-else-if="promptNeedsSpiritCasterPowerGuide" class="expansion-cocoon-guide">
-                  <div class="expansion-cocoon-guide-text">{{ spiritCasterPowerGuideText }}</div>
-                </div>
-                <div class="expansion-zone-scroll">
-                  <div class="expansion-zone-content">
-                    <div v-if="myExclusiveCards.length > 0" class="expansion-group">
-                      <div class="expansion-group-title">专属技能卡（{{ myExclusiveCards.length }}）</div>
-                      <div class="expansion-card-row">
-          <CardComponent
+                    <!-- 选择中：技能名与完整提示已在决策面板里，这里只留进度与确认 -->
+                    <div v-if="expansionSelectionHeader" class="expansion-select-head">
+                      <span class="expansion-select-title">{{ expansionSelectionHeader.title }}</span>
+                      <span
+                        v-if="expansionSelectionHeader.max > 0"
+                        class="expansion-select-progress"
+                        aria-live="polite"
+                      >
+                        已选 <b class="expansion-select-num">{{ expansionSelectionHeader.selected }}</b>/{{ expansionSelectionHeader.max }}
+                        <span class="expansion-select-bar" aria-hidden="true">
+                          <span
+                            class="expansion-select-bar__fill"
+                            :style="{ width: `${Math.min(100, (expansionSelectionHeader.selected / expansionSelectionHeader.max) * 100)}%` }"
+                          />
+                        </span>
+                      </span>
+                      <button
+                        v-if="promptNeedsCocoonGuide && cocoonPromptContext.mode === 'cards'"
+                        class="expansion-cocoon-confirm-btn"
+                        :class="{ 'expansion-cocoon-confirm-btn--disabled': !canConfirmCocoonSelection }"
+                        :disabled="!canConfirmCocoonSelection"
+                        @click="confirmCocoonSelection"
+                      >
+                        确认
+                      </button>
+                    </div>
+
+                    <div v-if="!expansionSelectionHeader" class="expansion-fan-head">
+                      <span class="expansion-fan-title">{{ expansionActiveGroup.label }}<span class="expansion-fan-count">×{{ expansionActiveGroup.count }}</span></span>
+                      <span class="expansion-fan-sub">
+                        {{ expansionActiveGroup.key === EXCLUSIVE_GROUP_KEY ? '正面可见 · 可像手牌一样打出' : '盖牌 · 牌面仅自己可见' }}
+                      </span>
+                      <button
+                        v-if="expansionIsPinned"
+                        type="button"
+                        class="expansion-fan-close"
+                        aria-label="收起扩展区"
+                        @click="collapseExpansion"
+                      >
+                        收起
+                      </button>
+                    </div>
+
+                    <!-- 换种类时重建，牌重新依次滑出 -->
+                    <div :key="expansionActiveGroup.key" class="expansion-fan-cards">
+                      <template v-if="expansionActiveGroup.key === EXCLUSIVE_GROUP_KEY">
+                        <div
                           v-for="(card, idx) in myExclusiveCards"
                           :key="`exclusive-${card.id || idx}`"
-            :card="card"
-                          medium
-                        />
-                      </div>
-                    </div>
-                    <div v-if="myCoverCards.length > 0" class="expansion-group">
-                      <div class="expansion-group-title">盖牌（{{ myCoverCards.length }}）</div>
-                      <div class="expansion-card-row">
-                        <div
-                          v-for="(cover, idx) in myCoverCards"
-                          :key="`cover-${cover.fieldCard.card.id || idx}`"
-                          class="expansion-cover-item"
+                          class="expansion-fan-card expansion-exclusive-item"
+                          :class="{ 'expansion-exclusive-item--playable': isExclusivePlayable(card) }"
+                          :style="{ '--i': idx }"
                         >
-                          <CardComponent
+                          <CardComponent :card="card" battle-mini />
+                          <span class="expansion-exclusive-tag">{{ isExclusivePlayable(card) ? '可打出' : '专属' }}</span>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div
+                          v-for="(cover, idx) in expansionActiveCovers"
+                          :key="`cover-${cover.fieldCard.card.id || cover.fieldIndex}`"
+                          class="expansion-fan-card"
+                          :style="{ '--i': idx }"
+                        >
+                          <CoverCard
                             :card="cover.fieldCard.card"
+                            :effect="cover.fieldCard.effect"
                             :index="cover.fieldIndex"
                             :test-id="`cover-card-${cover.fieldIndex}`"
-                            medium
                             :selectable="isCoverSelectable(cover.fieldIndex)"
                             :selected="isCoverSelected(cover.fieldIndex)"
+                            :choosing="expansionChoosing"
+                            face-up
                             @click="onCoverCardClick"
                           />
-                          <div class="expansion-cover-tag">{{ coverEffectLabel(cover.fieldCard.effect) }}</div>
                         </div>
-                      </div>
+                      </template>
                     </div>
                   </div>
-                </div>
+                </Transition>
               </div>
               <Transition name="guide-hint" mode="out-in">
                 <div
@@ -2725,7 +3255,17 @@ const fighterHundredDragonByPlayer = computed(() => {
                   key="overflow-discard-guide"
                   class="overflow-discard-guide"
                 >
-                  <div class="overflow-discard-guide__title">爆牌弃牌阶段</div>
+                  <div class="overflow-discard-guide__head">
+                    <div class="overflow-discard-guide__title">爆牌弃牌阶段</div>
+                    <span
+                      class="overflow-discard-guide__counter"
+                      :class="{ 'overflow-discard-guide__counter--ready': overflowDiscardCount !== null && selectedHandIndexes.length === overflowDiscardCount }"
+                      data-testid="overflow-discard-counter"
+                      aria-live="polite"
+                    >
+                      已选 {{ selectedHandIndexes.length }}{{ overflowDiscardCount !== null ? ` / ${overflowDiscardCount}` : '' }}
+                    </span>
+                  </div>
                   <div class="overflow-discard-guide__desc">
                     {{ overflowDiscardGuideText }}
                   </div>
@@ -2739,10 +3279,18 @@ const fighterHundredDragonByPlayer = computed(() => {
                 </div>
               </Transition>
               <div class="overflow-x-auto hand-list">
-                <div class="hand-card-row">
-                  <CardComponent
-                    v-for="entry in myHandEntries"
+                <div
+                  class="hand-card-row hand-fan"
+                  :class="{ 'hand-fan--crowded': myHandEntries.length >= 8, 'hand-fan--choosing': isHandChoosing }"
+                  :style="{ '--fan-n': myHandEntries.length }"
+                >
+                  <div
+                    v-for="(entry, fanIdx) in myHandEntries"
                     :key="entry.index"
+                    class="hand-fan-slot"
+                    :style="{ '--fan-t': fanIdx - (myHandEntries.length - 1) / 2 }"
+                  >
+                  <CardComponent
                     :card="entry.card"
                     :index="entry.index"
                     :effective-element="effectiveHandCardElement(entry.card)"
@@ -2752,14 +3300,18 @@ const fighterHundredDragonByPlayer = computed(() => {
                     :selected="selectedHandIndexes.includes(entry.index) || selectedHandIndexForAction === entry.index || skillDiscardHandIndexes.includes(entry.index)"
                     @click="onCardClick(entry.index)"
                   />
+                  </div>
               </div>
-          <div v-if="myHand.length === 0" class="text-gray-500 py-4 text-sm">没有手牌</div>
+          <div v-if="myHand.length === 0" class="hand-empty-text py-4 text-sm">没有手牌</div>
         </div>
+              <div class="hand-cradle" aria-hidden="true" />
       </div>
             <div
               class="right-action-dock"
               :class="{
-                'right-action-dock--active': isMyTurn || isPromptForMe
+                'right-action-dock--active': isMyTurn || isPromptForMe,
+                'right-action-dock--confirm-pulse': isPromptForMe && (promptNeedsOverflowDiscardGuide || promptNeedsCardGuide),
+                'right-action-dock--confirm-ready': promptNeedsOverflowDiscardGuide && overflowDiscardCount !== null && selectedHandIndexes.length === overflowDiscardCount
               }"
             >
               <ActionPanel />
@@ -2896,6 +3448,10 @@ const fighterHundredDragonByPlayer = computed(() => {
       />
     </svg>
 
+    <StageOverlay v-if="stageOverlayEnabled" :root-el="boardRootRef" :player-label="stageSeatLabel" />
+    <DecisionDock />
+    <!-- 技能发动流程的选牌 / 选目标步骤由 ActionPanel 传送到这里（手牌上方） -->
+    <div id="decision-skill-slot" class="decision-skill-slot" />
     <VfxLayer />
   </div>
 </template>
@@ -2940,8 +3496,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .game-end-card {
-  width: min(96vw, 920px);
-  max-height: 84vh;
+  width: min(calc(96 * var(--vw, 1vw)), 920px);
+  max-height: calc(84 * var(--vh, 1vh));
   overflow: hidden;
   border-radius: 16px;
   border: 1px solid rgba(181, 145, 90, 0.56);
@@ -3130,10 +3686,10 @@ const fighterHundredDragonByPlayer = computed(() => {
   transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .game-end-card {
-    width: min(96vw, 640px);
-    max-height: 88vh;
+    width: min(calc(96 * var(--vw, 1vw)), 640px);
+    max-height: calc(88 * var(--vh, 1vh));
   }
 
   .game-end-layout {
@@ -3158,6 +3714,251 @@ const fighterHundredDragonByPlayer = computed(() => {
   transform: translateY(0);
 }
 
+/* 回合横幅：位于牌桌之上（seat 12 / 战斗区 5），低于提示/操作坞（24+）与连线层 */
+/* 放在顶部 HUD 内、居中压在牌堆上：落在两侧阵营分数之间的空白段，不遮挡下方的战斗链 */
+.turn-banner {
+  /* 阵营色只做点缀：细线、头像光圈、菱形 */
+  --turn-banner-camp: #c9a45c;
+  --turn-banner-camp-glow: rgba(201, 164, 92, 0.35);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 25;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 260px;
+  /* 两侧阵营分数约占到 30% / 70%，中间 40% 是空白段 */
+  max-width: min(440px, calc(38 * var(--vw, 1vw)));
+  height: 60px;
+  padding: 0 34px 0 8px;
+  pointer-events: none;
+  /* 切角徽章：左右两端斜切 */
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+  background:
+    linear-gradient(90deg, transparent, var(--turn-banner-camp) 18%, var(--turn-banner-camp) 82%, transparent) top / 100% 1px no-repeat,
+    linear-gradient(90deg, transparent, var(--turn-banner-camp) 18%, var(--turn-banner-camp) 82%, transparent) bottom / 100% 1px no-repeat,
+    radial-gradient(120% 140% at 22% 50%, var(--turn-banner-camp-glow), transparent 60%),
+    linear-gradient(180deg, rgba(20, 27, 39, 0.94), rgba(11, 15, 22, 0.94));
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+}
+
+.turn-banner--red {
+  --turn-banner-camp: #c0303c;
+  --turn-banner-camp-glow: rgba(192, 48, 60, 0.32);
+}
+
+.turn-banner--blue {
+  --turn-banner-camp: #3b6fd8;
+  --turn-banner-camp-glow: rgba(59, 111, 216, 0.32);
+}
+
+/* 轮到我：金色描边加强 + 一次光扫 */
+.turn-banner--mine {
+  --turn-banner-camp: #ffd98a;
+  --turn-banner-camp-glow: rgba(255, 217, 138, 0.3);
+}
+.turn-banner--mine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 236, 190, 0.28) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: turn-banner-sweep 1.1s ease-out 0.25s both;
+}
+
+.turn-banner__avatar {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bt-bg-1, #111722);
+  box-shadow:
+    0 0 0 2px var(--turn-banner-camp),
+    0 0 0 4px rgba(0, 0, 0, 0.55),
+    0 0 12px var(--turn-banner-camp-glow);
+}
+.turn-banner__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+}
+
+.turn-banner__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.turn-banner__text {
+  color: #f4ecd8;
+  font-size: clamp(16px, calc(1.5 * var(--vw, 1vw)), 20px);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.turn-banner--mine .turn-banner__text {
+  color: #ffd98a;
+}
+
+.turn-banner__sub {
+  margin-top: 3px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--bt-text-sub, #9aa4b5);
+  white-space: nowrap;
+}
+
+.turn-banner__gem {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translateY(-50%) rotate(45deg);
+  background: var(--turn-banner-camp);
+  box-shadow: 0 0 8px var(--turn-banner-camp-glow);
+}
+
+/* 常驻停靠徽章：阵营条内侧（靠中间牌堆一侧）的紧凑胶囊，阵营色细描边 */
+.turn-dock {
+  --turn-dock-camp: var(--camp-accent, #c9a45c);
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  max-width: 40%;
+  padding: 0 12px 0 3px;
+  border-radius: 999px;
+  pointer-events: none;
+  white-space: nowrap;
+  background: linear-gradient(180deg, rgba(20, 27, 39, 0.92), rgba(11, 15, 22, 0.92));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--turn-dock-camp) 70%, transparent),
+    0 0 10px color-mix(in srgb, var(--turn-dock-camp) 30%, transparent);
+}
+/* 蓝方条在左：贴右端（靠牌堆）；红方条在右：贴左端 */
+.turn-dock--blue {
+  right: calc(var(--camp-chamfer, 16px) + 10px);
+}
+.turn-dock--red {
+  left: calc(var(--camp-chamfer, 16px) + 10px);
+}
+.turn-dock--mine {
+  --turn-dock-camp: #ffd98a;
+}
+.turn-dock__avatar {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bt-bg-1, #111722);
+  box-shadow: 0 0 0 1.5px var(--turn-dock-camp);
+}
+.turn-dock__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+}
+.turn-dock__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #f4ecd8;
+}
+.turn-dock--mine .turn-dock__text {
+  color: #ffd98a;
+}
+.turn-dock__verb {
+  font-size: 12px;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+.turn-dock__sub {
+  font-size: 11px;
+  color: var(--bt-text-sub, #9aa4b5);
+}
+/* 停靠的同时阵营条上的数值不能被挡：这一侧的数值向外让出位置 */
+.camp-blue-bar:has(.turn-dock) .camp-center-metrics {
+  transform: translateX(-18%);
+}
+.camp-red-bar:has(.turn-dock) .camp-center-metrics {
+  transform: translateX(18%);
+}
+.camp-center-metrics {
+  transition: transform 0.3s ease;
+}
+
+.turn-dock-enter-active,
+.turn-dock-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.turn-dock-enter-from,
+.turn-dock-leave-to {
+  opacity: 0;
+}
+.turn-dock--blue.turn-dock-enter-from {
+  transform: translate(24px, -50%);
+}
+.turn-dock--red.turn-dock-enter-from {
+  transform: translate(-24px, -50%);
+}
+
+.turn-banner-enter-active,
+.turn-banner-leave-active {
+  transition: opacity 0.26s ease, transform 0.26s ease;
+}
+
+/* 从牌堆里"展开"：先收在中间，再向两侧撑开 */
+.turn-banner-enter-from {
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleX(0.4);
+}
+
+.turn-banner-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scaleX(0.7);
+}
+
+@keyframes turn-banner-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-banner-enter-active,
+  .turn-banner-leave-active {
+    transition: opacity 0.2s ease;
+  }
+
+  .turn-banner-enter-from,
+  .turn-banner-leave-to {
+    transform: translate(-50%, -50%);
+  }
+
+  .turn-banner--mine::after {
+    animation: none;
+    display: none;
+  }
+}
+
 .toast-enter-active,
 .toast-leave-active {
   transition: transform 0.28s ease, opacity 0.28s ease;
@@ -3170,21 +3971,25 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .board-shell {
   width: 100%;
-  max-width: 1760px;
+  /* 舞台已按 1600×900 等比放大，这里只限制超宽屏时座位间距不过大 */
+  max-width: 1920px;
   margin: 0 auto;
   overflow: hidden;
+  /* clip 而非仅 hidden：hidden 容器仍可被聚焦/点击滚动，扇形手牌的变换会把超出右侧的 ambient 层拉进视口 */
+  overflow: clip;
   position: relative;
   --battle-player-card-max-width: 355px;
   --battle-player-card-max-height: 341px;
   --battle-player-card-fit-height: min(30cqh, calc(54cqw / 1.04), var(--battle-player-card-max-height));
   --battle-player-card-width: clamp(126px, calc(var(--battle-player-card-fit-height) * 1.04), var(--battle-player-card-max-width));
-  --battle-player-card-height: clamp(122px, var(--battle-player-card-fit-height), var(--battle-player-card-max-height));
-  --battle-seat-edge-inset: clamp(22px, 2.78vw, 40px);
-  --battle-seat-vertical-inset: clamp(12px, 2.95vh, 20px);
-  --self-status-card-width: clamp(126px, 9.72vw, 140px);
-  --self-status-card-height: clamp(190px, 14.58vw, 210px);
-  --active-popout-width: clamp(170px, 13.2vw, 190px);
-  --active-popout-height: clamp(242px, 18.75vw, 270px);
+  /* 下限不能超过环高的 1/3，否则一列三个座位互相压住（1280×720 下环高约 342px） */
+  --battle-player-card-height: clamp(96px, var(--battle-player-card-fit-height), var(--battle-player-card-max-height));
+  --battle-seat-edge-inset: clamp(22px, calc(2.78 * var(--vw, 1vw)), 40px);
+  --battle-seat-vertical-inset: clamp(12px, calc(2.95 * var(--vh, 1vh)), 20px);
+  --self-status-card-width: clamp(126px, calc(9.72 * var(--vw, 1vw)), 140px);
+  --self-status-card-height: clamp(190px, calc(14.58 * var(--vw, 1vw)), 210px);
+  --active-popout-width: clamp(170px, calc(13.2 * var(--vw, 1vw)), 190px);
+  --active-popout-height: clamp(242px, calc(18.75 * var(--vw, 1vw)), 270px);
   --bottom-hud-height: 240px;
   padding-top: max(8px, var(--safe-top));
   padding-right: 0;
@@ -3195,7 +4000,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   box-shadow: none;
 }
 
-@media (min-width: 1800px) {
+@container stage (min-width: 1800px) {
   .board-shell {
     --self-status-card-width: 150px;
     --self-status-card-height: 224px;
@@ -3209,9 +4014,13 @@ const fighterHundredDragonByPlayer = computed(() => {
   content: '';
   position: absolute;
   inset: 0;
+  /* 对战房间背景：星穹金环大教堂（outimage/星穹金环大教堂*.png）。
+     上面叠一层暗化遮罩，中间留亮、四周压暗，保证座位卡与战斗链文字可读；
+     center 70% 让地面法阵落在牌桌中央附近。 */
   background:
-    radial-gradient(960px 460px at 50% 40%, rgba(42, 86, 132, 0.18), rgba(16, 27, 42, 0.34) 58%, rgba(8, 14, 24, 0.58) 100%),
-    linear-gradient(180deg, rgba(8, 16, 28, 0.42), rgba(5, 10, 18, 0.56));
+    radial-gradient(960px 460px at 50% 40%, rgba(42, 86, 132, 0.04), rgba(16, 27, 42, 0.2) 58%, rgba(8, 14, 24, 0.5) 100%),
+    linear-gradient(180deg, rgba(8, 16, 28, 0.2), rgba(5, 10, 18, 0.34)),
+    url('/assets/bg/arena_starlit_cathedral.webp') center 70% / cover no-repeat;
   z-index: 0;
 }
 
@@ -3220,13 +4029,13 @@ const fighterHundredDragonByPlayer = computed(() => {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(980px 420px at 50% 42%, rgba(120, 195, 219, 0.16), transparent 72%),
-    linear-gradient(180deg, rgba(2, 10, 20, 0.2), rgba(2, 7, 16, 0.46));
+    radial-gradient(980px 420px at 50% 42%, rgba(120, 195, 219, 0.1), transparent 72%),
+    linear-gradient(180deg, rgba(2, 10, 20, 0.08), rgba(2, 7, 16, 0.3));
   pointer-events: none;
   z-index: 0;
 }
 
-.board-shell > *:not(.link-lines-layer):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.right-action-dock) {
+.board-shell > *:not(.link-lines-layer):not(.stage-overlay):not(.board-ambient):not(.rose-courtyard-vfx):not(.draw-flight-layer):not(.host-dissolve-btn):not(.board-corner-tools):not(.right-action-dock):not(.decision-dock-layer):not(.decision-skill-slot) {
   position: relative;
   z-index: 2;
 }
@@ -3308,49 +4117,49 @@ const fighterHundredDragonByPlayer = computed(() => {
 .rose-courtyard-vfx__edge--top-right,
 .rose-courtyard-vfx__edge--bottom-left,
 .rose-courtyard-vfx__edge--bottom-right {
-  width: clamp(132px, 14vw, 238px);
-  height: clamp(34px, 5.4vh, 72px);
+  width: clamp(132px, calc(14 * var(--vw, 1vw)), 238px);
+  height: clamp(34px, calc(5.4 * var(--vh, 1vh)), 72px);
 }
 
 .rose-courtyard-vfx__edge--top-left,
 .rose-courtyard-vfx__edge--top-right {
-  top: clamp(8px, 2.2vh, 28px);
+  top: clamp(8px, calc(2.2 * var(--vh, 1vh)), 28px);
 }
 
 .rose-courtyard-vfx__edge--top-left,
 .rose-courtyard-vfx__edge--bottom-left {
-  left: clamp(12px, 2vw, 34px);
+  left: clamp(12px, calc(2 * var(--vw, 1vw)), 34px);
 }
 
 .rose-courtyard-vfx__edge--top-right,
 .rose-courtyard-vfx__edge--bottom-right {
-  right: clamp(12px, 2vw, 34px);
+  right: clamp(12px, calc(2 * var(--vw, 1vw)), 34px);
 }
 
 .rose-courtyard-vfx__edge--bottom-left,
 .rose-courtyard-vfx__edge--bottom-right {
-  bottom: clamp(12px, 2.4vh, 34px);
+  bottom: clamp(12px, calc(2.4 * var(--vh, 1vh)), 34px);
   transform: rotate(180deg);
 }
 
 .rose-courtyard-vfx__edge--left,
 .rose-courtyard-vfx__edge--right {
-  top: clamp(96px, 17vh, 178px);
-  bottom: clamp(128px, 20vh, 238px);
-  width: clamp(34px, 4.8vw, 72px);
+  top: clamp(96px, calc(17 * var(--vh, 1vh)), 178px);
+  bottom: clamp(128px, calc(20 * var(--vh, 1vh)), 238px);
+  width: clamp(34px, calc(4.8 * var(--vw, 1vw)), 72px);
 }
 
 .rose-courtyard-vfx__edge--left {
-  left: clamp(10px, 1.8vw, 30px);
+  left: clamp(10px, calc(1.8 * var(--vw, 1vw)), 30px);
 }
 
 .rose-courtyard-vfx__edge--right {
-  right: clamp(10px, 1.8vw, 30px);
+  right: clamp(10px, calc(1.8 * var(--vw, 1vw)), 30px);
 }
 
 .rose-courtyard-vfx__corner {
-  width: clamp(76px, 8vw, 128px);
-  height: clamp(76px, 8vw, 128px);
+  width: clamp(76px, calc(8 * var(--vw, 1vw)), 128px);
+  height: clamp(76px, calc(8 * var(--vw, 1vw)), 128px);
   border-radius: 999px;
   opacity: 0.46;
   background:
@@ -3361,25 +4170,25 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .rose-courtyard-vfx__corner--tl {
-  top: clamp(58px, 8vh, 96px);
-  left: clamp(16px, 2vw, 36px);
+  top: clamp(58px, calc(8 * var(--vh, 1vh)), 96px);
+  left: clamp(16px, calc(2 * var(--vw, 1vw)), 36px);
 }
 
 .rose-courtyard-vfx__corner--tr {
-  top: clamp(58px, 8vh, 96px);
-  right: clamp(16px, 2vw, 36px);
+  top: clamp(58px, calc(8 * var(--vh, 1vh)), 96px);
+  right: clamp(16px, calc(2 * var(--vw, 1vw)), 36px);
   animation-delay: -1.4s;
 }
 
 .rose-courtyard-vfx__corner--bl {
-  bottom: clamp(78px, 10vh, 132px);
-  left: clamp(16px, 2vw, 36px);
+  bottom: clamp(78px, calc(10 * var(--vh, 1vh)), 132px);
+  left: clamp(16px, calc(2 * var(--vw, 1vw)), 36px);
   animation-delay: -2.7s;
 }
 
 .rose-courtyard-vfx__corner--br {
-  right: clamp(16px, 2vw, 36px);
-  bottom: clamp(78px, 10vh, 132px);
+  right: clamp(16px, calc(2 * var(--vw, 1vw)), 36px);
+  bottom: clamp(78px, calc(10 * var(--vh, 1vh)), 132px);
   animation-delay: -4s;
 }
 
@@ -3448,17 +4257,38 @@ const fighterHundredDragonByPlayer = computed(() => {
   box-shadow: 0 8px 18px rgba(12, 3, 3, 0.45);
 }
 
+.board-corner-tools {
+  position: absolute;
+  top: max(8px, var(--safe-top));
+  right: 10px;
+  z-index: 9;
+}
+
+/* 房主的「解散房间」占着右上角，音效按钮让到它左边 */
+.board-corner-tools--host {
+  right: 100px;
+}
+
 .host-dissolve-btn:hover {
   filter: brightness(1.08);
 }
 
 .top-hud {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 20px;
+  gap: 18px;
   margin-bottom: 10px;
   padding: 0 var(--battle-seat-edge-inset);
+}
+
+/* 仅承载 <symbol> 定义，不参与布局 */
+.top-hud-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .disconnect-panel {
@@ -3512,44 +4342,71 @@ const fighterHundredDragonByPlayer = computed(() => {
   padding: 1px 7px;
 }
 
+/* 牌堆：圆形镀铬框徽章 */
 .top-deck-indicator {
-  min-width: 92px;
-  height: 44px;
-  border-radius: 999px;
-  border: 1px solid rgba(152, 183, 201, 0.52);
-  background: linear-gradient(138deg, rgba(14, 34, 53, 0.9), rgba(8, 20, 33, 0.92));
-  box-shadow:
-    inset 0 1px 0 rgba(242, 250, 255, 0.1),
-    0 8px 20px rgba(3, 10, 20, 0.34);
+  position: relative;
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background:
+    radial-gradient(circle at 50% 32%, var(--bt-panel-raised) 0%, var(--bt-bg-0) 78%) padding-box,
+    var(--bt-chrome-gradient) border-box;
+  box-shadow: var(--bt-frame-shadow), inset 0 0 0 1px var(--bt-hairline-soft);
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 0 10px;
+  gap: 1px;
+  padding: 0;
   white-space: nowrap;
+}
+
+/* 两侧的镀铬短连接线，衔接左右阵营条 */
+.top-deck-indicator::before,
+.top-deck-indicator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+  background: var(--bt-hairline);
+  pointer-events: none;
+}
+
+.top-deck-indicator::before {
+  right: 100%;
+}
+
+.top-deck-indicator::after {
+  left: 100%;
 }
 
 .top-deck-indicator--active {
   box-shadow:
-    inset 0 1px 0 rgba(242, 250, 255, 0.12),
-    0 10px 24px rgba(3, 10, 20, 0.42),
-    0 0 0 1px rgba(236, 203, 140, 0.34);
+    var(--bt-frame-shadow),
+    inset 0 0 0 1px var(--bt-hairline-soft),
+    0 0 14px var(--bt-select-glow);
   animation: deckPulse 0.52s ease-out;
 }
 
 .top-deck-label {
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  color: rgba(181, 209, 226, 0.9);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  color: var(--bt-text-dim);
 }
 
 .top-deck-count {
-  font-family: var(--font-ui-title);
-  font-size: 24px;
-  font-weight: 800;
+  display: inline-block;
+  font-family: var(--bt-font-num);
+  font-size: 26px;
+  font-weight: 400;
   line-height: 1;
-  color: #f4e4c5;
-  text-shadow: 0 1px 3px rgba(2, 7, 17, 0.62);
+  color: var(--bt-chrome-hi);
+  text-shadow: 0 1px 3px var(--bt-bg-0);
+  animation: camp-num-bump 0.42s ease-out;
 }
 
 .draw-flight-layer {
@@ -3611,33 +4468,60 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
+/*
+ * 阵营条：两端切角的细长黑漆条。
+ * 外层底色 = 镀铬细边，::before 内缩 1px 作为面板，::after 为阵营色细下划线。
+ */
 .camp-bar {
-  height: 46px;
-  border-radius: 999px;
-  border: 1px solid rgba(143, 176, 195, 0.45);
+  --camp-chamfer: 16px;
+  --camp-accent: var(--bt-chrome);
+  --camp-accent-soft: var(--bt-hairline-soft);
+  height: 44px;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
-  box-shadow:
-    inset 0 1px 0 rgba(247, 252, 255, 0.14),
-    0 8px 20px rgba(2, 8, 20, 0.32);
-  overflow: hidden;
+  padding: 0 calc(var(--camp-chamfer) + 8px);
+  color: var(--bt-text);
+  background: var(--bt-hairline);
+  clip-path: polygon(
+    var(--camp-chamfer) 0,
+    calc(100% - var(--camp-chamfer)) 0,
+    100% 50%,
+    calc(100% - var(--camp-chamfer)) 100%,
+    var(--camp-chamfer) 100%,
+    0 50%
+  );
 }
 
 .camp-bar::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 45%);
+  inset: 1px;
+  background:
+    linear-gradient(180deg, var(--bt-panel-raised) 0%, var(--bt-panel) 55%, var(--bt-bg-0) 100%);
+  clip-path: inherit;
+  pointer-events: none;
+}
+
+.camp-bar::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--camp-chamfer) + 4px);
+  right: calc(var(--camp-chamfer) + 4px);
+  bottom: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--camp-accent) 18%, var(--camp-accent) 82%, transparent 100%);
+  box-shadow: 0 0 6px var(--camp-accent-soft);
   pointer-events: none;
 }
 
 .camp-center-metrics {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   justify-content: center;
   min-width: 0;
   z-index: 1;
@@ -3646,78 +4530,127 @@ const fighterHundredDragonByPlayer = computed(() => {
 .camp-side-label {
   position: absolute;
   top: 50%;
+  z-index: 1;
   transform: translateY(-50%);
   font-family: var(--font-ui-title);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  opacity: 0.95;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--bt-text-sub);
   white-space: nowrap;
   pointer-events: none;
-  text-shadow: 0 1px 3px rgba(4, 9, 17, 0.8);
+  text-shadow: 0 1px 2px var(--bt-bg-0);
 }
 
 .camp-side-label-left {
-  left: 14px;
+  left: calc(var(--camp-chamfer) + 6px);
 }
 
 .camp-side-label-right {
-  right: 14px;
+  right: calc(var(--camp-chamfer) + 6px);
 }
 
+.camp-effect {
+  align-self: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffe9b0;
+  border: 1px solid rgba(227, 196, 106, 0.75);
+  background: rgba(60, 44, 12, 0.85);
+  white-space: nowrap;
+  animation: camp-effect-glow 2.4s ease-in-out infinite;
+}
+@keyframes camp-effect-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(227, 196, 106, 0); }
+  50% { box-shadow: 0 0 10px rgba(227, 196, 106, 0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .camp-effect { animation: none; }
+}
 .camp-score {
-  font-family: var(--font-ui-title);
-  font-size: 30px;
-  font-weight: 800;
+  display: inline-block;
+  font-family: var(--bt-font-num);
+  font-size: 32px;
+  font-weight: 400;
   line-height: 1;
-  color: #f8fbff;
-  min-width: 28px;
+  color: var(--bt-chrome-hi);
+  min-width: 26px;
   text-align: center;
-  text-shadow: 0 1px 5px rgba(2, 8, 18, 0.64);
+  text-shadow: 0 1px 0 var(--bt-chrome-lo), 0 2px 6px var(--bt-bg-0);
+  animation: camp-num-bump 0.42s ease-out;
+}
+
+.camp-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--bt-hairline-soft);
+  flex: none;
 }
 
 .camp-gem,
 .camp-crystal,
 .camp-cup {
-  border-radius: 999px;
-  border: 1px solid rgba(151, 181, 200, 0.42);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
   line-height: 1;
   white-space: nowrap;
-  background: rgba(5, 13, 23, 0.42);
-  box-shadow: inset 0 1px 0 rgba(240, 247, 252, 0.08);
+  color: var(--bt-text);
 }
 
-.camp-gem {
-  color: #f4b3ab;
+.camp-icon {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  filter: drop-shadow(0 1px 1px var(--bt-bg-0));
 }
 
-.camp-crystal {
-  color: #acd7ef;
-}
-
-.camp-cup {
-  color: #f8dd96;
+.camp-num {
+  display: inline-block;
+  min-width: 0.7em;
+  font-family: var(--bt-font-num);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  animation: camp-num-bump 0.42s ease-out;
 }
 
 .camp-red-bar {
-  background: linear-gradient(132deg, rgba(112, 35, 31, 0.82), rgba(79, 27, 24, 0.86));
-  color: #f8d4ce;
-  border-color: rgba(198, 103, 93, 0.54);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 200, 190, 0.12),
-    0 8px 20px rgba(80, 15, 10, 0.25);
+  --camp-accent: var(--bt-red);
+  --camp-accent-soft: var(--bt-red-soft);
 }
 
 .camp-blue-bar {
-  background: linear-gradient(132deg, rgba(17, 60, 96, 0.84), rgba(13, 42, 68, 0.88));
-  color: #d9edfa;
-  border-color: rgba(106, 168, 205, 0.54);
-  box-shadow:
-    inset 0 1px 0 rgba(180, 220, 255, 0.12),
-    0 8px 20px rgba(5, 25, 50, 0.25);
+  --camp-accent: var(--bt-blue);
+  --camp-accent-soft: var(--bt-blue-soft);
+}
+
+/* 数值变化时的轻微上滚 + 放大 */
+@keyframes camp-num-bump {
+  0% {
+    transform: translateY(35%) scale(0.92);
+    opacity: 0.2;
+  }
+  60% {
+    transform: translateY(-6%) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camp-score,
+  .camp-num,
+  .top-deck-count,
+  .top-deck-indicator--active {
+    animation: none;
+  }
 }
 
 .main-grid {
@@ -3731,14 +4664,14 @@ const fighterHundredDragonByPlayer = computed(() => {
   min-width: 0;
 }
 
-@media (min-width: 1600px) {
+@container stage (min-width: 1600px) {
   .bottom-hud {
     --hand-max-width: 940px;
     --action-dock-width: 320px;
   }
 }
 
-@media (min-width: 2000px) {
+@container stage (min-width: 2000px) {
   .board-shell {
     max-width: 2080px;
   }
@@ -3807,6 +4740,29 @@ const fighterHundredDragonByPlayer = computed(() => {
   --status-preview-origin: right center;
 }
 
+/* 技能发动流程的步骤面板：浮在手牌上方中央，与决策面板窄条同一位置 */
+.decision-skill-slot {
+  position: absolute;
+  left: 50%;
+  bottom: 196px;
+  z-index: 40;
+  width: min(560px, calc(100% - 32px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.decision-skill-slot > * {
+  pointer-events: auto;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.55), 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+
+.decision-skill-slot:empty {
+  display: none;
+}
+
+/* 状态栏图标：外框与类别色由 BattleMarkIcon 自带，这里只负责尺寸与悬停放大 */
 .player-anchor-status-icon {
   position: relative;
   width: 28px;
@@ -3814,13 +4770,6 @@ const fighterHundredDragonByPlayer = computed(() => {
   flex: 0 0 28px;
   z-index: 1;
   border-radius: 999px;
-  border: 1px solid rgba(219, 234, 254, 0.28);
-  background:
-    radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--anchor-status-color, #93c5fd), transparent 78%), transparent 62%),
-    rgba(7, 18, 32, 0.72);
-  box-shadow:
-    0 0 10px color-mix(in srgb, var(--anchor-status-color, #93c5fd), transparent 70%),
-    0 4px 8px rgba(0, 0, 0, 0.3);
   transform-origin: var(--status-preview-origin, center);
   transition:
     transform 0.18s ease,
@@ -3834,7 +4783,18 @@ const fighterHundredDragonByPlayer = computed(() => {
 .player-anchor-status-icon:focus-within {
   z-index: 30;
   transform: translateX(var(--status-preview-x, 0)) scale(var(--status-preview-scale, 2.6));
-  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--anchor-status-color, #93c5fd), transparent 42%));
+  filter: drop-shadow(0 0 6px var(--bt-select-glow));
+}
+
+.player-anchor-status-icon:focus-visible {
+  outline: 1px solid var(--bt-select);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-anchor-status-icon {
+    transition: none;
+  }
 }
 
 .player-anchor-status-icon :deep(.status-effect-icon) {
@@ -3842,60 +4802,12 @@ const fighterHundredDragonByPlayer = computed(() => {
   height: 100%;
 }
 
+/* 封印徽章略大一圈，便于区分五系 */
 .player-anchor-status-icon--seal {
   --status-preview-scale: 3;
-  width: 32px;
-  height: 32px;
-  flex-basis: 32px;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.player-anchor-status-icon--SealFire {
-  --anchor-status-color: #fb6b5e;
-}
-
-.player-anchor-status-icon--SealWater {
-  --anchor-status-color: #7dd3fc;
-}
-
-.player-anchor-status-icon--SealEarth {
-  --anchor-status-color: #f0b06a;
-}
-
-.player-anchor-status-icon--SealWind {
-  --anchor-status-color: #86efac;
-}
-
-.player-anchor-status-icon--SealThunder {
-  --anchor-status-color: #fde047;
-}
-
-.player-anchor-status-icon--Shield,
-.player-anchor-status-icon--PowerBlessing {
-  --anchor-status-color: #facc15;
-}
-
-.player-anchor-status-icon--Poison,
-.player-anchor-status-icon--Stealth,
-.player-anchor-status-icon--RoseCourtyard {
-  --anchor-status-color: #86efac;
-}
-
-.player-anchor-status-icon--Weak,
-.player-anchor-status-icon--SoulLink,
-.player-anchor-status-icon--BardEternalMovement {
-  --anchor-status-color: #c4b5fd;
-}
-
-.player-anchor-status-icon--BloodSharedLife,
-.player-anchor-status-icon--HeroTaunt {
-  --anchor-status-color: #fb7185;
-}
-
-.player-anchor-status-icon--SwiftBlessing {
-  --anchor-status-color: #67e8f9;
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
 }
 
 .center-stage {
@@ -3922,8 +4834,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .table-decor-base {
   width: min(98%, 1220px);
-  height: clamp(310px, 58vh, 610px);
-  top: clamp(34px, 6.2vh, 82px);
+  height: clamp(310px, calc(58 * var(--vh, 1vh)), 610px);
+  top: clamp(34px, calc(6.2 * var(--vh, 1vh)), 82px);
   transform: translateX(-50%);
   background:
     radial-gradient(110% 76% at 50% 54%, rgba(76, 120, 168, 0.34), rgba(38, 59, 92, 0.22) 58%, rgba(14, 21, 32, 0.15) 100%);
@@ -3935,8 +4847,8 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .table-decor-edge {
   width: min(90%, 1020px);
-  height: clamp(54px, 8vh, 86px);
-  bottom: clamp(150px, 20.5vh, 254px);
+  height: clamp(54px, calc(8 * var(--vh, 1vh)), 86px);
+  bottom: clamp(150px, calc(20.5 * var(--vh, 1vh)), 254px);
   transform: translateX(-50%);
   background:
     linear-gradient(180deg, rgba(111, 141, 168, 0.64), rgba(51, 67, 88, 0.84));
@@ -3975,7 +4887,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 .stage-main::after {
   content: '';
   position: absolute;
-  inset: clamp(28px, 5vw, 62px) clamp(58px, 8vw, 118px) clamp(44px, 7vw, 88px);
+  inset: clamp(28px, calc(5 * var(--vw, 1vw)), 62px) clamp(58px, calc(8 * var(--vw, 1vw)), 118px) clamp(44px, calc(7 * var(--vw, 1vw)), 88px);
   pointer-events: none;
   border-radius: 50%;
   border: 1px solid rgba(232, 200, 133, 0.2);
@@ -4006,7 +4918,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .battle-table-surface {
   position: absolute;
-  inset: clamp(30px, 5.4vw, 68px) clamp(62px, 8.5vw, 126px) clamp(48px, 7.2vw, 96px);
+  inset: clamp(30px, calc(5.4 * var(--vw, 1vw)), 68px) clamp(62px, calc(8.5 * var(--vw, 1vw)), 126px) clamp(48px, calc(7.2 * var(--vw, 1vw)), 96px);
   border-radius: 50%;
   pointer-events: none;
   display: none;
@@ -4036,7 +4948,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   position: absolute;
   left: 50%;
   top: 48%;
-  width: clamp(72px, 7vw, 104px);
+  width: clamp(72px, calc(7 * var(--vw, 1vw)), 104px);
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   border-radius: 999px;
@@ -4062,7 +4974,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .battle-table-orb__count {
   color: #f6dba2;
-  font-size: clamp(22px, 2.6vw, 34px);
+  font-size: clamp(22px, calc(2.6 * var(--vw, 1vw)), 34px);
   font-weight: 900;
   line-height: 1;
 }
@@ -4338,39 +5250,75 @@ const fighterHundredDragonByPlayer = computed(() => {
   z-index: 2;
 }
 
-.active-popout-effects {
-  max-height: 28px;
+.active-popout-marks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 6px 6px 0;
+  list-style: none;
+  border-top: 1px solid var(--bt-hairline-soft);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.active-popout-effects .effect-icon-item {
+.active-popout-mark {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+}
+
+.active-popout-mark-icon {
   width: 22px;
   height: 22px;
+  flex: none;
 }
 
-.active-popout-tokens {
+.active-popout-mark-icon--cover {
+  width: 17px;
+  height: 22px;
+  margin: 0 2.5px;
+}
+
+.active-popout-mark-body {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 3px;
-  max-height: 36px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.active-popout-mark-head {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.active-popout-mark-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bt-text);
+}
+
+.active-popout-mark-amount {
+  font-family: var(--bt-font-num);
+  font-size: 11px;
+  color: var(--bt-active);
+}
+
+.active-popout-mark-hint {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--bt-text-sub);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.active-popout-token {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  max-width: 100%;
-  padding: 2px 5px;
-  border-radius: 4px;
-  border: 1px solid rgba(148, 163, 184, 0.38);
-  background: rgba(15, 23, 42, 0.62);
-  color: rgba(226, 232, 240, 0.96);
-  font-size: 9px;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* 标记较多时每条只留一行说明，保证全部条目都能放下 */
+.active-popout-marks--dense .active-popout-mark-hint {
+  -webkit-line-clamp: 1;
 }
 
 @keyframes popCardLeft {
@@ -4395,11 +5343,11 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 1180px) {
+@container stage (max-width: 1180px) {
   .board-shell {
-    --battle-player-card-width: clamp(116px, 12.5vw, 148px);
-    --battle-seat-edge-inset: clamp(6px, 1vw, 12px);
-    --battle-seat-vertical-inset: clamp(3px, 0.8vh, 8px);
+    --battle-player-card-width: clamp(116px, calc(12.5 * var(--vw, 1vw)), 148px);
+    --battle-seat-edge-inset: clamp(6px, calc(1 * var(--vw, 1vw)), 12px);
+    --battle-seat-vertical-inset: clamp(3px, calc(0.8 * var(--vh, 1vh)), 8px);
   }
 
   .battle-seat-ring {
@@ -4407,7 +5355,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
+@container stage (max-width: 900px) and (orientation: portrait) {
   .battle-table-scene {
     position: relative;
     inset: auto;
@@ -4457,8 +5405,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: calc(100% - var(--battle-player-card-width) * 2 - clamp(40px, 4vw, 80px));
-  height: calc(100% - clamp(8px, 1.8vh, 24px));
+  width: calc(100% - var(--battle-player-card-width) * 2 - clamp(40px, calc(4 * var(--vw, 1vw)), 80px));
+  height: calc(100% - clamp(8px, calc(1.8 * var(--vh, 1vh)), 24px));
   transform: translate(-50%, -50%);
   min-height: 0;
   min-width: 0;
@@ -4484,45 +5432,35 @@ const fighterHundredDragonByPlayer = computed(() => {
   height: var(--self-status-card-height);
   min-height: 0;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  /* 左：扩展区托盘；右上：提示条；右下：扇形手牌 + 镀铬弧形托架 */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: clamp(6px, calc(0.8 * var(--vw, 1vw)), 12px);
+  overflow: visible;
   padding: 0;
-  --hand-card-width: clamp(84px, 7.3vw, 112px);
-  --hand-card-height: clamp(126px, min(10.95vw, calc(var(--self-status-card-height) - 48px)), 168px);
-  --hand-card-row-gap: clamp(4px, 0.55vw, 8px);
-  background:
-    linear-gradient(180deg, rgba(12, 26, 42, 0.92), rgba(8, 18, 31, 0.95));
-  border: 1px solid rgba(130, 170, 210, 0.15);
-  border-radius: 12px;
-  box-shadow:
-    inset 0 1px 0 rgba(235, 245, 252, 0.1),
-    inset 0 0 20px rgba(20, 50, 90, 0.08),
-    0 8px 24px rgba(1, 8, 16, 0.4);
+  --hand-card-width: clamp(84px, calc(7.3 * var(--vw, 1vw)), 112px);
+  --hand-card-height: clamp(120px, min(calc(10.6 * var(--vw, 1vw)), calc(var(--self-status-card-height) - 52px)), 162px);
+  --hand-card-row-gap: 0px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.hand-rail > * {
+  grid-column: 2;
+  min-width: 0;
 }
 
 .hand-rail--prompt-guide {
-  --hand-card-width: clamp(76px, 6.6vw, 102px);
-  --hand-card-height: clamp(108px, min(9.9vw, calc(var(--self-status-card-height) - 76px)), 153px);
-  border-color: rgba(200, 171, 113, 0.52);
-  box-shadow:
-    inset 0 1px 0 rgba(244, 236, 216, 0.16),
-    inset 0 0 20px rgba(164, 126, 72, 0.18),
-    0 10px 26px rgba(1, 8, 16, 0.45),
-    0 0 0 1px rgba(203, 169, 107, 0.24);
-  animation: handGuidePulse 1.8s ease-in-out infinite;
+  --hand-card-width: clamp(76px, calc(6.6 * var(--vw, 1vw)), 102px);
+  --hand-card-height: clamp(108px, min(calc(9.9 * var(--vw, 1vw)), calc(var(--self-status-card-height) - 84px)), 150px);
 }
 
 .hand-rail--overflow-discard {
-  --hand-card-width: clamp(72px, 6.2vw, 98px);
-  --hand-card-height: clamp(102px, min(9.3vw, calc(var(--self-status-card-height) - 86px)), 147px);
-  border-color: rgba(217, 132, 93, 0.64);
-  box-shadow:
-    inset 0 1px 0 rgba(250, 233, 221, 0.16),
-    inset 0 0 24px rgba(178, 94, 61, 0.22),
-    0 10px 28px rgba(1, 8, 16, 0.48),
-    0 0 0 1px rgba(216, 139, 103, 0.32);
-  animation: overflowDiscardPulse 1.45s ease-in-out infinite;
+  --hand-card-width: clamp(72px, calc(6.2 * var(--vw, 1vw)), 98px);
+  --hand-card-height: clamp(102px, min(calc(9.3 * var(--vw, 1vw)), calc(var(--self-status-card-height) - 92px)), 144px);
 }
 
 .my-status-strip {
@@ -4538,23 +5476,82 @@ const fighterHundredDragonByPlayer = computed(() => {
   margin-bottom: 0;
   min-height: 0;
   padding: 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(132, 172, 207, 0.28);
-  background: linear-gradient(180deg, rgba(18, 36, 54, 0.72), rgba(10, 23, 37, 0.82));
+  border-radius: var(--bt-radius);
+  border: 1px solid var(--bt-chrome-mid);
+  background: var(--bt-bg-1);
+  /* 双层镀铬框：内细线 + 黑缝 + 外细线 */
   box-shadow:
-    inset 0 1px 0 rgba(236, 247, 255, 0.08),
-    0 6px 14px rgba(2, 8, 16, 0.22);
+    inset 0 0 0 1px var(--bt-bg-0),
+    inset 0 0 0 2px var(--bt-hairline-soft),
+    0 0 0 1px var(--bt-bg-0),
+    0 0 0 2px var(--bt-hairline),
+    0 8px 18px var(--bt-bg-0);
   overflow: hidden;
   pointer-events: auto;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .my-status-strip--active {
-  border-color: rgba(241, 207, 133, 0.7);
+  border-color: var(--bt-active);
   box-shadow:
-    inset 0 1px 0 rgba(255, 241, 190, 0.18),
-    0 8px 18px rgba(2, 8, 16, 0.28),
-    0 0 0 1px rgba(234, 194, 107, 0.28),
-    0 0 22px rgba(216, 162, 74, 0.22);
+    inset 0 0 0 1px var(--bt-bg-0),
+    inset 0 0 0 2px var(--bt-active-glow),
+    0 0 0 1px var(--bt-bg-0),
+    0 0 0 2px var(--bt-active),
+    0 0 18px var(--bt-active-glow);
+}
+
+/* 右下角阵营徽记（参考图中的小盾形徽章） */
+.my-status-emblem {
+  position: absolute;
+  right: 6px;
+  top: 40%;
+  z-index: 3;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, var(--emblem-color) 0 34%, var(--bt-bg-0) 36% 58%, transparent 60%),
+    var(--bt-chrome-gradient);
+  box-shadow:
+    0 0 0 1px var(--bt-bg-0),
+    0 0 8px var(--emblem-soft);
+  pointer-events: none;
+}
+
+.my-status-emblem--blue {
+  --emblem-color: var(--bt-blue);
+  --emblem-soft: var(--bt-blue-soft);
+}
+
+.my-status-emblem--red {
+  --emblem-color: var(--bt-red);
+  --emblem-soft: var(--bt-red-soft);
+}
+
+/* 底部细进度条：手牌数 / 手牌上限 */
+.my-status-progress {
+  position: relative;
+  height: 5px;
+  margin: 2px 4px 0;
+  border-radius: 999px;
+  background: var(--bt-bg-0);
+  box-shadow: 0 0 0 1px var(--bt-hairline-soft);
+  overflow: hidden;
+}
+
+.my-status-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--bt-blue), var(--bt-select));
+  box-shadow: 0 0 6px var(--bt-select-glow);
+  transition: width 0.3s ease;
+}
+
+.my-status-progress--over .my-status-progress__fill {
+  background: var(--bt-danger);
+  box-shadow: 0 0 6px var(--bt-red-soft);
 }
 
 .my-status-strip--empty {
@@ -4664,10 +5661,11 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .my-status-overlay .player-overlay-role {
+  min-width: 0;
   max-width: calc(100% - 22px);
   overflow: hidden;
   color: rgba(241, 247, 255, 0.96);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -4690,7 +5688,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px 4px;
   color: rgba(228, 237, 245, 0.92);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .my-status-overlay .player-overlay-stat {
@@ -4721,6 +5719,83 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .my-status-resource--crystal {
   color: #b7ddf4;
+}
+
+.my-status-strip--in-form {
+  border-color: var(--form-accent);
+  box-shadow:
+    inset 0 0 0 1px var(--bt-bg-0),
+    inset 0 0 14px color-mix(in srgb, var(--form-accent) 50%, transparent),
+    0 0 0 1px var(--bt-bg-0),
+    0 0 0 2px var(--form-accent),
+    0 0 14px color-mix(in srgb, var(--form-accent) 45%, transparent);
+}
+
+.my-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  margin-bottom: 2px;
+}
+
+.my-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--bt-hairline);
+  background: rgba(8, 16, 27, 0.88);
+  color: var(--bt-text-sub);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.my-status-chip__icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+}
+
+.my-status-chip__value {
+  color: var(--bt-text);
+  font-family: var(--bt-font-num);
+}
+
+.my-status-chip--form {
+  border-color: var(--form-accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--form-accent) 45%, #120c06), rgba(16, 10, 6, 0.92));
+  color: #fff;
+  text-shadow: 0 0 4px var(--form-accent);
+}
+
+.my-status-chip--effect {
+  color: #fff3d0;
+  border-color: rgba(227, 196, 106, 0.7);
+  background: linear-gradient(180deg, rgba(92, 70, 24, 0.85), rgba(40, 30, 10, 0.9));
+}
+
+.my-status-skill-btn {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--bt-panel-raised);
+  box-shadow: inset 0 0 0 1px var(--bt-chrome-mid);
+  color: var(--bt-chrome-hi);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.my-status-skill-btn:hover,
+.my-status-skill-btn:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--bt-chrome-hi);
+  color: var(--bt-text);
 }
 
 .my-status-overlay .player-overlay-effects {
@@ -4760,28 +5835,59 @@ const fighterHundredDragonByPlayer = computed(() => {
 }
 
 .overflow-discard-guide {
-  width: min(100%, 620px);
-  margin: 0 auto 8px;
-  padding: 7px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(217, 132, 93, 0.7);
-  background: linear-gradient(180deg, rgba(82, 36, 20, 0.92), rgba(56, 24, 14, 0.94));
-  box-shadow: 0 10px 18px rgba(22, 8, 3, 0.35);
+  width: min(100%, 560px);
+  /* 偏右对齐，靠近右侧操作坞里的确认按钮 */
+  margin: 0 0 6px auto;
+  padding: 5px 10px;
+  border-radius: var(--bt-radius-sm);
+  background: var(--bt-panel);
+  box-shadow:
+    0 0 0 1px var(--bt-danger),
+    0 0 0 3px var(--bt-bg-0),
+    0 0 14px var(--bt-red-soft);
+}
+
+.overflow-discard-guide__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .overflow-discard-guide__title {
-  color: #ffd8b9;
+  color: var(--bt-danger);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.3;
 }
 
+.overflow-discard-guide__counter {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--bt-hairline);
+  background: var(--bt-bg-0);
+  color: var(--bt-text);
+  font-family: var(--bt-font-num);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.overflow-discard-guide__counter--ready {
+  border-color: var(--bt-heal);
+  color: var(--bt-heal);
+  box-shadow: 0 0 8px var(--bt-select-glow);
+}
+
 .overflow-discard-guide__desc {
-  margin-top: 3px;
-  color: rgba(255, 234, 220, 0.92);
+  margin-top: 2px;
+  color: var(--bt-text-sub);
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .guide-hint-enter-active,
@@ -4793,6 +5899,16 @@ const fighterHundredDragonByPlayer = computed(() => {
 .guide-hint-leave-to {
   opacity: 0;
   transform: translateY(8px);
+}
+
+.battle-table-seat--replace-next::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 16px;
+  border: 1px dashed rgba(240, 160, 110, 0.85);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .target-guide-pulse::after {
@@ -4864,28 +5980,156 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-.hand-list {
-  width: 100%;
-  flex: 1 1 auto;
-  height: auto;
-  min-width: 0;
-  min-height: 0;
-  overflow-y: hidden;
-  /* 选中卡牌上移时预留顶部空间，避免在横向滚动容器内被裁切。 */
-  padding-top: clamp(6px, 0.9vh, 12px);
-  margin-top: -4px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(94, 138, 165, 0.74) rgba(7, 14, 22, 0.45);
+.hand-rail > .hand-list {
+  grid-row: 2;
 }
 
-.hand-card-row {
+.hand-rail > .expansion-tray {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
+.hand-list {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  /* 扇形手牌靠重叠收纳，不再横向滚动；旋转/抬起的卡牌需要溢出可见。 */
+  overflow: visible !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.hand-list > .hand-card-row.hand-fan {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+/*
+ * 扇形手牌：每张牌的 --fan-t 为相对中心的偏移（-k … 0 … +k），--fan-n 为张数。
+ *   旋转  = t × step，step 随张数增多而减小（总张角约 ±14°）
+ *   下沉  = t² × drop，沿抛物线近似圆弧，中间高两侧低（drop ∝ 1/n²，外沿下沉量恒定）
+ *   重叠  = 负 margin，张数越多重叠越深（≤5 张约 0.1 张牌宽，8 张 0.34，≥13 张封顶 0.62）
+ */
+.hand-card-row.hand-fan {
+  --fan-step: clamp(1.4deg, calc(28deg / var(--fan-n, 1)), 5deg);
+  /* 边缘下沉 ≈ drop × (n/2)² → 取 80px/n²，使最外侧牌恒定下沉约 16–20px */
+  --fan-drop: clamp(0px, calc(80px / (var(--fan-n, 1) * var(--fan-n, 1))), 6px);
+  --fan-overlap: clamp(0.1, calc((var(--fan-n, 1) - 4) * 0.06 + 0.1), 0.62);
   display: flex;
   align-items: flex-end;
-  width: max-content;
-  min-width: 100%;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
   height: 100%;
-  gap: var(--hand-card-row-gap);
-  padding-right: 0;
+  gap: 0;
+  /* 底部留白 ≥ 外沿下沉量，保证两端旋转的牌不出屏 */
+  padding: 0 calc(var(--hand-card-width) * 0.2) clamp(18px, calc(2.4 * var(--vh, 1vh)), 26px);
+}
+
+.hand-fan-slot {
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: calc(var(--hand-card-width) * var(--fan-overlap) * -1);
+  transform-origin: 50% 100%;
+  transform:
+    translateX(var(--fan-part, 0px))
+    translateY(calc(var(--fan-t) * var(--fan-t) * var(--fan-drop) + var(--fan-lift, 0px)))
+    rotate(calc(var(--fan-t) * var(--fan-step) * var(--fan-rot, 1)));
+  transition: transform 0.2s ease, margin 0.2s ease;
+}
+
+.hand-fan-slot:first-child {
+  margin-left: 0;
+}
+
+/* 不在挑牌时，取消 CardComponent 对不可选牌的压暗 */
+.hand-fan:not(.hand-fan--choosing) .hand-fan-slot :deep(.card-shell:not(.selectable):not(.selected)) {
+  opacity: 1;
+  filter: none;
+}
+
+/* 牌多重叠时，只有悬停/聚焦的那张显示底部信息条，避免标签互相压住 */
+.hand-fan--crowded .hand-fan-slot :deep(.card-text-panel) {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.hand-fan--crowded .hand-fan-slot:hover :deep(.card-text-panel),
+.hand-fan--crowded .hand-fan-slot:focus-within :deep(.card-text-panel) {
+  opacity: 1;
+}
+
+.hand-fan-slot:hover,
+.hand-fan-slot:focus-within {
+  z-index: 30;
+  --fan-lift: -18px;
+  --fan-rot: 0.35;
+}
+
+/*
+ * 悬停牌两侧整体向外让开（左侧全部左移、右侧全部右移），
+ * 保持其余牌之间的相对叠放不变，避免某张牌被挤到下一张下面而点不到。
+ * 选中牌不提升层级，只靠 CardComponent 自身上移，防止盖住相邻牌的点击区。
+ */
+.hand-fan-slot:hover ~ .hand-fan-slot {
+  --fan-part: calc(var(--hand-card-width) * 0.18);
+}
+
+.hand-fan-slot:has(~ .hand-fan-slot:hover) {
+  --fan-part: calc(var(--hand-card-width) * -0.18);
+}
+
+.hand-empty-text {
+  width: 100%;
+  text-align: center;
+  color: var(--bt-text-dim);
+}
+
+/* 扇形手牌下方的镀铬弧形托架 */
+.hand-cradle {
+  position: absolute;
+  grid-column: 2;
+  grid-row: 2;
+  left: 4%;
+  right: 4%;
+  bottom: 0;
+  height: clamp(26px, calc(3.4 * var(--vh, 1vh)), 40px);
+  z-index: 0;
+  border-top: 2px solid var(--bt-chrome);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  background: linear-gradient(180deg, var(--bt-hairline-soft), transparent 70%);
+  box-shadow:
+    inset 0 2px 0 var(--bt-bg-0),
+    inset 0 3px 0 var(--bt-hairline-soft),
+    0 -1px 0 var(--bt-bg-0);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  pointer-events: none;
+}
+
+.hand-cradle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 9px;
+  height: 9px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--bt-bg-0);
+  box-shadow: 0 0 0 1px var(--bt-chrome);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hand-fan-slot {
+    transition: none;
+  }
 }
 
 .bottom-slot-hand :deep(.card-size-medium) {
@@ -4893,174 +6137,399 @@ const fighterHundredDragonByPlayer = computed(() => {
   height: var(--hand-card-height);
   max-width: min(var(--hand-card-width), 100%);
   max-height: calc(100% - 1px);
-  font-size: clamp(10px, 0.92vw, 14px);
+  font-size: clamp(10px, calc(0.92 * var(--vw, 1vw)), 14px);
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-title-text) {
-  font-size: clamp(7.6px, 0.66vw, 10px) !important;
+  font-size: clamp(11px, calc(0.78 * var(--vw, 1vw)), 13px) !important;
+  letter-spacing: 0.02em;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-element-medal > span) {
-  font-size: clamp(6.8px, 0.59vw, 9px) !important;
+  font-size: clamp(9px, calc(0.66 * var(--vw, 1vw)), 11px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-ribbon-text) {
-  font-size: clamp(5.4px, 0.45vw, 7px) !important;
+  font-size: clamp(9.5px, calc(0.66 * var(--vw, 1vw)), 11px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-desc-btn) {
-  font-size: clamp(6px, 0.5vw, 7.5px) !important;
-  padding: clamp(1px, 0.18vw, 2px) clamp(3px, 0.32vw, 5px);
+  font-size: clamp(10px, calc(0.7 * var(--vw, 1vw)), 12px) !important;
 }
 
 .bottom-slot-hand :deep(.card-size-medium .card-exclusive-corner) {
-  font-size: clamp(7px, 0.59vw, 9px) !important;
+  font-size: clamp(9.5px, calc(0.66 * var(--vw, 1vw)), 11px) !important;
 }
 
-.exclusive-toggle-btn {
-  width: 100%;
-  border: 1px solid rgba(130, 170, 210, 0.2);
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(16, 32, 48, 0.72), rgba(11, 22, 34, 0.86));
-  color: #dce7f5;
-  padding: 8px 10px;
+/* 扩展区：贴在立绘右侧，无边框。
+ * 收起时只是一列「种类图标 + 名称 + 数量」；悬停某一种时，该种的牌从图标右侧依次滑出，
+ * 浮在手牌上方，底下垫一层羽化的暗影保证可读，不画面板框。 */
+.expansion-tray {
+  --xp-gold: rgba(232, 196, 120, 0.95);
+  --xp-gold-glow: rgba(232, 196, 120, 0.4);
+  --xp-line: rgba(120, 165, 225, 0.42);
+  --xp-line-soft: rgba(120, 165, 225, 0.18);
+  --xp-line-hi: rgba(160, 200, 255, 0.85);
+  --xp-glow: rgba(80, 150, 255, 0.35);
+  position: relative;
+  align-self: end;
+  width: max-content;
+  margin-bottom: 8px;
+  pointer-events: auto;
+}
+
+.expansion-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.expansion-chip {
+  --xp-tint: #9fb3cf;
+  --xp-tile-size: 28px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px 3px 3px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #e6edf8;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+/* 悬停 / 当前展开：只在背后亮起一抹色调光，不加框 */
+.expansion-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--xp-tint) 28%, transparent), transparent 85%);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+
+.expansion-chip:hover::before,
+.expansion-chip--active::before {
+  opacity: 1;
+}
+
+.expansion-chip--active {
+  transform: translateX(2px);
+}
+
+.expansion-chip:focus-visible {
+  outline: 2px solid var(--bt-select);
+  outline-offset: 1px;
+}
+
+.expansion-chip-text {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+.expansion-chip-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.expansion-chip--exclusive .expansion-chip-label {
+  color: rgba(255, 226, 156, 0.96);
+}
+
+.expansion-chip-count {
+  color: rgba(210, 225, 245, 0.85);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 需要从这一种里选牌：图标呼吸提示 */
+.expansion-chip--choosing :deep(.xp-tile) {
+  animation: xpChipPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes xpChipPulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px var(--xp-tint), 0 0 4px color-mix(in srgb, var(--xp-tint) 40%, transparent);
+  }
+  50% {
+    box-shadow: inset 0 0 0 1px var(--xp-tint), 0 0 14px color-mix(in srgb, var(--xp-tint) 85%, transparent);
+  }
+}
+
+/* —— 展开的牌：从图标列右侧滑出，底边与图标列对齐 —— */
+.expansion-fan {
+  --xp-tint: #9fb3cf;
+  position: absolute;
+  left: calc(100% + 6px);
+  bottom: -4px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max-content;
+  max-width: min(900px, calc(calc(100 * var(--vw, 1vw)) - 240px));
+  padding: 10px 18px 10px 14px;
+  isolation: isolate;
+}
+
+/* 羽化暗影：代替面板底色，边缘自然消散 */
+.expansion-fan::before {
+  content: '';
+  position: absolute;
+  inset: -18px -36px -14px -24px;
+  z-index: -1;
+  background:
+    radial-gradient(60% 70% at 30% 60%, color-mix(in srgb, var(--xp-tint) 14%, transparent), transparent 70%),
+    radial-gradient(closest-side, rgba(3, 7, 16, 0.9), rgba(3, 7, 16, 0.7) 60%, transparent);
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+.expansion-fan-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-left: 2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.expansion-fan-title {
+  color: #eef3fb;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.expansion-fan-count {
+  margin-left: 4px;
+  color: color-mix(in srgb, var(--xp-tint) 60%, #ffffff);
+  font-variant-numeric: tabular-nums;
+}
+
+.expansion-fan-sub {
+  color: rgba(170, 192, 222, 0.7);
+  font-size: 10px;
+}
+
+.expansion-fan-close {
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(200, 218, 242, 0.85);
+  font-size: 10px;
+}
+
+.expansion-fan-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #eef3fb;
+}
+
+.expansion-fan-close:focus-visible {
+  outline: 2px solid var(--bt-select);
+  outline-offset: 1px;
+}
+
+.expansion-fan-cards {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  /* 给可选 / 已选牌的抬起与勾选角标留出空间 */
+  padding-top: 12px;
+}
+
+/* 牌依次滑出 */
+.expansion-fan-card {
+  position: relative;
+  animation: xpCardIn 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@keyframes xpCardIn {
+  from {
+    opacity: 0;
+    transform: translateX(-14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.xp-fan-enter-active {
+  transition: opacity 0.18s ease;
+}
+
+.xp-fan-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  pointer-events: none;
+}
+
+.xp-fan-enter-from,
+.xp-fan-leave-to {
+  opacity: 0;
+}
+
+.xp-fan-leave-to {
+  transform: translateX(-8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expansion-fan-card,
+  .expansion-chip--choosing :deep(.xp-tile) {
+    animation: none;
+  }
+
+  .expansion-chip,
+  .xp-fan-enter-active,
+  .xp-fan-leave-active {
+    transition: none;
+  }
+}
+
+/* 扩展区选牌且已展开：决策面板整体上移，让出牌的区域 */
+.board-shell--xp-choosing {
+  --decision-dock-hand-clearance: calc(var(--self-status-card-height) + 40px);
+}
+
+/* 选择中：牌上方一行 技能名 · 已选 n/m · 确认 */
+.expansion-select-head {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
-  transition: border-color 0.16s ease, background 0.16s ease;
+  padding-left: 2px;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
-.exclusive-toggle-btn:not(:disabled):hover {
-  border-color: rgba(180, 210, 239, 0.52);
-  background: linear-gradient(180deg, rgba(22, 44, 66, 0.76), rgba(12, 25, 39, 0.9));
+.expansion-select-title {
+  color: #eef3fb;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
 }
 
-.exclusive-toggle-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
+.expansion-select-progress {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  position: relative;
+  padding-bottom: 4px;
+  color: rgba(200, 218, 242, 0.85);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
-.exclusive-toggle-title {
-  color: rgba(255, 226, 156, 0.94);
-  font-weight: 600;
+.expansion-select-num {
+  color: #8fc2ff;
+  font-weight: 800;
 }
 
-.exclusive-toggle-meta {
-  color: rgba(191, 214, 236, 0.8);
-  margin-left: auto;
+.expansion-select-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(120, 165, 225, 0.2);
+  overflow: hidden;
 }
 
-.exclusive-toggle-arrow {
-  color: rgba(244, 226, 175, 0.95);
-  min-width: 56px;
-  text-align: right;
-}
-
-.expansion-zone {
-  max-width: 100%;
-  min-width: 0;
-}
-
-.expansion-cocoon-guide {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(178, 206, 235, 0.36);
-  background: linear-gradient(180deg, rgba(22, 36, 55, 0.78), rgba(12, 23, 37, 0.88));
-}
-
-.expansion-cocoon-guide-text {
-  font-size: 12px;
-  line-height: 1.35;
-  color: rgba(218, 234, 249, 0.96);
+.expansion-select-bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #4f9bff, #9fd0ff);
+  box-shadow: 0 0 6px rgba(80, 160, 255, 0.8);
+  transition: width 0.2s ease;
 }
 
 .expansion-cocoon-confirm-btn {
   flex-shrink: 0;
-  height: 30px;
+  height: 26px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid rgba(228, 192, 128, 0.58);
-  background: linear-gradient(140deg, rgba(156, 102, 49, 0.92), rgba(109, 69, 30, 0.96));
-  color: rgba(255, 238, 209, 0.96);
+  border: 1px solid var(--xp-gold);
+  background: linear-gradient(180deg, rgba(90, 66, 30, 0.9), rgba(40, 28, 12, 0.95));
+  color: rgba(255, 234, 186, 0.98);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 10px rgba(232, 196, 120, 0.25);
 }
 
 .expansion-cocoon-confirm-btn:not(:disabled):hover {
-  filter: brightness(1.06);
+  filter: brightness(1.12);
 }
 
 .expansion-cocoon-confirm-btn--disabled,
 .expansion-cocoon-confirm-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
   filter: none;
+  box-shadow: none;
 }
 
-.expansion-zone-scroll {
-  width: fit-content;
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(94, 138, 165, 0.74) rgba(7, 14, 22, 0.45);
+/* 专属牌：金色细边 + 底部标签 */
+.expansion-exclusive-item {
+  padding-bottom: 8px;
 }
 
-.expansion-zone-content {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 8px;
-  width: max-content;
-  min-width: max-content;
+.expansion-exclusive-item :deep(.card-shell) {
+  box-shadow:
+    0 0 0 1px rgba(232, 196, 120, 0.7),
+    0 0 0 2px rgba(0, 0, 0, 0.7),
+    0 8px 16px rgba(0, 0, 0, 0.6);
 }
 
-.expansion-group {
-  width: max-content;
-  min-width: 0;
+.expansion-exclusive-item--playable :deep(.card-shell) {
+  box-shadow:
+    0 0 0 1px var(--xp-gold),
+    0 0 0 2px rgba(0, 0, 0, 0.7),
+    0 0 16px var(--xp-gold-glow);
 }
 
-.expansion-group-title {
-  font-size: 12px;
-  line-height: 1.2;
-  color: rgba(255, 236, 189, 0.9);
-  letter-spacing: 0.4px;
-  margin-bottom: 4px;
-}
-
-.expansion-card-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  width: max-content;
-  min-width: 0;
-  padding-right: 2px;
-}
-
-.expansion-cover-item {
-  position: relative;
-}
-
-.expansion-cover-tag {
+.expansion-exclusive-tag {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  left: 50%;
+  bottom: 0;
+  z-index: 3;
+  transform: translateX(-50%);
+  padding: 1px 10px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #4a3518, #22180b);
+  box-shadow: 0 0 0 1px rgba(232, 196, 120, 0.6);
+  color: rgba(255, 232, 178, 0.75);
   font-size: 10px;
-  line-height: 1;
-  padding: 4px 6px;
-  border-radius: 999px;
-  background: rgba(4, 12, 22, 0.82);
-  border: 1px solid rgba(174, 213, 252, 0.42);
-  color: rgba(214, 232, 255, 0.95);
+  font-weight: 700;
+  white-space: nowrap;
   pointer-events: none;
+}
+
+.expansion-exclusive-item--playable .expansion-exclusive-tag {
+  box-shadow: 0 0 0 1px var(--xp-gold), 0 0 8px var(--xp-gold-glow);
+  color: rgba(255, 236, 190, 0.98);
+}
+
+/* 扩展区里的专属牌保持原亮度（不当作"不可选"压暗） */
+.expansion-fan :deep(.card-shell:not(.selectable):not(.selected)) {
+  opacity: 1;
+  filter: none;
 }
 
 .bottom-hud {
@@ -5111,7 +6580,7 @@ const fighterHundredDragonByPlayer = computed(() => {
 
 .right-action-dock {
   grid-area: action;
-  position: static;
+  position: relative;
   width: 100%;
   z-index: 24;
   pointer-events: auto;
@@ -5120,20 +6589,51 @@ const fighterHundredDragonByPlayer = computed(() => {
   justify-self: stretch;
   min-height: var(--self-status-card-height);
   height: var(--self-status-card-height);
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(130, 170, 210, 0.15);
-  background:
-    linear-gradient(180deg, rgba(12, 25, 42, 0.86), rgba(8, 18, 32, 0.92));
-  box-shadow:
-    inset 0 1px 0 rgba(235, 245, 252, 0.09),
-    0 10px 24px rgba(1, 8, 16, 0.36);
-  overflow: hidden;
+  /* 只做定位槽位：边框、底板、角花都由 ActionPanel 的 .dock-panel 自己画，避免双层框 */
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .right-action-dock--active {
-  filter: drop-shadow(0 8px 22px rgba(6, 30, 43, 0.42));
   transform: translateY(-2px);
+}
+
+/* 选牌类提示进行中：坞内确认按钮呼吸闪烁，指引玩家选完牌后到这里确认 */
+.right-action-dock--confirm-pulse :deep([data-testid="prompt-confirm-btn"]:not(:disabled)),
+.right-action-dock--confirm-pulse :deep([data-testid="prompt-option-confirm"]:not(:disabled)) {
+  border-radius: 999px;
+  animation: dockConfirmPulse 1.4s ease-in-out infinite;
+}
+
+.right-action-dock--confirm-ready :deep([data-testid="prompt-confirm-btn"]:not(:disabled)),
+.right-action-dock--confirm-ready :deep([data-testid="prompt-option-confirm"]:not(:disabled)) {
+  animation-duration: 0.9s;
+}
+
+/* 按钮自身 box-shadow 被 PromptDialog 以 !important 清零，这里用 drop-shadow 发光 */
+@keyframes dockConfirmPulse {
+  0%,
+  100% {
+    filter: brightness(1) drop-shadow(0 0 0 var(--bt-active-glow));
+  }
+  50% {
+    filter: brightness(1.14) drop-shadow(0 0 10px var(--bt-active));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .right-action-dock--confirm-pulse :deep([data-testid="prompt-confirm-btn"]:not(:disabled)),
+  .right-action-dock--confirm-pulse :deep([data-testid="prompt-option-confirm"]:not(:disabled)) {
+    animation: none;
+    filter: drop-shadow(0 0 6px var(--bt-active));
+  }
+
+  .right-action-dock {
+    transition: none;
+  }
 }
 
 .right-action-dock :deep(.action-panel-root) {
@@ -5147,16 +6647,16 @@ const fighterHundredDragonByPlayer = computed(() => {
   box-shadow: none !important;
 }
 
-@media (max-width: 1200px) {
+@container stage (max-width: 1200px) {
   .bottom-hud {
     --hand-max-width: 700px;
     --action-dock-width: 248px;
   }
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 900px) {
   .board-shell {
-    --self-status-card-width: clamp(112px, 15vw, 132px);
+    --self-status-card-width: clamp(112px, calc(15 * var(--vw, 1vw)), 132px);
     --self-status-card-height: 198px;
   }
 
@@ -5165,25 +6665,25 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .board-shell {
-    --self-status-card-width: min(112px, 29vw);
+    --self-status-card-width: min(112px, calc(29 * var(--vw, 1vw)));
     --self-status-card-height: 176px;
   }
 
   .bottom-hud {
-    --action-dock-width: min(176px, 48vw);
+    --action-dock-width: min(176px, calc(48 * var(--vw, 1vw)));
   }
 }
 
-@media (min-width: 640px) {
+@container stage (min-width: 640px) {
   .bottom-hud {
     --hand-max-width: 860px;
   }
 }
 
 /* 针对 1440x678 这类“宽屏但高度较矮”的桌面，收紧高度避免侧边座位互相压叠。 */
-@media (min-width: 1360px) and (max-width: 1599px) and (max-height: 760px) {
+@container stage (min-width: 1360px) and (max-width: 1599px) and (max-height: 760px) {
   .board-shell {
     --battle-player-card-max-width: 190px;
     --battle-player-card-max-height: 183px;
@@ -5208,7 +6708,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 1024px) {
+@container stage (max-width: 1024px) {
   .main-grid {
     grid-template-columns: 132px minmax(0, 1fr) 132px;
   }
@@ -5228,17 +6728,17 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .table-decor-base {
     width: min(104%, 1040px);
-    height: clamp(280px, 54vh, 520px);
-    top: clamp(24px, 5vh, 60px);
+    height: clamp(280px, calc(54 * var(--vh, 1vh)), 520px);
+    top: clamp(24px, calc(5 * var(--vh, 1vh)), 60px);
   }
 
   .table-decor-edge {
     width: min(94%, 900px);
-    bottom: clamp(138px, 20vh, 214px);
+    bottom: clamp(138px, calc(20 * var(--vh, 1vh)), 214px);
   }
 }
 
-@media (max-width: 1024px) and (orientation: landscape) and (pointer: coarse) {
+@container stage (max-width: 1024px) and (orientation: landscape) { /* @media (pointer: coarse) */
   .board-shell {
     width: 100%;
     max-width: none;
@@ -5260,14 +6760,18 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .top-deck-indicator {
-    min-width: 84px;
-    height: 36px;
-    gap: 5px;
-    padding: 0 8px;
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+  }
+
+  .top-deck-indicator::before,
+  .top-deck-indicator::after {
+    width: 6px;
   }
 
   .top-deck-label {
-    font-size: 10px;
+    display: none;
   }
 
   .top-deck-count {
@@ -5282,27 +6786,32 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .camp-bar {
-    height: 38px;
-    padding: 0 8px;
+    --camp-chamfer: 11px;
+    height: 36px;
   }
 
   .camp-side-label {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .camp-score {
-    font-size: 23px;
+    font-size: 24px;
   }
 
   .camp-center-metrics {
-    gap: 4px;
+    gap: 6px;
   }
 
   .camp-gem,
   .camp-crystal,
   .camp-cup {
-    font-size: 10px;
-    padding: 2px 5px;
+    font-size: 11px;
+    gap: 2px;
+  }
+
+  .camp-icon {
+    width: 14px;
+    height: 14px;
   }
 
   .main-grid {
@@ -5325,13 +6834,13 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .table-decor-base {
     width: min(104%, 920px);
-    height: clamp(238px, 58vh, 420px);
-    top: clamp(18px, 4.2vh, 42px);
+    height: clamp(238px, calc(58 * var(--vh, 1vh)), 420px);
+    top: clamp(18px, calc(4.2 * var(--vh, 1vh)), 42px);
   }
 
   .table-decor-edge {
     width: min(92%, 760px);
-    bottom: clamp(118px, 18vh, 176px);
+    bottom: clamp(118px, calc(18 * var(--vh, 1vh)), 176px);
   }
 
   .bottom-hud {
@@ -5350,7 +6859,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 760px) and (orientation: landscape) and (pointer: coarse) {
+@container stage (max-width: 760px) and (orientation: landscape) { /* @media (pointer: coarse) */
   .main-grid {
     grid-template-columns: 108px minmax(0, 1fr) 108px;
   }
@@ -5361,13 +6870,13 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .table-decor-base {
     width: min(106%, 780px);
-    height: clamp(210px, 62vh, 360px);
-    top: clamp(16px, 4vh, 34px);
+    height: clamp(210px, calc(62 * var(--vh, 1vh)), 360px);
+    top: clamp(16px, calc(4 * var(--vh, 1vh)), 34px);
   }
 
   .table-decor-edge {
     width: min(94%, 640px);
-    bottom: clamp(100px, 18vh, 154px);
+    bottom: clamp(100px, calc(18 * var(--vh, 1vh)), 154px);
   }
 
   .bottom-hud {
@@ -5375,7 +6884,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
+@container stage (max-width: 900px) and (orientation: portrait) {
   .board-shell {
     overflow-y: auto;
     overflow-x: hidden;
@@ -5419,15 +6928,15 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .player-anchor-wrap--focus-slot-left.player-anchor-wrap--focus-active {
-    transform: translate(clamp(16px, 3.2vw, 28px), 0) scale(1.03);
+    transform: translate(clamp(16px, calc(3.2 * var(--vw, 1vw)), 28px), 0) scale(1.03);
   }
 
   .player-anchor-wrap--focus-slot-right.player-anchor-wrap--focus-active {
-    transform: translate(clamp(-28px, -3.2vw, -16px), 0) scale(1.03);
+    transform: translate(clamp(-28px, calc(-3.2 * var(--vw, 1vw)), -16px), 0) scale(1.03);
   }
 
   .player-anchor-wrap--focus-slot-bottom.player-anchor-wrap--focus-active {
-    transform: translate(0, clamp(-52px, -6.4vh, -34px)) scale(1.04);
+    transform: translate(0, clamp(-52px, calc(-6.4 * var(--vh, 1vh)), -34px)) scale(1.04);
   }
 
   .center-stage {
@@ -5435,25 +6944,25 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .stage-main {
-    min-height: clamp(300px, 44vh, 520px);
+    min-height: clamp(300px, calc(44 * var(--vh, 1vh)), 520px);
   }
 
   .table-decor-base {
     width: min(108%, 920px);
-    height: clamp(310px, 46vh, 520px);
-    top: clamp(44px, 9vh, 96px);
+    height: clamp(310px, calc(46 * var(--vh, 1vh)), 520px);
+    top: clamp(44px, calc(9 * var(--vh, 1vh)), 96px);
   }
 
   .table-decor-edge {
     width: min(98%, 720px);
-    bottom: clamp(188px, 24vh, 310px);
+    bottom: clamp(188px, calc(24 * var(--vh, 1vh)), 310px);
   }
 
   .bottom-hud {
     width: 100%;
     gap: 6px;
     --hand-max-width: 100%;
-    --action-dock-width: min(198px, 42vw);
+    --action-dock-width: min(198px, calc(42 * var(--vw, 1vw)));
     --hud-main-gap: 6px;
   }
 
@@ -5472,7 +6981,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 640px) {
+@container stage (max-width: 640px) {
   .board-shell {
     border-left: none;
     border-right: none;
@@ -5485,10 +6994,14 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .top-deck-indicator {
-    min-width: 74px;
-    height: 34px;
-    gap: 4px;
-    padding: 0 7px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+  }
+
+  .top-deck-indicator::before,
+  .top-deck-indicator::after {
+    width: 5px;
   }
 
   .top-deck-label {
@@ -5505,51 +7018,47 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .table-decor-base {
     width: min(112%, 720px);
-    height: clamp(280px, 42vh, 420px);
-    top: clamp(38px, 8.8vh, 72px);
+    height: clamp(280px, calc(42 * var(--vh, 1vh)), 420px);
+    top: clamp(38px, calc(8.8 * var(--vh, 1vh)), 72px);
   }
 
   .table-decor-edge {
     width: min(100%, 580px);
-    bottom: clamp(178px, 23vh, 254px);
+    bottom: clamp(178px, calc(23 * var(--vh, 1vh)), 254px);
     opacity: 0.9;
   }
 
   .camp-bar {
-    height: 38px;
-    padding: 0 8px;
+    --camp-chamfer: 10px;
+    height: 36px;
   }
 
   .camp-side-label {
     font-size: 10px;
   }
 
-  .camp-side-label-left {
-    left: 9px;
-  }
-
-  .camp-side-label-right {
-    right: 9px;
-  }
-
-
   .camp-score {
     font-size: 22px;
   }
 
   .camp-center-metrics {
-    gap: 4px;
+    gap: 5px;
   }
 
   .camp-gem,
   .camp-crystal,
   .camp-cup {
     font-size: 10px;
-    padding: 2px 4px;
+    gap: 2px;
+  }
+
+  .camp-icon {
+    width: 13px;
+    height: 13px;
   }
 }
 
-@media (max-width: 480px) {
+@container stage (max-width: 480px) {
   .camp-side-label {
     display: none;
   }
@@ -5561,15 +7070,23 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 
   .camp-score {
-    min-width: 24px;
+    min-width: 18px;
     font-size: 20px;
+  }
+
+  .camp-divider {
+    display: none;
   }
 
   .camp-gem,
   .camp-crystal,
   .camp-cup {
     font-size: 9px;
-    padding: 2px 3px;
+  }
+
+  .camp-icon {
+    width: 11px;
+    height: 11px;
   }
 }
 
@@ -5593,14 +7110,14 @@ const fighterHundredDragonByPlayer = computed(() => {
   filter: brightness(1.04);
 }
 
-@media (max-width: 1024px) {
+@container stage (max-width: 1024px) {
   .main-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
 }
 
-@media (max-width: 1024px) and (orientation: landscape) and (pointer: coarse) {
+@container stage (max-width: 1024px) and (orientation: landscape) { /* @media (pointer: coarse) */
   .main-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
@@ -5613,8 +7130,8 @@ const fighterHundredDragonByPlayer = computed(() => {
   .board-shell {
     --battle-player-card-max-width: 160px;
     --battle-player-card-max-height: 154px;
-    --battle-seat-edge-inset: clamp(4px, 0.8vw, 8px);
-    --battle-seat-vertical-inset: clamp(2px, 0.6vh, 6px);
+    --battle-seat-edge-inset: clamp(4px, calc(0.8 * var(--vw, 1vw)), 8px);
+    --battle-seat-vertical-inset: clamp(2px, calc(0.6 * var(--vh, 1vh)), 6px);
   }
 
   .battle-seat-ring {
@@ -5627,7 +7144,7 @@ const fighterHundredDragonByPlayer = computed(() => {
   }
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
+@container stage (max-width: 900px) and (orientation: portrait) {
   .main-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;
@@ -5640,6 +7157,215 @@ const fighterHundredDragonByPlayer = computed(() => {
 
   .character-inspect-popout {
     display: none;
+  }
+}
+
+/*
+ * 手机横屏紧凑模式：逻辑高度约 560（舞台缩放 0.55–0.64）。
+ * 主要文字逻辑字号 ≥13px，缩放后屏幕上约 ≥8px；座位三行、手牌、行动面板纵向预算：
+ * 顶栏 ≈52 + 座位环 ≈290 + 底栏 192 ≈ 560。放在样式末尾，压过上面按宽度写的旧规则。
+ */
+@container stage (max-height: 620px) {
+  .board-shell {
+    padding-top: max(4px, var(--safe-top));
+    padding-bottom: calc(4px + var(--safe-bottom));
+    /* 座位：一列三个，每个占环高的 32%；宽度固定，名牌放得下 14px 角色名 */
+    --battle-player-card-max-height: 120px;
+    --battle-player-card-fit-height: min(32cqh, var(--battle-player-card-max-height));
+    --battle-player-card-height: clamp(80px, var(--battle-player-card-fit-height), var(--battle-player-card-max-height));
+    --battle-player-card-width: 156px;
+    --battle-seat-edge-inset: max(8px, var(--safe-left));
+    --battle-seat-vertical-inset: 4px;
+    --self-status-card-width: 136px;
+    --self-status-card-height: 184px;
+    --bottom-hud-height: 190px;
+  }
+
+  .battle-seat-ring {
+    inset: var(--battle-seat-vertical-inset) var(--battle-seat-edge-inset);
+  }
+
+  .center-battle {
+    width: calc(100% - var(--battle-player-card-width) * 2 - 40px);
+  }
+
+  .top-hud {
+    margin-bottom: 4px;
+    gap: 10px;
+    padding: 0 var(--battle-seat-edge-inset);
+  }
+
+  .camp-bar {
+    height: 40px;
+  }
+
+  .top-deck-indicator {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+  }
+
+  .top-deck-label {
+    display: none;
+  }
+
+  .top-deck-count {
+    font-size: 24px;
+  }
+
+  .camp-side-label {
+    display: none;
+  }
+
+  .camp-score {
+    font-size: 30px;
+  }
+
+  .camp-gem,
+  .camp-crystal,
+  .camp-cup {
+    font-size: 16px;
+  }
+
+  .camp-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .camp-effect {
+    font-size: 13px;
+  }
+
+  .turn-dock {
+    height: 32px;
+  }
+
+  .turn-dock__text {
+    font-size: 15px;
+    letter-spacing: 0.04em;
+  }
+
+  .turn-dock__verb {
+    font-size: 13px;
+  }
+
+  /* 回合数在窄条里会压住士气/星杯数值，紧凑模式只留「你的回合」 */
+  .turn-dock__sub {
+    display: none;
+  }
+
+  .camp-center-metrics {
+    gap: 8px;
+  }
+
+  .host-dissolve-btn {
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .bottom-hud {
+    --action-dock-width: 248px;
+    --hand-max-width: 100%;
+    --hud-main-gap: 8px;
+  }
+
+  .hand-rail {
+    --hand-card-width: 100px;
+    --hand-card-height: 140px;
+  }
+
+  .hand-rail--prompt-guide {
+    --hand-card-width: 94px;
+    --hand-card-height: 132px;
+  }
+
+  .hand-rail--overflow-discard {
+    --hand-card-width: 88px;
+    --hand-card-height: 124px;
+  }
+
+  .hand-card-row.hand-fan {
+    /* 外沿牌旋转下沉约 16px，留白要盖住，否则两端的牌出屏 */
+    padding-bottom: 18px;
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium) {
+    font-size: 14px;
+  }
+
+  /* 名称条让出左侧内边距，四字牌名 14px 放得下 */
+  .bottom-slot-hand :deep(.card-size-medium .card-title-banner) {
+    padding: 0 3px 0 calc(5% + 2px);
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium .card-title-banner.has-fate) {
+    right: 22%;
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium .card-title-text) {
+    font-size: 14px !important;
+    letter-spacing: 0;
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium .card-desc-btn) {
+    font-size: 15px !important;
+  }
+
+  .bottom-slot-hand :deep(.card-size-medium .card-element-medal > span) {
+    font-size: 12px !important;
+  }
+
+  .prompt-card-guide-chip {
+    font-size: 13px;
+  }
+
+  .expansion-chip-label,
+  .expansion-chip-count {
+    font-size: 13px;
+  }
+
+  /* 自己的状态卡 */
+  .my-status-self-badge {
+    top: 6px;
+    left: 6px;
+    padding: 4px 7px;
+    font-size: 14px;
+  }
+
+  .my-status-state-badge {
+    top: 6px;
+    right: 6px;
+    padding: 4px 7px;
+    font-size: 14px;
+  }
+
+  .my-status-overlay.player-overlay {
+    padding: 4px 5px 6px;
+    gap: 2px;
+  }
+
+  .my-status-overlay .player-overlay-role {
+    font-size: 15px;
+  }
+
+  .my-status-skill-btn {
+    font-size: 13px;
+  }
+
+  .my-status-overlay .player-overlay-player {
+    font-size: 13px;
+  }
+
+  .my-status-skill-btn {
+    font-size: 14px;
+  }
+
+  .my-status-overlay .player-overlay-stats {
+    font-size: 15px;
+  }
+
+  .my-status-chip {
+    font-size: 12px;
   }
 }
 </style>

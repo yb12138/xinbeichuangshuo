@@ -15,7 +15,8 @@ func turnEndDarkRitualHook(rt engineplayer.HookRuntime, ctx engineplayer.TimingH
 	if player == nil || !engineplayer.IsCharacter(player, "onmyoji") || player.Tokens == nil || player.Tokens["onmyoji_ghost_fire"] < 3 {
 		return engineplayer.TimingHookResult{}
 	}
-	targetIDs := rt.CampEnemyIDs(player.Camp)
+	// 黑暗祭礼文案为"目标角色"：可指定包括自己在内的任意角色。
+	targetIDs := darkRitualTargetIDs(rt.GetPlayerOrder(), func(pid string) bool { return rt.GetPlayer(pid) != nil })
 	if len(targetIDs) == 0 {
 		return engineplayer.TimingHookResult{}
 	}
@@ -76,14 +77,7 @@ func tryYinYangInterrupt(rt engineplayer.HookRuntime, req *model.CombatRequest, 
 		return engineplayer.TimingHookResult{}
 	}
 
-	allOptions := CollectCounterOptions(target, req.Card)
-	var factionOptions []map[string]interface{}
-	for _, option := range allOptions {
-		useFaction, _ := option["use_faction"].(bool)
-		if useFaction {
-			factionOptions = append(factionOptions, option)
-		}
-	}
+	factionOptions := CollectYinYangOptions(target, req.Card)
 	if len(factionOptions) == 0 {
 		return engineplayer.TimingHookResult{}
 	}
@@ -101,6 +95,8 @@ func tryYinYangInterrupt(rt engineplayer.HookRuntime, req *model.CombatRequest, 
 			"actor_id":           target.ID,
 			"attacker_id":        req.AttackerID,
 			"target_id":          req.TargetID,
+			"attack_faction":     req.Card.Faction,
+			"attack_element":     string(req.Card.Element),
 			"card_options":       factionOptions,
 			"counter_target_ids": counterTargetIDs,
 		},

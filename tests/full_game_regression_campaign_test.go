@@ -11,6 +11,8 @@ import (
 type fullGameCampaignResult struct {
 	lineups      [][]string
 	skillBatch   map[string]int
+	attributed   map[string]int
+	misattrib    map[string]int
 	roleObserved map[string]bool
 	err          error
 }
@@ -19,6 +21,8 @@ type directedScenarioCampaignResult struct {
 	lineups               [][]string
 	scenarios             []directedScenarioPlan
 	skillBatch            map[string]int
+	attributed            map[string]int
+	misattrib             map[string]int
 	targetSkillSet        map[string]struct{}
 	scenarioHitCounts     map[string]int
 	scenarioMissingSkills map[string][]string
@@ -397,6 +401,8 @@ func runFullGameCampaign(t *testing.T) fullGameCampaignResult {
 
 		fullGameCampaignData.lineups = lineups
 		fullGameCampaignData.skillBatch = make(map[string]int)
+		fullGameCampaignData.attributed = make(map[string]int)
+		fullGameCampaignData.misattrib = make(map[string]int)
 		fullGameCampaignData.roleObserved = make(map[string]bool)
 
 		for _, roleID := range roleIDs {
@@ -410,6 +416,8 @@ func runFullGameCampaign(t *testing.T) fullGameCampaignResult {
 				return
 			}
 			mergeSkillCountMaps(fullGameCampaignData.skillBatch, result.skillBatch)
+			mergeSkillCountMaps(fullGameCampaignData.attributed, result.attributedSkills)
+			mergeSkillCountMaps(fullGameCampaignData.misattrib, result.misattributed)
 
 			for roleID, skills := range roleSkills {
 				if fullGameCampaignData.roleObserved[roleID] {
@@ -437,6 +445,8 @@ func runDirectedScenarioCampaign(t *testing.T) directedScenarioCampaignResult {
 		scenarios := buildDirectedScenarios()
 		directedScenarioCampaign.scenarios = scenarios
 		directedScenarioCampaign.skillBatch = make(map[string]int)
+		directedScenarioCampaign.attributed = make(map[string]int)
+		directedScenarioCampaign.misattrib = make(map[string]int)
 		directedScenarioCampaign.targetSkillSet = make(map[string]struct{})
 		directedScenarioCampaign.scenarioHitCounts = make(map[string]int)
 		directedScenarioCampaign.scenarioMissingSkills = make(map[string][]string)
@@ -467,6 +477,8 @@ func runDirectedScenarioCampaign(t *testing.T) directedScenarioCampaignResult {
 					return
 				}
 				mergeSkillCountMaps(localActivated, result.skillBatch)
+				mergeSkillCountMaps(directedScenarioCampaign.attributed, result.attributedSkills)
+				mergeSkillCountMaps(directedScenarioCampaign.misattrib, result.misattributed)
 				mergeSkillCountMaps(directedScenarioCampaign.skillBatch, result.skillBatch)
 			}
 

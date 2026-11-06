@@ -98,6 +98,12 @@ export interface ActionFlowEdgeDTO {
   label?: string
 }
 
+export interface ActionFlowEffectDTO {
+  kind: string
+  summary?: string
+  target_ids?: string[]
+}
+
 export interface ActionFlowLogDTO {
   order: number
   text: string
@@ -119,6 +125,11 @@ export interface ActionFlowNodeDTO {
   damage?: number
   damage_type?: string
   label?: string
+  cause_id?: string
+  parent_cause_id?: string
+  origin_cause_id?: string
+  deltas?: TimelineDelta[]
+  effects?: ActionFlowEffectDTO[]
 }
 
 export interface ActionStepPayload {
@@ -141,6 +152,8 @@ export interface AvailableSkill {
   require_exclusive?: boolean
   place_card?: boolean
   place_effect?: string
+  disabled?: boolean
+  disabled_reason?: string
 }
 
 export interface CardRevealedPayload {
@@ -149,6 +162,15 @@ export interface CardRevealedPayload {
   cards: Card[]
   action_type: string
   hidden: boolean
+}
+
+export interface Cause {
+  id: string
+  skill_id?: string
+  skill_name?: string
+  owner_id?: string
+  parent_id?: string
+  origin_id?: string
 }
 
 export interface CharacterView {
@@ -173,6 +195,7 @@ export interface CombatCuePayload {
   attacker_id: string
   target_id: string
   phase: string
+  card?: Card
 }
 
 export interface DamageDealtPayload {
@@ -197,6 +220,7 @@ export interface GameStateUpdate {
   subflow?: string
   current_player: string
   has_performed_startup: boolean
+  turn_number?: number
   players: Record<string, PlayerView>
   red_morale: number
   blue_morale: number
@@ -245,6 +269,8 @@ export interface PlayerView {
   buffs: Buff[]
   tokens?: Record<string, number>
   indicators?: Record<string, number>
+  cannot_cast_magic?: boolean
+  not_attack_targetable?: boolean
   current_extra_action?: string
   current_extra_element?: string[]
 }
@@ -266,6 +292,9 @@ export interface PromptDTO {
   attacker_id?: string
   counter_target_ids?: string[]
   attack_element?: string
+  attack_faction?: string
+  defend_card_ids?: string[]
+  counter_card_ids?: string[]
 }
 
 export interface PromptInteractionDTO {
@@ -284,6 +313,8 @@ export interface PromptOptionDTO {
   target_id?: string
   field_index?: number
   element?: string
+  disabled?: boolean
+  disabled_reason?: string
 }
 
 export interface ProtocolErrorPayload {
@@ -338,6 +369,7 @@ export interface SkillView {
   cost_discards: number
   discard_element?: string
   require_exclusive?: boolean
+  tags?: string[]
 }
 
 export interface SyncStatePayload {
@@ -347,6 +379,7 @@ export interface SyncStatePayload {
   subflow?: string
   turn_player_id: string
   has_performed_startup: boolean
+  turn_number?: number
   morale_red: number
   morale_blue: number
   cups_red: number
@@ -428,6 +461,7 @@ export interface TimelineEvent {
   deltas?: TimelineDelta[]
   message?: string
   gameplay_type?: string
+  cause?: Cause
 }
 
 export interface TimelineNotifyPayload {

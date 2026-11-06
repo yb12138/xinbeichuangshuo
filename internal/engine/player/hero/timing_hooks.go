@@ -99,6 +99,7 @@ func turnStartExhaustionReleaseHook(rt player.HookRuntime, ctx player.TimingHook
 		Damage:     3,
 		DamageType: model.MagicAttack,
 	})
+	player.NotifySkillActivated(rt, p, p.ID, "hero_exhaustion", p.ID)
 	rt.EnterDamageResolution(model.TurnStageTurnStart)
 	return player.TimingHookResult{Interrupted: true}
 }

@@ -14,17 +14,15 @@ import (
 type choiceHandler struct{}
 
 const (
-	deathTouchFlowID      = "plague_death_touch"
-	deathTouchStepElement = "element"
-	deathTouchStepX       = "x"
-	deathTouchStepCards   = "cards"
-	deathTouchStepTarget  = "target"
+	deathTouchFlowID     = "plague_death_touch"
+	deathTouchStepX      = "x"
+	deathTouchStepCards  = "cards"
+	deathTouchStepTarget = "target"
 )
 
 var deathTouchFlowRuntime = func() *model.PromptFlowRuntime {
 	rt, err := model.NewPromptFlowRuntime(deathTouchFlowID, []model.PromptFlowStepSpec{
-		{ID: deathTouchStepElement, ChoiceType: "plague_death_touch_element", CancelPolicy: model.CancelPolicyAbort},
-		{ID: deathTouchStepX, ChoiceType: "plague_death_touch_x", CancelPolicy: model.CancelPolicyBack},
+		{ID: deathTouchStepX, ChoiceType: "plague_death_touch_x", CancelPolicy: model.CancelPolicyAbort},
 		{ID: deathTouchStepCards, ChoiceType: "plague_death_touch_cards", CancelPolicy: model.CancelPolicyBack},
 		{ID: deathTouchStepTarget, ChoiceType: "plague_death_touch_target", CancelPolicy: model.CancelPolicyAbort},
 	})
@@ -40,25 +38,6 @@ func NewChoiceHandler() engineplayer.ChoiceHandler {
 
 func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, playerID string, player *model.Player, data map[string]interface{}) *model.Prompt {
 	switch choiceType {
-	case "plague_death_touch_element":
-		elements := runtimeutil.ParseStringSliceContextValue(data["elements"])
-		options := make([]model.PromptOption, 0, len(elements))
-		for i, ele := range elements {
-			options = append(options, model.PromptOption{
-				ID:      fmt.Sprintf("%d", i),
-				Label:   fmt.Sprintf("%s系", promptfmt.ElementName(ele)),
-				Element: ele,
-			})
-		}
-		return &model.Prompt{
-			Type:         model.PromptConfirm,
-			PlayerID:     playerID,
-			Message:      "【死亡之触】请选择弃置同系牌的元素：",
-			Options:      options,
-			Min:          1,
-			Max:          1,
-			Presentation: &model.PromptPresentation{Kind: model.PresentationCardPicker, Layout: "inline", CardSource: "hand", CardFilter: "plague_death_touch_element", CancelPolicy: "abort"},
-		}
 	case "plague_death_touch_x":
 		maxHeal := runtimeutil.ToIntContextValue(data["max_heal"])
 		options := make([]model.PromptOption, 0, maxHeal-1)
@@ -78,12 +57,8 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 			Presentation: &model.PromptPresentation{Kind: model.PresentationNumeric, NumericBase: 0},
 		}
 	case "plague_death_touch_cards":
-		flow, err := model.RequirePromptFlow(data, deathTouchFlowID, "死亡之触")
-		if err != nil {
-			return nil
-		}
-		chosenElement := flow.Selection(deathTouchStepElement).Element
-		cardIndices := engineplayer.GetCardIndicesByElement(player, model.Element(chosenElement))
+		// 系别不再单独声明：直接列出所有"同系至少2张"的手牌，由玩家一次选出 ≥2 张同系牌。
+		cardIndices := deathTouchCandidateCardIndices(player)
 		options := make([]model.PromptOption, 0, len(cardIndices))
 		for _, idx := range cardIndices {
 			card := player.Hand[idx]
@@ -121,7 +96,7 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 		return &model.Prompt{
 			Type:         model.PromptConfirm,
 			PlayerID:     playerID,
-			Message:      "【死亡之触】请选择1名敌方角色承受法术伤害：",
+			Message:      "【死亡之触】请选择1名目标角色承受法术伤害：",
 			Options:      options,
 			Min:          1,
 			Max:          1,
@@ -135,8 +110,6 @@ func (choiceHandler) BuildPrompt(rt engineplayer.ChoiceRuntime, choiceType, play
 func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selectionIndex int, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
-	case "plague_death_touch_element":
-		return true, handlePlagueDeathTouchElementChoice(rt, ctxData, selectionIndex)
 	case "plague_death_touch_x":
 		return true, handlePlagueDeathTouchXChoice(rt, ctxData, selectionIndex)
 	case "plague_death_touch_target":
@@ -149,39 +122,12 @@ func (choiceHandler) HandleChoice(rt engineplayer.ChoiceRuntime, _ string, selec
 func (choiceHandler) HandleCancel(rt engineplayer.ChoiceRuntime, playerID string, ctxData map[string]interface{}) (bool, error) {
 	choiceType, _ := ctxData["choice_type"].(string)
 	switch choiceType {
-	case "plague_death_touch_element", "plague_death_touch_x",
+	case "plague_death_touch_x",
 		"plague_death_touch_cards", "plague_death_touch_target":
 		return true, cancelPlagueDeathTouchChoice(rt, playerID, ctxData)
 	default:
 		return false, nil
 	}
-}
-
-func handlePlagueDeathTouchElementChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
-	userID, _ := ctxData["user_id"].(string)
-	user := rt.GetPlayers()[userID]
-	if user == nil {
-		return fmt.Errorf("玩家不存在")
-	}
-
-	elements := runtimeutil.ParseStringSliceContextValue(ctxData["elements"])
-	if selectionIndex < 0 || selectionIndex >= len(elements) {
-		return fmt.Errorf("无效的选项索引: %d", selectionIndex)
-	}
-
-	chosenElement := elements[selectionIndex]
-	flow, err := model.RequirePromptFlow(ctxData, deathTouchFlowID, "死亡之触")
-	if err != nil {
-		return err
-	}
-	flow.PutSelection(deathTouchStepElement, model.PromptFlowSelection{
-		OptionIndexes: []int{selectionIndex},
-		Element:       chosenElement,
-	})
-	if err := engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, deathTouchFlowRuntime, flow, deathTouchStepX); err != nil {
-		return err
-	}
-	return nil
 }
 
 func handlePlagueDeathTouchXChoice(rt engineplayer.ChoiceRuntime, ctxData map[string]interface{}, selectionIndex int) error {
@@ -222,13 +168,23 @@ func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID st
 	if err != nil {
 		return false, err
 	}
-	chosenElement := flow.Selection(deathTouchStepElement).Element
-	for _, idx := range selections {
+	seen := make(map[int]bool, len(selections))
+	var chosenElement model.Element
+	for i, idx := range selections {
 		if idx < 0 || idx >= len(user.Hand) {
 			return false, fmt.Errorf("无效的选项索引: %d", idx)
 		}
+		if seen[idx] {
+			return false, fmt.Errorf("死亡之触不能重复选择同一张牌")
+		}
+		seen[idx] = true
 		card := user.Hand[idx]
-		if string(card.Element) != chosenElement {
+		if card.Element == "" {
+			return false, fmt.Errorf("死亡之触需弃置同系牌")
+		}
+		if i == 0 {
+			chosenElement = card.Element
+		} else if card.Element != chosenElement {
 			return false, fmt.Errorf("死亡之触需弃置同系牌")
 		}
 	}
@@ -245,7 +201,7 @@ func handleDeathTouchCardsMultiSelect(rt engineplayer.ChoiceRuntime, playerID st
 		err := resolvePlagueDeathTouchFinal(rt, ctxData, targetID)
 		return err == nil, err
 	}
-	targetIDs := campEnemyIDs(rt, user)
+	targetIDs := deathTouchTargetIDs(rt)
 	flow.PutSelection(deathTouchStepTarget, model.PromptFlowSelection{TargetIDs: targetIDs})
 	return true, engineplayer.AdvancePromptFlowRuntimeChoice(rt, ctxData, deathTouchFlowRuntime, flow, deathTouchStepTarget)
 }
@@ -285,16 +241,16 @@ func resolvePlagueDeathTouchFinal(rt engineplayer.ChoiceRuntime, ctxData map[str
 	xValue := flow.Selection(deathTouchStepX).Count
 	yValue := flow.Selection(deathTouchStepCards).Count
 
+	// 先校验治疗是否足够，再移走手牌，避免校验失败时牌已进入弃牌堆。
+	if user.Heal < xValue {
+		return fmt.Errorf("治疗不足，无法移除X=%d", xValue)
+	}
 	removed, err := engineplayer.RemoveCardsByIndicesFromHand(user, selected)
 	if err != nil {
 		return err
 	}
 	rt.NotifyCardRevealed(user.ID, removed, "discard")
 	rt.AppendToDiscard(removed)
-
-	if user.Heal < xValue {
-		return fmt.Errorf("治疗不足，无法移除X=%d", xValue)
-	}
 	user.Heal -= xValue
 
 	damage := xValue + yValue - 3
@@ -306,11 +262,10 @@ func resolvePlagueDeathTouchFinal(rt engineplayer.ChoiceRuntime, ctxData map[str
 	user.TurnState.LastActionType = string(model.ActionMagic)
 	user.TurnState.LastActionCard = nil
 	rt.AddPendingDamage(model.PendingDamage{
-		SourceID:           user.ID,
-		TargetID:           targetID,
-		Damage:             damage,
-		DamageType:         model.MagicAttack,
-		CapDrawToHandLimit: true,
+		SourceID:   user.ID,
+		TargetID:   targetID,
+		Damage:     damage,
+		DamageType: model.MagicAttack,
 	})
 
 	rt.PopInterrupt()
@@ -347,19 +302,35 @@ func cancelPlagueDeathTouchChoice(rt engineplayer.ChoiceRuntime, playerID string
 
 // Helper functions for plague_mage
 
-func campEnemyIDs(rt engineplayer.ChoiceRuntime, user *model.Player) []string {
-	if user == nil {
-		return nil
-	}
+// deathTouchTargetIDs 死亡之触文案为"目标角色"：场上任意角色（含自己）。
+func deathTouchTargetIDs(rt engineplayer.ChoiceRuntime) []string {
 	var ids []string
 	for _, pid := range rt.GetPlayerOrder() {
-		p := rt.GetPlayers()[pid]
-		if p == nil || p.Camp == user.Camp {
-			continue
+		if p := rt.GetPlayers()[pid]; p != nil {
+			ids = append(ids, p.ID)
 		}
-		ids = append(ids, p.ID)
 	}
 	return ids
+}
+
+// deathTouchCandidateCardIndices 返回手牌中所在系别至少有2张的牌的下标（按手牌顺序）。
+func deathTouchCandidateCardIndices(player *model.Player) []int {
+	if player == nil {
+		return nil
+	}
+	counts := map[model.Element]int{}
+	for _, c := range player.Hand {
+		if c.Element != "" {
+			counts[c.Element]++
+		}
+	}
+	var out []int
+	for i, c := range player.Hand {
+		if c.Element != "" && counts[c.Element] >= 2 {
+			out = append(out, i)
+		}
+	}
+	return out
 }
 
 var _ engineplayer.CancelChoiceHandler = choiceHandler{}
